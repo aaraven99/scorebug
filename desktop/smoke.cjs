@@ -83,6 +83,23 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
   let deadline;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
+  const readDragRegions = () => evaluate(`(() => {
+    const existing = document.querySelector('.widget-board .bug-team');
+    let probe;
+    if (!existing) {
+      // Keep this check independent of whether ESPN has returned a game yet.
+      probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      probe.innerHTML = '<g class="bug-team" role="button"><path d="M0 0h20v20H0Z"/></g>';
+      document.querySelector('.widget-board').append(probe);
+    }
+    const region = (element) => getComputedStyle(element).getPropertyValue('app-region') || getComputedStyle(element).getPropertyValue('-webkit-app-region');
+    const result = {
+      team: region(existing || probe.firstElementChild),
+      toolbar: region(document.querySelector('.widget-toolbar button'))
+    };
+    probe?.remove();
+    return result;
+  })()`);
   try {
     await Promise.race([
       (async () => {
@@ -98,6 +115,8 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(await evaluate('typeof window.require'), 'undefined');
         assert.equal(await evaluate('typeof window.process'), 'undefined');
         check('Real widget DOM, isolated preload and validated getState IPC');
+        assert.deepEqual(await readDragRegions(), { team: 'drag', toolbar: 'no-drag' });
+        check('Colored team panels remain native drag targets while toolbar buttons stay clickable');
 
         assert.equal(widget.isAlwaysOnTop(), true);
         assert.equal(widget.isResizable(), false);
@@ -168,6 +187,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         await evaluate('window.scorebugDesktop.setPreferences({ locked: true })');
         await waitFor('Locked state in the renderer', () => evaluate(`document.body.dataset.locked === 'true' && document.documentElement.dataset.desktopLocked === 'true'`), 3000);
         assert.equal((await evaluate('window.scorebugDesktop.getState()')).locked, true);
+        assert.deepEqual(await readDragRegions(), { team: 'no-drag', toolbar: 'no-drag' });
         if (process.platform === 'win32' || process.platform === 'darwin') assert.equal(widget.isMovable(), false);
         assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).locked, true);
         await evaluate('window.scorebugDesktop.setPreferences({ locked: false, anchor: "bottom-center" })');
@@ -210,7 +230,9 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(detailState.preferences.orientation, 'vertical');
         assert.equal(detailState.detailsVisible, true);
         assert.equal(detailState.detailsSide, 'away');
-        await panel.webContents.executeJavaScript('window.__observedDetailsSide = null; window.scorebugDesktop.onDetailsSideChanged((side) => { window.__observedDetailsSide = side; });');
+        // executeJavaScript clones its result back to the main process; the
+        // subscription returns a function, which must remain in the renderer.
+        await panel.webContents.executeJavaScript('window.__observedDetailsSide = null; window.scorebugDesktop.onDetailsSideChanged((side) => { window.__observedDetailsSide = side; }); void 0;');
         await evaluate('window.scorebugDesktop.showDetails("home")');
         await waitFor('Switching team in the same details renderer', () => panel.webContents.executeJavaScript('window.__observedDetailsSide === "home"'), 3000);
         assert.equal(getDetails(), panel, 'Switching teams recreated the details window');

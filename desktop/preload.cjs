@@ -37,13 +37,18 @@ window.addEventListener('DOMContentLoaded', () => {
   // Only the compact widget is draggable. Settings remain a normal app window.
   if (location.pathname === '/widget.html') {
     const style = document.createElement('style');
+    // Team panels keep their keyboard button semantics, but are native drag
+    // handles. Their mouse-hover details are handled by the main cursor monitor.
     style.textContent = `
       html, body { background: transparent !important; }
-      body { -webkit-app-region: drag; app-region: drag; user-select: none; }
-      button, a, input, select, textarea, [role="button"], [data-no-drag] {
+      body { user-select: none; }
+      body, .bug-team { -webkit-app-region: drag; app-region: drag; }
+      button, a, input, select, textarea, [role="button"]:not(.bug-team), [data-no-drag] {
         -webkit-app-region: no-drag; app-region: no-drag;
       }
-      html[data-desktop-locked="true"] body { -webkit-app-region: no-drag; app-region: no-drag; }
+      html[data-desktop-locked="true"] body, html[data-desktop-locked="true"] .bug-team {
+        -webkit-app-region: no-drag; app-region: no-drag;
+      }
     `;
     document.head.append(style);
   }
