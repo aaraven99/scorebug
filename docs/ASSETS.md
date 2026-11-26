@@ -2,7 +2,9 @@
 
 ## NFL team logos
 
-The original PNG files in `public/logos/` were retrieved on November 26, 2026 from ESPN's [NFL teams catalog](https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=40). They are bundled with the app so the scoreboard remains visually complete when a browser cannot access ESPN's image CDN. Image pixels are unmodified, and the renderer preserves their aspect ratios. Chicago uses ESPN’s officially listed secondary C logo to suit the classic broadcast layout; the other teams use the catalog’s default logos.
+The original PNG files in `public/logos/` were retrieved on November 26, 2026. Thirty-one use artwork listed in ESPN's [NFL teams catalog](https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=40); Chicago uses the catalog's secondary C logo. The Rams use the original full-color monogram from the team's own brand asset archive, as described below. They are bundled so the scorebug can display every team without fetching images from a remote CDN.
+
+The source PNG bytes and colors are unmodified. The renderer fits each mark's measured nontransparent bounds into the available space, preserves its aspect ratio, and leaves the surrounding desktop transparent. This corrects the excessive square padding that previously made wide marks too small. The Giants and Jets receive a thin light contour only within their team panels so their blue and green artwork stays visible against the matching background. Other marks use their original outlines and a small shadow; no logo is converted to monochrome or placed in a white box.
 
 Team names and logos belong to their respective teams and/or the NFL. They identify teams in this unofficial scoreboard. This project is not affiliated with or endorsed by the NFL, its teams, ESPN, or FOX, and does not grant a license to those marks. The source URLs below identify the artwork used.
 
@@ -26,7 +28,7 @@ Team names and logos belong to their respective teams and/or the NFL. They ident
 | `public/logos/kc.png` | Kansas City Chiefs | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/kc.png) |
 | `public/logos/lv.png` | Las Vegas Raiders | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/lv.png) |
 | `public/logos/lac.png` | Los Angeles Chargers | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/lac.png) |
-| `public/logos/lar.png` | Los Angeles Rams | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/lar.png) |
+| `public/logos/lar.png` | Los Angeles Rams | [Official team brand archive](https://www.dropbox.com/scl/fi/813nkeu7ovhdz551pj5bc/Los-Angeles-Rams-Brand-Assets.zip?rlkey=z2hidixhowlioon9gximtfq1g&dl=0), full-color light-background monogram |
 | `public/logos/mia.png` | Miami Dolphins | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/mia.png) |
 | `public/logos/min.png` | Minnesota Vikings | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/min.png) |
 | `public/logos/ne.png` | New England Patriots | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/ne.png) |
@@ -41,16 +43,29 @@ Team names and logos belong to their respective teams and/or the NFL. They ident
 | `public/logos/ten.png` | Tennessee Titans | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/ten.png) |
 | `public/logos/wsh.png` | Washington Commanders | [ESPN PNG](https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png) |
 
+
+### Rams color correction
+
+ESPN's current default Rams PNG is a single-color blue mark. That color came from the downloaded artwork, rather than a filter in this app. The team's [April 2026 announcement](https://www.therams.com/news/rams-unveil-uniform-brand-refresh-ahead-of-2026-season) documents the move away from the older gradient treatment.
+
+To match the user's requested blue **LA** and yellow/gold horn, this app deliberately uses the classic full-color mark. It is the unmodified `PNGs/Full Color/Monogram/Rams_Monogram_lt-bkgrd.png` inside the official team archive linked on page 35 of the [Rams Brand Book and Guidelines](https://stage-static.clubs.nfl.com/image/upload/browns/fw6klbpa6smlcmbemfhx.pdf). Page 6 of that same guide shows the full-color artwork and color variants. Its original white contour keeps the blue letters readable on the scorebug's blue panel; no extra recoloring or background was added.
+
+### Logo verification
+
+All 32 marks were inspected on both light and dark backgrounds, then in the actual team-color gradients at a 520px horizontal scorebug width and a 160px vertical width. The final checks covered visible colors, recognizable silhouettes, preserved proportions, and clearance from the score and timeout row. Wide marks now use their available space, and tall marks no longer touch the upper panel edge. This was a Chromium rendering check; it does not claim native Windows runtime validation.
+
+[The verification manifest](team-logo-verification-v12.json) records each bundled PNG's source and SHA-256. Source URLs can change over time; these hashes identify the exact versions shipped here.
+
 ## Score font
 
-`public/fonts/Saira-Italic.ttf` is **Saira**, designed by Omnibus-Type, from the [official Google Fonts repository](https://github.com/google/fonts/blob/main/ofl/saira/Saira-Italic%5Bwdth%2Cwght%5D.ttf). The unmodified variable font was retrieved on November 26, 2026. Its file name is shortened locally; its internal names and outlines are unchanged.
+`public/fonts/Tomorrow-ExtraBoldItalic.ttf` and `public/fonts/Tomorrow-BoldItalic.ttf` are **Tomorrow** by the Tomorrow Project Authors, from the [official Google Fonts repository](https://github.com/google/fonts/tree/main/ofl/tomorrow). The unmodified font files were retrieved on November 26, 2026; their internal names and outlines are unchanged.
 
-Saira is distributed under the SIL Open Font License 1.1; the complete [license and copyright notice are included](../public/fonts/Saira-OFL.txt). This font contains genuine italic outlines with a −12° italic angle, a weight axis from 100 to 900, and a width axis from 50 to 125. The scorebug uses heavy, condensed settings; the italic form comes from the font itself.
+Tomorrow is distributed under the SIL Open Font License 1.1; the complete [license and copyright notice are included](../public/fonts/Tomorrow-OFL.txt). The two static faces contain genuine italic outlines with a −10° italic angle and weight classes 800 and 700. The scorebug uses ExtraBold for score numerals and Bold for smaller situation text; the italic form comes from the font itself.
 
 This is an approximation of the supplied broadcast reference. An exact font match for the older FOX numerals could not be verified from a primary source. No commercial Industry font or proprietary FOX font is included. See [the font research notes](FONT-RESEARCH.md) for primary sources, verified font properties, and file hashes.
 
 ## Scorebug design
 
-The code recreates the user's supplied classic broadcast scorebug reference, with transparent outer edges, the requested centered game clock, and no unsupported play-clock field. The left-center and right-center native positions use a vertical adaptation of that layout. The hover card's miniature field is drawn in SVG from normalized reported ball-position data; it is a schematic rather than a broadcast image or tracked-player visualization.
+The code recreates the user's supplied classic broadcast scorebug reference, with team-color gradients, thin silver-gray bevels around the graphic's panels, and a transparent exterior. The centered game clock, reported ball yard line, labeled timeout counts, and larger football possession symbol are rendered directly in SVG. There is no unsupported play-clock field. The left-center and right-center native positions use a vertical adaptation of that layout. Compact team-specific stats extensions inherit each team's color and show reported field-position and play text.
 
 No FOX wordmark or other broadcaster identity is included. The layout does not represent an official FOX widget or data service.

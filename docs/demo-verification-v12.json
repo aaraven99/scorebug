@@ -1,0 +1,265 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-11-26T22:20:11.592Z",
+  "browser": "158.0.8127.0",
+  "method": "Real headless Chromium/Playwright against an isolated createScorebugServer in the same Node process; deterministic intercepted API fixtures. No live scores or user preferences were modified.",
+  "desktopCases": [
+    {
+      "team": "away",
+      "event": "touchdown",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "field-goal",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "safety",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "extra-point",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "two-point",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "interception",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "fumble",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "big-play",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "away",
+      "event": "score",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "touchdown",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "field-goal",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "safety",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "extra-point",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "two-point",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "interception",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "fumble",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "big-play",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    },
+    {
+      "team": "home",
+      "event": "score",
+      "visibleDemo": true,
+      "teamMatched": true,
+      "scoresUnchanged": true
+    }
+  ],
+  "additionalChecks": [
+    {
+      "rapidReplacement": true,
+      "latestPreview": "field-goal",
+      "staleTimerDidNotHidePreview": true
+    },
+    {
+      "clearsOnMatchupAndReferenceChange": true
+    },
+    {
+      "realPollingEventSupersedesDemo": true,
+      "simulatedTransition": "CHI 17→23; DET14"
+    },
+    {
+      "mobileWidth": 390,
+      "cases": [
+        {
+          "event": "touchdown",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "field-goal",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "safety",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "extra-point",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "two-point",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "interception",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "fumble",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "big-play",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        },
+        {
+          "event": "score",
+          "noPageOverflow": true,
+          "copyFitsOverlay": true,
+          "scoresUnchanged": true
+        }
+      ]
+    },
+    {
+      "noGameFallbackExplicitlyLabeled": true,
+      "sampleScoresUnchanged": true,
+      "canReturnToEmptyLiveView": true
+    },
+    {
+      "nativeSettingsMock": true,
+      "settingsTitleAndModeCorrect": true,
+      "sharedDemoControlsWork": true
+    },
+    {
+      "sampleOverlayAlignment": [
+        {
+          "viewportWidth": 1280,
+          "overlayAlignedToTeamRow": true,
+          "copyFitsOverlay": true,
+          "noPageOverflow": true,
+          "screenshot": "demo-v12-no-game-sample.png"
+        },
+        {
+          "viewportWidth": 390,
+          "overlayAlignedToTeamRow": true,
+          "copyFitsOverlay": true,
+          "noPageOverflow": true,
+          "screenshot": "demo-v12-no-game-sample-mobile.png"
+        }
+      ]
+    }
+  ],
+  "browserErrors": [],
+  "screenshots": [
+    "demo-v12-desktop-two-point.png",
+    "demo-v12-live-priority.png",
+    "demo-v12-mobile-two-point.png",
+    "demo-v12-mobile-fumble.png",
+    "demo-v12-no-game-sample.png",
+    "demo-v12-windows-settings.png",
+    "demo-v12-no-game-sample-mobile.png"
+  ],
+  "screenshotDirectory": "../scorebug-qa-visuals",
+  "visualInspection": {
+    "status": "Passed after sample-overlay alignment correction.",
+    "inspectedAt": "2026-11-26T22:22:09.409Z",
+    "inspectedScreenshots": [
+      "demo-v12-desktop-two-point.png",
+      "demo-v12-live-priority.png",
+      "demo-v12-mobile-two-point.png",
+      "demo-v12-mobile-fumble.png",
+      "demo-v12-no-game-sample.png",
+      "demo-v12-windows-settings.png",
+      "demo-v12-no-game-sample-mobile.png"
+    ],
+    "observations": [
+      "Desktop layout and DEMO label are clear; all selected animation titles render correctly.",
+      "At390px, long two-point and fumble titles fit; demo badge, team detail, and game clock remain visible with no horizontal overflow.",
+      "Windows settings uses the shared demo controls, correct settings title, and Windows app mode.",
+      "The sample-matchup animation overlay now aligns with the team row at1280px and390px; the design-preview label and game clock remain unobscured."
+    ]
+  }
+}

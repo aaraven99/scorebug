@@ -1,0 +1,97 @@
+{
+  "version": "1.2.0",
+  "checkedAt": "2026-11-26T22:18:30.813Z",
+  "checks": [
+    {
+      "name": "Real ESPN scoreboard through local API",
+      "detail": {
+        "games": 16,
+        "source": "ESPN"
+      }
+    },
+    {
+      "name": "Real ESPN summary and event metadata",
+      "detail": {
+        "stats": 6,
+        "eventPlays": 24
+      }
+    },
+    {
+      "name": "Timeout counts, possession, centered clock, and ball position render",
+      "detail": true
+    },
+    {
+      "name": "Away hover expands left with six compact team-colored stats",
+      "detail": true
+    },
+    {
+      "name": "Home hover switches the existing card to the right without clipping",
+      "detail": true
+    },
+    {
+      "name": "Clock hover does not open a large menu",
+      "detail": true
+    },
+    {
+      "name": "Team stats support keyboard open and dismiss",
+      "detail": true
+    },
+    {
+      "name": "Transparent horizontal layout at 65%",
+      "detail": true
+    },
+    {
+      "name": "Transparent horizontal layout at 100%",
+      "detail": true
+    },
+    {
+      "name": "Transparent horizontal layout at 180%",
+      "detail": true
+    },
+    {
+      "name": "Transparent vertical layout at 65%",
+      "detail": true
+    },
+    {
+      "name": "Transparent vertical layout at 100%",
+      "detail": true
+    },
+    {
+      "name": "Transparent vertical layout at 180%",
+      "detail": true
+    },
+    {
+      "name": "Background summary polling starts without opening stats; initial load is silent",
+      "detail": true
+    },
+    {
+      "name": "New touchdown animates while real score and clock continue updating",
+      "detail": true
+    },
+    {
+      "name": "Duplicate polls do not replay touchdown",
+      "detail": true
+    },
+    {
+      "name": "Big-play event reaches visible banner",
+      "detail": true
+    },
+    {
+      "name": "Own-team fumble recovery stays silent",
+      "detail": true
+    },
+    {
+      "name": "Confirmed fumble turnover reaches visible banner",
+      "detail": true
+    },
+    {
+      "name": "Score failure preserves last scores with visible delayed status",
+      "detail": true
+    },
+    {
+      "name": "No browser runtime errors",
+      "detail": true
+    }
+  ],
+  "errors": []
+}
