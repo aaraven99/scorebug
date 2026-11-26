@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-11-26T22:14:11.451Z",
+  "source": {
+    "provider": "ESPN public NFL summary",
+    "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=401873081",
+    "capturedAt": "2026-11-26T22:03:59.646Z",
+    "gameId": "401873081",
+    "game": "Chicago Bears at Detroit Lions",
+    "reportedPhase": "final"
+  },
+  "method": {
+    "description": "Replay the published chronological play records through the production normalizers and event tracker. Hold the game in live phase during replay and supply a heartbeat every 10 seconds between plays; each step supplies that play's published cumulative scores. This is a deterministic historical replay, not a claim about end-to-end broadcast latency.",
+    "heartbeatMs": 10000,
+    "playRecords": 202,
+    "summaryEventLimit": 24,
+    "hoverPlayLimit": 3
+  },
+  "results": {
+    "finalScore": {
+      "CHI": 39,
+      "DET": 35
+    },
+    "animatedScoringPoints": {
+      "CHI": 39,
+      "DET": 35
+    },
+    "countsByKind": {
+      "big-play": 9,
+      "extra-point": 7,
+      "field-goal": 3,
+      "fumble": 1,
+      "interception": 1,
+      "safety": 1,
+      "touchdown": 9,
+      "two-point": 1
+    },
+    "totalNotices": 32,
+    "scoringPointsMatchFinal": true,
+    "missedExtraPointsInSource": 1,
+    "missedExtraPointNotices": 0,
+    "ownFumbleRecoveriesInSource": 1,
+    "ownRecoveryTurnoverNotices": 0,
+    "safetyMisclassifiedAsFumble": false
+  },
+  "offlineRegressionCoverage": {
+    "eventTrackerTests": 19,
+    "activityBridgeTests": 8,
+    "summaryPollerTests": 4,
+    "covered": [
+      "Initial hydration and game/date switches are silent",
+      "Same-ID and separate-ID touchdown/conversion records",
+      "Scoreboard-first and summary-first arrival order",
+      "Generic fallback does not duplicate a late typed score",
+      "Confirmed turnovers only; own recoveries and punts are excluded",
+      "Rush threshold 20 yards; reception threshold 25 yards",
+      "Score correction and rebound suppression",
+      "Primary-score freshness gates summary-driven tracking",
+      "Summary arriving first after sleep cannot replay stale scoring deltas",
+      "Abort/generation handling during game switches and restart",
+      "Native fetch global receiver is preserved"
+    ]
+  },
+  "limitations": [
+    "The source payload was a completed-game public feed. Historical replay verifies data interpretation and event accounting; it does not measure ESPN live update latency or OS notification timing.",
+    "Fixture and activity tests separately cover same-ID updates and asynchronous feed ordering; those timing races cannot be reconstructed from one final summary."
+  ]
+}

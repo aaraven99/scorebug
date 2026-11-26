@@ -1,26 +1,59 @@
-# Put the update in your existing GitHub repository
+# GitHub updates and releases
 
-## What the connection error means
+The project is [aaraven99/scorebug](https://github.com/aaraven99/scorebug).
 
-The attempted write returned GitHub's `403 Resource not accessible by integration`. Owning `aaraven99/scorebug` gives your account rights; the connected app still needs its own authorization. The earlier wording, “give the GitHub connection write access,” was imprecise.
+## Update the code
 
-[OpenAI's GitHub connection guide](https://help.openai.com/en/articles/11145903-connecting-github-to-chatgpt) describes the standard ChatGPT GitHub app as read-only and directs editing/pushing workflows to Codex. Reconnecting or selecting a repository does not turn that read-only app into a write-enabled app. The error alone does not identify which integration permission is missing.
+Use your existing clone in **GitHub Desktop**, or edit files through the signed-in GitHub website. Pull the latest changes, make your edits, review them, then commit and push. Follow any branch rules shown by GitHub.
 
-The signed-in GitHub website has its own authenticated session. It can provide a writable path without changing the connected app's permissions. The GitHub Desktop steps below are an alternative for uploading future changes from your computer.
+The Windows workflow runs for pull requests and relevant updates to `main`. It checks the data code, web build, geometry, and actual Windows widget before it creates the downloads. The connected Vercel project can deploy `main` separately.
 
-## GitHub Desktop: update `aaraven99/scorebug`
+A GitHub website login and a connected app have separate permissions. If a connected app returns `403 Resource not accessible by integration`, using the signed-in website or GitHub Desktop is an available way to update this repository. You do not need the connected app to download or run Scorebug.
 
-1. Open [GitHub Desktop](https://desktop.github.com/) and sign in to the GitHub account that owns the repository.
-2. Choose **File → Clone repository → URL**. Enter `https://github.com/aaraven99/scorebug`, choose a folder, then click **Clone**. If you already have this repository in Desktop, select it instead, then **Fetch origin** and **Pull origin** if available.
-3. Select the repository's default branch in **Current Branch**. Open the cloned folder in File Explorer.
-4. Extract the supplied source ZIP elsewhere. Copy the project contents—the folder containing `package.json`, `public`, `api`, and `desktop`—into the cloned repository folder, replacing the matching project files. The project files should sit directly in the clone, not inside an extra nested `scorebug` folder. Keep the clone's Git metadata; do not copy dependencies such as `node_modules` or build output.
-5. Return to Desktop. Review the **Changes** list. Enter a summary such as `Refine scorebug transparency, hover details, and typography`, then click **Commit to [branch]**.
-6. Click **Push origin**. Open the repository on GitHub and verify the new commit and changed files.
+## Publish a new download
 
-If branch rules require a pull request, use Desktop's new-branch flow, publish that branch, and create the pull request rather than bypassing the rules. If you prefer Codex, open the existing repository in an authenticated Codex workspace that can push and apply the prepared source files there.
+You can publish entirely through GitHub's website:
 
-Official instructions: [clone an existing repository](https://docs.github.com/en/desktop/adding-and-cloning-repositories/cloning-and-forking-repositories-from-github-desktop), [review and commit changes](https://docs.github.com/en/desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project-in-github-desktop), and [sync your branch](https://docs.github.com/en/desktop/working-with-your-remote-repository-on-github-or-github-enterprise/syncing-your-branch-in-github-desktop).
+1. Set a new, matching version in the root and desktop `package.json` and lockfiles, then merge those changes into `main`.
+2. Open **Actions → Build Windows desktop app → Run workflow**.
+3. Select the **main** branch and check **Publish the tested main commit as the latest Windows release**.
+4. Click **Run workflow**. The workflow tests and builds that exact commit, uploads the verified files to a draft, and then publishes it as the latest release.
 
-## Check which repositories the connection can read
+The publish checkbox defaults to off. Leaving it unchecked builds downloadable Actions artifacts without publishing a release. Publication from this manual action is allowed only on `main`; no separate tag or empty release needs to be created in the browser.
 
-Open [GitHub's installed-app settings](https://github.com/settings/installations). Beside the relevant ChatGPT/Codex app, choose **Configure**. Under **Repository access**, ensure `scorebug` is selected, then **Save**. Review **Permissions** to see the app's existing grants. This controls repository selection; it does not add permission types that the app does not request. See [GitHub's official installed-app guide](https://docs.github.com/en/apps/using-github-apps/reviewing-and-modifying-installed-github-apps).
+### Publish with a tag instead
+
+Pushing a matching version tag also runs the full Windows checks and release process. From an authenticated clone:
+
+
+```sh
+git tag v1.2.0 VERIFIED_COMMIT_SHA
+git push origin v1.2.0
+```
+
+Use the version and commit you intend to publish. The workflow rejects a tag that does not match the package versions or points to a different commit from the tested artifact.
+
+Each successful Windows run uploads **Scorebug-Windows-x64** with:
+
+- **Scorebug-Portable-Windows.zip** — the EXE, a short start guide, and checksums.
+- **Scorebug-Setup-Windows.exe** — an optional installer.
+- **SHA256SUMS.txt** — checksums for the two downloads.
+- **release-info.json** — the build’s version, source commit, and asset hashes.
+
+Only the release job receives repository write permission, after all Windows checks, the native smoke test, and packaging succeed. It uses this same run's artifact, verifies its source commit, checks every file's size and SHA-256 hash, and publishes only after the uploaded files match. Drafts are located by authenticated release listing and retained numeric IDs, so an unfinished draft can be resumed.
+
+If an upload or publication request fails, use **Re-run failed jobs** on that workflow run. The release job reuses the same verified build and replaces incomplete or mismatched uploads only while the release remains a draft. A published release with matching files is left unchanged. Different files in an already-published release, including an immutable release, cause a clear failure: bump the version for a new release. Do not move an existing version tag or expect a fresh rebuild to have identical ZIP hashes.
+
+## Permanent download links
+
+The README and website use these links, so users do not need to search Actions or sign in:
+
+- [Latest portable app](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Portable-Windows.zip)
+- [Latest installer](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe)
+- [Release notes and older versions](https://github.com/aaraven99/scorebug/releases)
+
+The desktop app is unsigned. Publishing a release does not change that.
+
+## References
+
+[GitHub Desktop: commit and push](https://docs.github.com/en/desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project-in-github-desktop) · [Manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow) · [GitHub release API](https://docs.github.com/en/rest/releases/releases) · [Release asset API](https://docs.github.com/en/rest/releases/assets)

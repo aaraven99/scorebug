@@ -44,6 +44,38 @@ $extendedStyle = [ScorebugWindowStyle]::GetWindowLongPtr($hwnd, -20).ToInt64()
   return JSON.parse(stdout.trim());
 }
 
+async function windowsMoveAndRelease(win, { x, y }) {
+  const buffer = win.getNativeWindowHandle();
+  const handle = buffer.length >= 8 ? buffer.readBigUInt64LE().toString() : String(buffer.readUInt32LE());
+  // Exercise the actual HWND message hooks and resulting move events. Calling
+  // setPreferences({anchor}) alone never tests release-to-snap behavior.
+  const source = `
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class ScorebugWindowMove {
+  [DllImport("user32.dll")]
+  public static extern IntPtr SendMessage(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll", SetLastError = true)]
+  public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+}
+'@
+$hwnd = [IntPtr]::new([long]'${handle}')
+[void][ScorebugWindowMove]::SendMessage($hwnd, 0x0231, [IntPtr]::Zero, [IntPtr]::Zero)
+try {
+  if (-not [ScorebugWindowMove]::SetWindowPos($hwnd, [IntPtr]::Zero, ${Math.round(x)}, ${Math.round(y)}, 0, 0, 0x0015)) {
+    throw 'SetWindowPos failed during the release-to-snap check'
+  }
+} finally {
+  [void][ScorebugWindowMove]::SendMessage($hwnd, 0x0232, [IntPtr]::Zero, [IntPtr]::Zero)
+}
+`;
+  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', source], {
+    windowsHide: true,
+    timeout: 10000
+  });
+}
+
 async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, preferencesPath }) {
   const evidenceDir = path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
@@ -51,6 +83,23 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
   let deadline;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
+  const readDragRegions = () => evaluate(`(() => {
+    const existing = document.querySelector('.widget-board .bug-team');
+    let probe;
+    if (!existing) {
+      // Keep this check independent of whether ESPN has returned a game yet.
+      probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      probe.innerHTML = '<g class="bug-team" role="button"><path d="M0 0h20v20H0Z"/></g>';
+      document.querySelector('.widget-board').append(probe);
+    }
+    const region = (element) => getComputedStyle(element).getPropertyValue('app-region') || getComputedStyle(element).getPropertyValue('-webkit-app-region');
+    const result = {
+      team: region(existing || probe.firstElementChild),
+      toolbar: region(document.querySelector('.widget-toolbar button'))
+    };
+    probe?.remove();
+    return result;
+  })()`);
   try {
     await Promise.race([
       (async () => {
@@ -66,6 +115,17 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(await evaluate('typeof window.require'), 'undefined');
         assert.equal(await evaluate('typeof window.process'), 'undefined');
         check('Real widget DOM, isolated preload and validated getState IPC');
+        if (process.platform === 'win32') {
+          // A passive startup/show move must not enter the non-Windows free-move
+          // debounce and erase the anchor after the renderer has initialized.
+          widget.emit('move');
+          await pause(450);
+          assert.equal((await evaluate('window.scorebugDesktop.getState()')).preferences.anchor, 'bottom-center');
+          assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).anchor, 'bottom-center');
+          check('Passive Windows move notifications preserve the startup anchor');
+        }
+        assert.deepEqual(await readDragRegions(), { team: 'drag', toolbar: 'no-drag' });
+        check('Colored team panels remain native drag targets while toolbar buttons stay clickable');
 
         assert.equal(widget.isAlwaysOnTop(), true);
         assert.equal(widget.isResizable(), false);
@@ -111,9 +171,32 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         }
         check('All nine native anchors work; side anchors become vertical and other anchors stay horizontal');
 
+        if (process.platform === 'win32') {
+          await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center", scale: 1, snapEnabled: true })');
+          await pause(180);
+          for (const anchor of ['middle-left', 'middle-right', 'top-center']) {
+            const before = widget.getBounds();
+            const area = screen.getDisplayMatching(before).workArea;
+            const release = anchor === 'top-center'
+              ? { x: area.x + (area.width - before.width) * 0.28, y: area.y + 8 }
+              : { x: anchor === 'middle-left' ? area.x + 8 : area.x + area.width - before.width - 8,
+                y: area.y + (area.height - before.height) * 0.28 };
+            await windowsMoveAndRelease(widget, release);
+            await waitFor(`Native drag release at ${anchor}`, async () => (await evaluate('window.scorebugDesktop.getState()')).anchor === anchor, 3000);
+            const positioned = await evaluate('window.scorebugDesktop.getState()');
+            const expectedOrientation = anchor === 'top-center' ? 'horizontal' : 'vertical';
+            assert.equal(positioned.preferences.orientation, expectedOrientation);
+            assert.equal(widget.getBounds().height > widget.getBounds().width, expectedOrientation === 'vertical');
+            await waitFor('Orientation reaches the actual widget renderer', () => evaluate(`document.body.dataset.orientation === '${expectedOrientation}'`), 3000);
+            if (anchor === 'middle-left') fs.writeFileSync(path.join(evidenceDir, 'native-side-widget.png'), (await widget.webContents.capturePage()).toPNG());
+          }
+          check('Real Windows move-release messages snap off-center edge drags and switch side/top orientation');
+        }
+
         await evaluate('window.scorebugDesktop.setPreferences({ locked: true })');
         await waitFor('Locked state in the renderer', () => evaluate(`document.body.dataset.locked === 'true' && document.documentElement.dataset.desktopLocked === 'true'`), 3000);
         assert.equal((await evaluate('window.scorebugDesktop.getState()')).locked, true);
+        assert.deepEqual(await readDragRegions(), { team: 'no-drag', toolbar: 'no-drag' });
         if (process.platform === 'win32' || process.platform === 'darwin') assert.equal(widget.isMovable(), false);
         assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).locked, true);
         await evaluate('window.scorebugDesktop.setPreferences({ locked: false, anchor: "bottom-center" })');
@@ -133,6 +216,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "middle-left" })');
         await pause(180);
         const beforeDetails = widget.getBounds();
+        await evaluate('window.scorebugDesktop.setDefaultDetailsSide("away")');
         await evaluate('window.scorebugDesktop.showDetails()');
         await waitFor('Native game-details page', async () => {
           const panel = getDetails();
@@ -140,23 +224,35 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         }, 8000);
         const panel = getDetails();
         assert.equal(new URL(panel.webContents.getURL()).pathname, '/details.html');
+        assert.equal(new URL(panel.webContents.getURL()).searchParams.get('side'), 'away');
         assert.equal(panel.isAlwaysOnTop(), true);
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Opening details moved or resized the scorebug');
         const panelBounds = panel.getBounds();
         const panelArea = screen.getDisplayMatching(panelBounds).workArea;
-        assert.ok(panelBounds.x >= beforeDetails.x + beforeDetails.width, 'Left-side details should open inward');
+        assert.ok(panelBounds.x >= beforeDetails.x + beforeDetails.width - 10, 'Left-side details should join the colored edge inward');
+        assert.equal(panelBounds.width, Math.min(220, panelArea.width));
+        assert.equal(panelBounds.height, Math.min(230, panelArea.height));
         assert.ok(panelBounds.x >= panelArea.x && panelBounds.y >= panelArea.y);
         assert.ok(panelBounds.x + panelBounds.width <= panelArea.x + panelArea.width);
         assert.ok(panelBounds.y + panelBounds.height <= panelArea.y + panelArea.height);
         const detailState = await panel.webContents.executeJavaScript('window.scorebugDesktop.getState()');
         assert.equal(detailState.preferences.orientation, 'vertical');
         assert.equal(detailState.detailsVisible, true);
+        assert.equal(detailState.detailsSide, 'away');
+        // executeJavaScript clones its result back to the main process; the
+        // subscription returns a function, which must remain in the renderer.
+        await panel.webContents.executeJavaScript('window.__observedDetailsSide = null; window.scorebugDesktop.onDetailsSideChanged((side) => { window.__observedDetailsSide = side; }); void 0;');
+        await evaluate('window.scorebugDesktop.showDetails("home")');
+        await waitFor('Switching team in the same details renderer', () => panel.webContents.executeJavaScript('window.__observedDetailsSide === "home"'), 3000);
+        assert.equal(getDetails(), panel, 'Switching teams recreated the details window');
+        assert.equal((await evaluate('window.scorebugDesktop.getState()')).detailsSide, 'home');
+        assert.deepEqual(widget.getBounds(), beforeDetails, 'Switching teams moved the scorebug');
         fs.writeFileSync(path.join(evidenceDir, 'native-details.png'), (await panel.webContents.capturePage()).toPNG());
         await evaluate('window.scorebugDesktop.hideDetails()');
         await waitFor('Destroyed details renderer', () => !getDetails(), 3000);
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Closing details moved or resized the scorebug');
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center" })');
-        check('Details opens inward without moving the scorebug, shares validated IPC, and destroys its renderer on dismissal');
+        check('Compact team extension joins inward, switches teams without reloading, and destroys its renderer on dismissal');
         summary.passed = true;
       })(),
       new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 35 seconds')), 35000); })

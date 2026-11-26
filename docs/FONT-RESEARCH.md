@@ -10,54 +10,50 @@ Industry Black Italic or Ultra Italic is a plausible visual lead, but the FOX at
 
 [Zetafonts confirms that it made a custom typeface called Thicker Fox for FOX Sports](https://www.zetafonts.com/custom-projects/10324). That page does not identify the font in this specific 2020 reference, so it is not evidence of an exact match.
 
-## Bundled replacement
+## Current treatment: Tomorrow
 
-The replacement is **Saira**, designed by Omnibus-Type, with its genuine italic outlines. This is a closer broadcast-style approximation, not an official FOX font. [The designer identifies Saira as a free, open-source family](https://www.omnibus-type.com/fonts/saira/).
+The current scorebug uses **Tomorrow ExtraBold Italic** for scores and **Tomorrow Bold Italic** for the clock and situation text. Its squared counters, cut corners, and heavy italic forms were selected after comparing actual rendered numerals against the supplied reference. This is an independent visual approximation. It replaces the earlier Saira treatment.
+
+Both fonts are genuine italic faces, not browser-generated oblique text. They are distributed by [Google Fonts](https://fonts.google.com/specimen/Tomorrow) under the SIL Open Font License 1.1. The copyright belongs to the Tomorrow Project Authors; the [author's source project](https://github.com/MonicaRizzolli/Tomorrow) is identified in the bundled license.
 
 Unmodified files from the official Google Fonts repository:
 
-| Local file | Official source |
-| --- | --- |
-| `public/fonts/Saira-Italic.ttf` | [Saira-Italic\[wdth,wght\].ttf](https://github.com/google/fonts/blob/main/ofl/saira/Saira-Italic%5Bwdth%2Cwght%5D.ttf) |
-| `public/fonts/Saira-OFL.txt` | [Saira SIL Open Font License 1.1](https://github.com/google/fonts/blob/main/ofl/saira/OFL.txt) |
+| Local file | Official source | Use |
+| --- | --- | --- |
+| `public/fonts/Tomorrow-ExtraBoldItalic.ttf` | [ExtraBold Italic](https://github.com/google/fonts/blob/main/ofl/tomorrow/Tomorrow-ExtraBoldItalic.ttf) | Score numerals, weight 800 |
+| `public/fonts/Tomorrow-BoldItalic.ttf` | [Bold Italic](https://github.com/google/fonts/blob/main/ofl/tomorrow/Tomorrow-BoldItalic.ttf) | Game clock and labels, weight 700 |
+| `public/fonts/Tomorrow-OFL.txt` | [Open Font License](https://github.com/google/fonts/blob/main/ofl/tomorrow/OFL.txt) | Copyright and redistribution terms |
 
-The font is self-hosted. Keep its accompanying copyright and license when distributing the website or desktop app. The font file has only been renamed on disk; its outlines and internal names have not been changed.
+The fonts are self-hosted. Keep their accompanying copyright and license when distributing the website or desktop app. No font outlines or internal names were changed.
 
-## Verified font properties and CSS
+## Verified properties and CSS
 
-The binary reports version **1.101**, an italic style flag, and an italic angle of **−12°**. These are real italic outlines; no synthetic skew is needed.
-
-| Axis | Minimum | Default | Maximum |
-| --- | ---: | ---: | ---: |
-| `wght` | 100 | 100 | 900 |
-| `wdth` | 50 | 100 | 125 |
-
-Start with **Black / weight 900**, width **75**, for the score. Use weight 700–800 for the smaller clock and situation text. These settings are visual approximation choices; the screenshot does not establish exact original font metrics.
+Both binaries report version **2.002**, an italic style flag, and an italic angle of **−10°**. They are static faces, with weight classes 700 and 800 respectively; they have no variable font axes. Their glyph maps include all score digits and clock punctuation.
 
 ```css
 @font-face {
-  font-family: "Saira Scorebug";
-  src: url("/fonts/Saira-Italic.ttf") format("truetype");
+  font-family: "Scorebug Tomorrow";
+  src: url("/fonts/Tomorrow-BoldItalic.ttf") format("truetype");
   font-style: italic;
-  font-weight: 100 900;
-  font-stretch: 50% 125%;
+  font-weight: 700;
   font-display: swap;
 }
 
-.score {
-  font-family: "Saira Scorebug", sans-serif;
+@font-face {
+  font-family: "Scorebug Tomorrow";
+  src: url("/fonts/Tomorrow-ExtraBoldItalic.ttf") format("truetype");
   font-style: italic;
-  font-weight: 900;
-  font-stretch: 75%;
-  font-variation-settings: "wght" 900, "wdth" 75;
+  font-weight: 800;
+  font-display: swap;
 }
 ```
 
-Do not omit the weight: this variable font defaults to Thin / 100. Explicit `font-variation-settings` wins over the corresponding high-level weight and stretch properties, so adjust both if combining them.
+Small timeout labels use the system Arial/sans-serif stack to remain clear at desktop-widget sizes. The exact scorebug geometry, weight selection, and letter spacing are recreation choices, not verified original FOX font metrics.
 
 ## File integrity
 
-- Font size: 534,712 bytes.
-- Font SHA-256: `965972c2543b72948aedb55fae36e23175661d0f9d2d8d7f14a1009e466912f8`
-- License SHA-256: `f2665d4718b452b3818a877191355ac884a6b9b419d35408fe7ee487e9e8f30f`
-- [Official Google Fonts metadata](https://github.com/google/fonts/blob/main/ofl/saira/METADATA.pb) identifies the italic source and both variation axes.
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `Tomorrow-BoldItalic.ttf` | 62,280 | `c30f681ba51129cd2d81a93d5a8a5c8262d2e535ae53e73a001d3d3770636038` |
+| `Tomorrow-ExtraBoldItalic.ttf` | 65,032 | `f7fe4bed14aaec1e25b1173c4eed35c3c5537e836c47db67b06189ec4adc7b19` |
+| `Tomorrow-OFL.txt` | 4,477 | `1dd4eaacd1da1bfb7e1d14dd5af0279c17d4503fde55abc628bdaccc63ae9eca` |

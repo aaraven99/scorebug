@@ -5,11 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, containsPoint, detailsBounds, scorebugHitBounds, hoverBridge } = require('./geometry.cjs');
+const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsBounds, teamAtPoint, hoverBridge } = require('./geometry.cjs');
 const { HoverIntent } = require('./hover.cjs');
 
-const BASE_SIZE = { width: 520, height: 144 };
-const VERTICAL_SIZE = { width: 160, height: 340 };
 const DEFAULTS = Object.freeze({
   gameId: null,
   team: 'CHI',
@@ -28,6 +26,8 @@ const SMOKE_TEST = !app.isPackaged && process.argv.includes('--smoke-test');
 let widget = null;
 let settings = null;
 let details = null;
+let detailsSide = null;
+let defaultDetailsSide = 'home';
 let detailsExplicit = false;
 let detailsHoverTimer = null;
 const hoverIntent = new HoverIntent();
@@ -40,6 +40,7 @@ let applyingBounds = false;
 let boundsGuardTimer = null;
 let moveTimer = null;
 let nativeMoveInProgress = false;
+let moveReleasePending = false;
 let quitting = false;
 let smokeExitCode = 0;
 
@@ -135,8 +136,7 @@ function publishPreferences() {
 }
 
 function currentSize() {
-  const size = preferences.orientation === 'vertical' ? VERTICAL_SIZE : BASE_SIZE;
-  return { width: Math.round(size.width * preferences.scale), height: Math.round(size.height * preferences.scale) };
+  return widgetSize(preferences.scale, preferences.orientation);
 }
 
 function preferredDisplay() {
@@ -179,6 +179,7 @@ function setPreferences(patch) {
 function finishMove({ snap = true } = {}) {
   if (!widget || widget.isDestroyed() || applyingBounds || nativeMoveInProgress || preferences.locked) return;
   clearTimeout(moveTimer);
+  moveReleasePending = false;
   const bounds = widget.getBounds();
   const display = displayForBounds(bounds, screen.getAllDisplays(), screen.getPrimaryDisplay().id);
   const target = snap && preferences.snapEnabled ? nearestAnchor(bounds, display.workArea) : null;
@@ -188,6 +189,16 @@ function finishMove({ snap = true } = {}) {
   if (target || JSON.stringify(preferences.bounds) !== JSON.stringify(bounds)) placeWidget(display);
   savePreferences();
   publishPreferences();
+}
+
+function finishNativeMove() {
+  nativeMoveInProgress = false;
+  if (applyingBounds || !widget || widget.isDestroyed() || preferences.locked) return;
+  moveReleasePending = true;
+  clearTimeout(moveTimer);
+  // Both Electron's completion event and WM_EXITSIZEMOVE can arrive for the
+  // same drag. Coalesce them after the OS has committed its final bounds.
+  moveTimer = setTimeout(() => finishMove(), 20);
 }
 
 function handleDisplayChange() {
@@ -208,16 +219,29 @@ function publishDetailsVisibility() {
   if (widget && !widget.isDestroyed()) widget.webContents.send('scorebug:details:visibility', detailsVisible());
 }
 
+function cleanDetailsSide(side) {
+  if (side !== 'home' && side !== 'away') throw new TypeError('Invalid details team');
+  return side;
+}
+
+function publishDetailsSide() {
+  if (!detailsSide) return;
+  for (const win of [widget, details]) {
+    if (win && !win.isDestroyed()) win.webContents.send('scorebug:details:side', detailsSide);
+  }
+}
+
 function placeDetails() {
   if (!widget || widget.isDestroyed() || !details || details.isDestroyed()) return;
   const bounds = widget.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  details.setBounds(detailsBounds(bounds, area), false);
+  details.setBounds(detailsBounds(bounds, area, { side: detailsSide || defaultDetailsSide, orientation: preferences.orientation }), false);
 }
 
 function closeDetails({ dismissed = false } = {}) {
   if (dismissed) hoverIntent.dismiss();
   detailsExplicit = false;
+  detailsSide = null;
   if (details && !details.isDestroyed()) {
     const closing = details;
     details = null;
@@ -227,20 +251,24 @@ function closeDetails({ dismissed = false } = {}) {
   publishDetailsVisibility();
 }
 
-function showDetails({ focus = false } = {}) {
+function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
+  cleanDetailsSide(side);
   if (!widget || widget.isDestroyed() || nativeMoveInProgress || !widget.isVisible()) return;
   hoverIntent.opened();
   detailsExplicit = detailsExplicit || focus;
+  const changed = detailsSide !== side;
+  detailsSide = side;
   if (details && !details.isDestroyed()) {
     placeDetails();
+    if (changed) publishDetailsSide();
     if (focus && details.isVisible()) { details.show(); details.focus(); }
     return;
   }
   const area = screen.getDisplayMatching(widget.getBounds()).workArea;
   const win = new BrowserWindow({
-    ...detailsBounds(widget.getBounds(), area),
+    ...detailsBounds(widget.getBounds(), area, { side, orientation: preferences.orientation }),
     parent: widget,
-    title: 'Scorebug game details',
+    title: 'Scorebug team stats',
     show: false,
     frame: false,
     thickFrame: false,
@@ -268,13 +296,13 @@ function showDetails({ focus = false } = {}) {
     publishDetailsVisibility();
   });
   win.on('closed', () => {
-    if (details === win) { details = null; detailsExplicit = false; }
+    if (details === win) { details = null; detailsExplicit = false; detailsSide = null; }
     publishDetailsVisibility();
   });
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && input.key === 'Escape') { event.preventDefault(); closeDetails({ dismissed: true }); }
   });
-  win.loadURL(`${origin}/details.html?desktop=1`).catch((error) => {
+  win.loadURL(`${origin}/details.html?desktop=1&side=${side}`).catch((error) => {
     if (details === win && !win.isDestroyed()) {
       console.warn(`Scorebug details could not open: ${error.message}`);
       closeDetails({ dismissed: true });
@@ -289,16 +317,19 @@ function monitorHoverDetails() {
   const bounds = widget.getBounds();
   const panel = details && !details.isDestroyed() ? details.getBounds() : null;
   const open = Boolean(panel);
+  const side = teamAtPoint(bounds, pointer, preferences.orientation);
   const action = hoverIntent.update({
     now: Date.now(),
-    overWidget: containsPoint(open ? bounds : scorebugHitBounds(bounds, preferences.orientation), pointer),
+    overWidget: open ? containsPoint(bounds, pointer) : Boolean(side),
     overDetails: containsPoint(panel, pointer),
     inTransit: containsPoint(hoverBridge(bounds, panel), pointer),
     detailsOpen: open,
+    side,
+    activeSide: detailsSide,
     blocked,
     keepOpen: detailsExplicit && details && !details.isDestroyed() && (!details.isVisible() || details.isFocused())
   });
-  if (action === 'open') showDetails();
+  if (action === 'open' || action === 'switch') showDetails({ side: side || defaultDetailsSide });
   else if (action === 'close') closeDetails();
 }
 
@@ -329,13 +360,17 @@ function secureWindow(win) {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isLocalPage(url)) {
       if (new URL(url).pathname === '/widget.html') showWidget();
-      else if (new URL(url).pathname === '/details.html') showDetails({ focus: true });
+      else if (new URL(url).pathname === '/details.html') {
+        const side = new URL(url).searchParams.get('side');
+        showDetails({ focus: true, side: side === 'home' || side === 'away' ? side : defaultDetailsSide });
+      }
       else openSettings();
     } else openAllowedExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('scorebug:preferences:changed', publicPreferences());
+    if (win === details) publishDetailsSide();
   });
 }
 
@@ -393,10 +428,15 @@ function createWidget() {
   widget.on('closed', () => { widget = null; if (!quitting) app.quit(); });
   widget.on('will-move', (event) => {
     if (preferences.locked) event.preventDefault();
-    else closeDetails();
+    else {
+      if (process.platform === 'win32') nativeMoveInProgress = true;
+      closeDetails();
+    }
   });
   widget.on('move', () => {
-    if (applyingBounds || nativeMoveInProgress) return;
+    // Windows also emits move while first showing or positioning the HWND.
+    // Only its explicit drag-release path may change the chosen anchor.
+    if (process.platform === 'win32' || applyingBounds || nativeMoveInProgress || moveReleasePending) return;
     closeDetails();
     clearTimeout(moveTimer);
     // Save free placement on other platforms. Windows snapping is deferred until
@@ -404,16 +444,16 @@ function createWidget() {
     moveTimer = setTimeout(() => finishMove({ snap: false }), 350);
   });
   if (process.platform === 'win32') {
+    // Electron's completion event covers Windows move paths that do not reach
+    // the raw hook. Unlike a move debounce, it cannot snap a held drag early.
+    widget.on('moved', finishNativeMove);
     widget.hookWindowMessage(0x0231, () => { // WM_ENTERSIZEMOVE
       nativeMoveInProgress = true;
+      moveReleasePending = false;
       closeDetails();
       clearTimeout(moveTimer);
     });
-    widget.hookWindowMessage(0x0232, () => { // WM_EXITSIZEMOVE: the mouse has been released.
-      nativeMoveInProgress = false;
-      clearTimeout(moveTimer);
-      moveTimer = setTimeout(() => finishMove(), 20);
-    });
+    widget.hookWindowMessage(0x0232, finishNativeMove); // WM_EXITSIZEMOVE: the mouse has been released.
   }
   const contextMenu = () => buildMenu().popup({ window: widget });
   widget.on('system-context-menu', (event) => { event.preventDefault(); contextMenu(); });
@@ -458,7 +498,7 @@ function buildMenu() {
     { label: 'Scorebug', enabled: false },
     { label: 'Choose game & settings', click: openSettings, accelerator: 'CommandOrControl+Alt+Shift+S' },
     { label: 'Show scorebug', click: showWidget },
-    { label: 'Current game details', click: () => showDetails({ focus: true }) },
+    { label: 'Current team stats', click: () => showDetails({ focus: true }) },
     { type: 'separator' },
     {
       label: 'Position',
@@ -532,9 +572,10 @@ function trustedEvent(event) {
   return [widget, settings, details].some((win) => win && !win.isDestroyed() && win.webContents === event.sender);
 }
 
-function addHandler(channel, callback) {
+function addHandler(channel, callback, { widgetOnly = false } = {}) {
   ipcMain.handle(channel, (event, ...args) => {
     if (!trustedEvent(event)) throw new Error('Request denied');
+    if (widgetOnly && (!widget || widget.isDestroyed() || event.sender !== widget.webContents)) throw new Error('Request denied');
     return callback(...args);
   });
 }
@@ -550,10 +591,12 @@ function installIpc() {
     scale: preferences.scale,
     bounds: widget && !widget.isDestroyed() ? widget.getBounds() : preferences.bounds,
     detailsVisible: detailsVisible(),
+    detailsSide,
     platform: process.platform
   }));
   addHandler('scorebug:settings', openSettings);
-  addHandler('scorebug:details:show', () => showDetails({ focus: true }));
+  addHandler('scorebug:details:show', (side) => showDetails({ focus: true, side: side === undefined ? defaultDetailsSide : cleanDetailsSide(side) }));
+  addHandler('scorebug:details:default-side', (side) => { defaultDetailsSide = cleanDetailsSide(side); }, { widgetOnly: true });
   addHandler('scorebug:details:hide', () => { setTimeout(() => closeDetails({ dismissed: true }), 0); });
   addHandler('scorebug:quit', () => { setTimeout(() => app.quit(), 0); });
 }

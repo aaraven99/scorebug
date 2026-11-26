@@ -2,8 +2,17 @@ name: Build Windows desktop app
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the tested main commit as the latest Windows release
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
+    tags: ['v*']
     paths:
       - 'desktop/**'
       - 'public/**'
@@ -11,14 +20,16 @@ on:
       - 'api/**'
       - 'server.mjs'
       - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
       - '.github/workflows/desktop.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-${{ github.ref }}
-  cancel-in-progress: true
+  group: desktop-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && 'publish' || 'build' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_release }}
 
 jobs:
   windows:
@@ -39,6 +50,12 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - name: Install desktop dependencies
         run: npm ci --prefix desktop
+      - name: Check release version
+        run: python scripts/package_windows_release.py --check-tag
+      - name: Check live data and event detection
+        run: npm test
+      - name: Verify Vercel static build
+        run: npm run build
       - name: Check snapping geometry
         run: npm test --prefix desktop
       - name: Verify real Windows widget, preload and positioning
@@ -54,10 +71,177 @@ jobs:
           retention-days: 14
       - name: Build portable app and installer
         run: npm run dist:win --prefix desktop
+      - name: Package the simple Windows download
+        run: python scripts/package_windows_release.py
       - name: Upload Windows downloads
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Scorebug-Windows-x64
-          path: desktop/release/*.exe
+          path: desktop/release/publish/
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    name: Publish the tested Windows release
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main')
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: scorebug-windows-release
+      cancel-in-progress: false
+    steps:
+      - name: Download this run's tested Windows files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: Scorebug-Windows-x64
+          path: release
+      - name: Publish assets for this version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*" >&2; exit 1; }
+          get() {
+            local attempt response
+            for attempt in 1 2 3; do
+              if response="$(gh api --method GET -H 'X-GitHub-Api-Version: 2022-11-28' "$@")"; then
+                printf '%s\n' "$response"
+                return 0
+              fi
+              if [ "$attempt" = 3 ]; then return 1; fi
+              sleep "$attempt"
+            done
+          }
+          RELEASE_TAG="$(jq -er '.tag' release/release-info.json)"
+          release_version="$(jq -er '.version' release/release-info.json)"
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$RELEASE_TAG" = "v$release_version"
+          test "$(jq -er .commit release/release-info.json)" = "$RELEASE_COMMIT" || fail 'The artifact commit differs from this workflow run.'
+          if [[ "$RELEASE_REF" == refs/tags/* ]]; then
+            test "${RELEASE_REF#refs/tags/}" = "$RELEASE_TAG" || fail 'The pushed tag differs from the tested package version.'
+          else
+            test "$RELEASE_REF" = refs/heads/main || fail 'Manual publication is allowed only from main.'
+          fi
+          assets=(Scorebug-Portable-Windows.zip Scorebug-Setup-Windows.exe SHA256SUMS.txt)
+          jq -e '([.assets[].name] | sort) == (["Scorebug-Portable-Windows.zip", "Scorebug-Setup-Windows.exe", "SHA256SUMS.txt"] | sort)' release/release-info.json > /dev/null
+          for asset in "${assets[@]}"; do
+            digest="$(sha256sum "release/$asset" | cut -d ' ' -f 1)"
+            bytes="$(stat -c %s "release/$asset")"
+            jq -e --arg name "$asset" --arg hash "$digest" --argjson bytes "$bytes" 'any(.assets[]; .name == $name and .sha256 == $hash and .bytes == $bytes and .bytes > 0)' release/release-info.json > /dev/null
+          done
+          (cd release && sha256sum --check SHA256SUMS.txt)
+
+          # Existing tags must resolve to this exact tested commit, including
+          # annotated tags. Never move a tag to make an artifact appear valid.
+          check_tag() {
+            local depth kind sha
+            tag_exists=false
+            if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > tag-state.json 2> tag-error.log; then
+              tag_exists=true
+              for depth in 1 2 3 4 5; do
+                kind="$(jq -r .object.type tag-state.json)"
+                sha="$(jq -r .object.sha tag-state.json)"
+                if [ "$kind" = commit ]; then
+                  test "$sha" = "$RELEASE_COMMIT" || fail 'The existing tag points to a different commit. Bump the version; do not overwrite it.'
+                  return 0
+                fi
+                test "$kind" = tag || fail 'The release tag does not resolve to a commit.'
+                get "repos/$GH_REPO/git/tags/$sha" > tag-state.json
+              done
+              fail 'Too many nested annotated tags.'
+            fi
+            grep -q 'HTTP 404' tag-error.log || { cat tag-error.log >&2; return 1; }
+            if [ "${1:-optional}" = required ] || [[ "$RELEASE_REF" == refs/tags/* ]]; then
+              fail 'The release tag is no longer available.'
+            fi
+          }
+          check_tag
+
+          # Authenticated list results include drafts. The by-tag endpoint is
+          # published-only, so retain the numeric ID from lookup or creation.
+          get --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > release-pages.json
+          jq --arg tag "$RELEASE_TAG" '[.[][] | select(.tag_name == $tag)]' release-pages.json > matching-releases.json
+          count="$(jq length matching-releases.json)"
+          test "$count" -le 1 || fail 'Multiple releases match this tag.'
+          if [ "$count" = 0 ]; then
+            jq -n --arg tag "$RELEASE_TAG" --arg sha "$RELEASE_COMMIT" --arg version "$release_version" \
+              '{tag_name:$tag,target_commitish:$sha,name:("Scorebug "+$version),draft:true,prerelease:false,body:"Download Scorebug-Portable-Windows.zip, extract it, quit any older copy, and open the EXE inside.\n\nDrag near a side edge for the vertical layout. Hover a colored team panel for its stats.\n\nThe app is unsigned. This release passed the real Windows smoke test before packaging."}' > create-release.json
+            gh api --method POST "repos/$GH_REPO/releases" --input create-release.json > release-state.json
+          else
+            jq '.[0]' matching-releases.json > release-state.json
+          fi
+          release_id="$(jq -er '.id | select(type == "number" and . > 0)' release-state.json)"
+          read_release() {
+            get "repos/$GH_REPO/releases/$release_id" > release-state.json
+            jq -e --arg tag "$RELEASE_TAG" '.tag_name == $tag' release-state.json > /dev/null
+            get --paginate --slurp "repos/$GH_REPO/releases/$release_id/assets?per_page=100" | jq 'add // []' > release-assets.json
+          }
+          asset_matches() {
+            local asset="$1" digest bytes
+            digest="sha256:$(sha256sum "release/$asset" | cut -d ' ' -f 1)"
+            bytes="$(stat -c %s "release/$asset")"
+            jq -e --arg name "$asset" --arg digest "$digest" --argjson bytes "$bytes" \
+              '[.[] | select(.name == $name and .state == "uploaded" and .size == $bytes and .digest == $digest)] | length == 1' release-assets.json > /dev/null
+          }
+          read_release
+          if [ "$(jq -r .draft release-state.json)" != true ]; then
+            check_tag required
+            for asset in "${assets[@]}"; do
+              asset_matches "$asset" || fail 'This published release (possibly immutable) has different or missing assets. Bump the package version; published files are never clobbered.'
+            done
+            echo "Published $RELEASE_TAG already matches this run. No published assets changed."
+            exit 0
+          fi
+          # GitHub ignores target_commitish when the tag already exists; the
+          # exact tag check above also permits older drafts targeting main.
+          jq -e --arg sha "$RELEASE_COMMIT" --argjson tagged "$tag_exists" '.immutable != true and (.target_commitish == $sha or $tagged)' release-state.json > /dev/null || fail 'The draft is immutable or targets a different commit. Use a new version or correct the draft before retrying.'
+
+          for asset in "${assets[@]}"; do
+            for attempt in 1 2 3; do
+              read_release
+              if asset_matches "$asset"; then break; fi
+              jq -e '.draft == true and .immutable != true' release-state.json > /dev/null || fail 'The release was published during upload; refusing to replace its files.'
+              # A failed upload may leave a starter asset. Replace mismatches
+              # only while this exact release is still an editable draft.
+              while read -r asset_id; do
+                gh api --method DELETE "repos/$GH_REPO/releases/assets/$asset_id" > /dev/null
+              done < <(jq -r --arg name "$asset" '.[] | select(.name == $name) | .id' release-assets.json)
+              upload_url="$(jq -r '.upload_url | split("{")[0]' release-state.json)"
+              test "$upload_url" = "https://uploads.github.com/repos/$GH_REPO/releases/$release_id/assets"
+              if ! gh api --method POST "$upload_url?name=$asset" -H 'Content-Type: application/octet-stream' --input "release/$asset" > upload-state.json; then
+                echo "::warning::Upload attempt $attempt failed for $asset; reconciling the draft before retry."
+              fi
+              sleep "$attempt"
+              read_release
+              if asset_matches "$asset"; then break; fi
+            done
+            asset_matches "$asset" || fail "The draft asset failed SHA-256 verification: $asset. The release remains unpublished."
+          done
+          read_release
+          for asset in "${assets[@]}"; do asset_matches "$asset"; done
+          check_tag
+          if [ "$(jq -r .draft release-state.json)" = true ]; then
+            jq -n --arg sha "$RELEASE_COMMIT" '{draft:false,prerelease:false,target_commitish:$sha,make_latest:"true"}' > publish-release.json
+            if ! gh api --method PATCH "repos/$GH_REPO/releases/$release_id" --input publish-release.json > published-release.json; then
+              # A lost response can follow a successful publication. Re-read
+              # this ID before treating a retry as a failed or duplicate release.
+              read_release
+              jq -e '.draft == false' release-state.json > /dev/null || fail 'Publication failed; the verified draft is ready for a retry.'
+            fi
+          fi
+          read_release
+          jq -e '.draft == false and .prerelease == false' release-state.json > /dev/null
+          check_tag required
+          for asset in "${assets[@]}"; do asset_matches "$asset"; done
+          echo "Published $RELEASE_TAG from $RELEASE_COMMIT after verifying every asset."
+          curl --fail --silent --show-error --head --location --retry 3 --output /dev/null "https://github.com/$GH_REPO/releases/latest/download/Scorebug-Portable-Windows.zip"
