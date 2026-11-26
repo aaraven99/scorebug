@@ -115,6 +115,15 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(await evaluate('typeof window.require'), 'undefined');
         assert.equal(await evaluate('typeof window.process'), 'undefined');
         check('Real widget DOM, isolated preload and validated getState IPC');
+        if (process.platform === 'win32') {
+          // A passive startup/show move must not enter the non-Windows free-move
+          // debounce and erase the anchor after the renderer has initialized.
+          widget.emit('move');
+          await pause(450);
+          assert.equal((await evaluate('window.scorebugDesktop.getState()')).preferences.anchor, 'bottom-center');
+          assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).anchor, 'bottom-center');
+          check('Passive Windows move notifications preserve the startup anchor');
+        }
         assert.deepEqual(await readDragRegions(), { team: 'drag', toolbar: 'no-drag' });
         check('Colored team panels remain native drag targets while toolbar buttons stay clickable');
 

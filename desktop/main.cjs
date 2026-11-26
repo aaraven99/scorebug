@@ -434,7 +434,9 @@ function createWidget() {
     }
   });
   widget.on('move', () => {
-    if (applyingBounds || nativeMoveInProgress || moveReleasePending) return;
+    // Windows also emits move while first showing or positioning the HWND.
+    // Only its explicit drag-release path may change the chosen anchor.
+    if (process.platform === 'win32' || applyingBounds || nativeMoveInProgress || moveReleasePending) return;
     closeDetails();
     clearTimeout(moveTimer);
     // Save free placement on other platforms. Windows snapping is deferred until
