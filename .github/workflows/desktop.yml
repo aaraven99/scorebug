@@ -2,8 +2,11 @@ name: Build Windows desktop app
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
+    tags: ['v*']
     paths:
       - 'desktop/**'
       - 'public/**'
@@ -11,6 +14,8 @@ on:
       - 'api/**'
       - 'server.mjs'
       - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
       - '.github/workflows/desktop.yml'
 
 permissions:
@@ -39,6 +44,12 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - name: Install desktop dependencies
         run: npm ci --prefix desktop
+      - name: Check release version
+        run: python scripts/package_windows_release.py --check-tag
+      - name: Check live data and event detection
+        run: npm test
+      - name: Verify Vercel static build
+        run: npm run build
       - name: Check snapping geometry
         run: npm test --prefix desktop
       - name: Verify real Windows widget, preload and positioning
@@ -54,10 +65,66 @@ jobs:
           retention-days: 14
       - name: Build portable app and installer
         run: npm run dist:win --prefix desktop
+      - name: Package the simple Windows download
+        run: python scripts/package_windows_release.py
       - name: Upload Windows downloads
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Scorebug-Windows-x64
-          path: desktop/release/*.exe
+          path: desktop/release/publish/
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    name: Publish the tested Windows release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download this run's tested Windows files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: Scorebug-Windows-x64
+          path: release
+      - name: Publish assets for this version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(jq -r .tag release/release-info.json)" = "$RELEASE_TAG"
+          test "$(jq -r .commit release/release-info.json)" = "$RELEASE_COMMIT"
+          (cd release && sha256sum --check SHA256SUMS.txt)
+          if ! gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-state.json 2> release-lookup.log; then
+            if ! grep -q 'HTTP 404' release-lookup.log; then
+              cat release-lookup.log
+              exit 1
+            fi
+            printf '%s\n' 'Download Scorebug-Portable-Windows.zip, extract it, quit any older copy, and open the EXE inside.' '' 'Drag near a side edge for the vertical layout. Hover a colored team panel for its stats.' '' 'The app is unsigned. This release passed the real Windows smoke test before packaging.' > release-notes.txt
+            gh release create "$RELEASE_TAG" --repo "$GH_REPO" --verify-tag --draft --title "Scorebug ${RELEASE_TAG#v}" --notes-file release-notes.txt
+            gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-state.json
+          fi
+          for asset in Scorebug-Portable-Windows.zip Scorebug-Setup-Windows.exe SHA256SUMS.txt; do
+            expected="sha256:$(sha256sum "release/$asset" | cut -d ' ' -f 1)"
+            existing="$(jq -r --arg name "$asset" '.assets[]? | select(.name == $name) | .digest // ""' release-state.json)"
+            if [ "$existing" != "$expected" ]; then
+              gh release upload "$RELEASE_TAG" "release/$asset" --repo "$GH_REPO" --clobber
+            fi
+          done
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-state.json
+          for asset in Scorebug-Portable-Windows.zip Scorebug-Setup-Windows.exe SHA256SUMS.txt; do
+            expected="sha256:$(sha256sum "release/$asset" | cut -d ' ' -f 1)"
+            jq -e --arg name "$asset" --arg digest "$expected" 'any(.assets[]; .name == $name and .state == "uploaded" and .size > 0 and .digest == $digest)' release-state.json > /dev/null
+          done
+          if [ "$(jq -r .draft release-state.json)" = true ]; then
+            release_id="$(jq -r .id release-state.json)"
+            gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -F draft=false -f make_latest=legacy > /dev/null
+          fi
+          curl --fail --silent --show-error --head --location --retry 3 --output /dev/null "https://github.com/$GH_REPO/releases/latest/download/Scorebug-Portable-Windows.zip"
