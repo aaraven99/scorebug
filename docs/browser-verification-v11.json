@@ -1,0 +1,72 @@
+{
+  "testedAt": "2026-11-26T19:44:44.224Z",
+  "realEspnDetails": {
+    "match": "CHI 10 · DET 19",
+    "stats": "Total yards\t181\t271\nPassing yards\t111\t183\nRushing yards\t70\t88\nThird downs\t1-3\t2-7\nTurnovers\t1\t0\nTime of possession\t12:08\t17:52"
+  },
+  "hoverDetails": true,
+  "detailsRefresh": true,
+  "detailsFailureAndDismissal": true,
+  "mobileLayout": true,
+  "horizontalWidget": {
+    "x": 8,
+    "y": 37.734375,
+    "width": 504,
+    "height": 98.265625
+  },
+  "verticalWidget": {
+    "x": 8,
+    "y": 53,
+    "width": 144,
+    "height": 279
+  },
+  "errors": [],
+  "verticalScales": [
+    {
+      "scale": 0.65,
+      "board": {
+        "x": 8,
+        "y": 42.5,
+        "width": 88,
+        "height": 170.5
+      },
+      "toolbar": {
+        "x": 12.203125,
+        "y": 3,
+        "width": 87.796875,
+        "height": 25
+      }
+    },
+    {
+      "scale": 1,
+      "board": {
+        "x": 8,
+        "y": 53,
+        "width": 144,
+        "height": 279
+      },
+      "toolbar": {
+        "x": 68.203125,
+        "y": 3,
+        "width": 87.796875,
+        "height": 25
+      }
+    },
+    {
+      "scale": 1.8,
+      "board": {
+        "x": 8,
+        "y": 77,
+        "width": 272,
+        "height": 527
+      },
+      "toolbar": {
+        "x": 196.203125,
+        "y": 3,
+        "width": 87.796875,
+        "height": 25
+      }
+    }
+  ],
+  "detailsFullCardFits": true
+}
