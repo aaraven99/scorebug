@@ -1,21 +1,47 @@
-/* Saira by Omnibus-Type, SIL OFL: fonts/Saira-OFL.txt.
-   A real italic variable face; this is a recreation, not a verified FOX font. */
-@font-face{font-family:"Scorebug Saira";src:url('/fonts/Saira-Italic.ttf') format('truetype');font-style:italic;font-weight:100 900;font-stretch:50% 125%;font-display:swap}
+/* Tomorrow by the Tomorrow Project Authors, SIL OFL: fonts/Tomorrow-OFL.txt.
+   Genuine italic outlines; an approximation, not a verified FOX typeface. */
+@font-face{font-family:"Scorebug Tomorrow";src:url('/fonts/Tomorrow-BoldItalic.ttf') format('truetype');font-style:italic;font-weight:700;font-display:swap}
+@font-face{font-family:"Scorebug Tomorrow";src:url('/fonts/Tomorrow-ExtraBoldItalic.ttf') format('truetype');font-style:italic;font-weight:800;font-display:swap}
 .scorebug{display:block;width:100%;height:auto;overflow:visible;user-select:none;-webkit-user-select:none;isolation:isolate;shape-rendering:geometricPrecision}
-.scorebug text{fill:#fffdf0;font-family:"Scorebug Saira","Arial",sans-serif;font-style:italic;font-weight:800;font-variation-settings:"wght" 800,"wdth" 94;font-variant-numeric:tabular-nums;text-rendering:geometricPrecision}
-.scorebug .bug-score{font-size:64px;font-weight:900;font-variation-settings:"wght" 900,"wdth" 75;letter-spacing:-1px}
-.scorebug .bug-score--long{font-size:50px;letter-spacing:-1.5px}
-.scorebug .bug-abbreviation{font-size:37px;letter-spacing:-1px}
-.scorebug .bug-quarter,.scorebug .bug-clock,.scorebug .bug-down{font-size:28px;letter-spacing:.2px}
-.scorebug .bug-clock{font-size:30px;font-variation-settings:"wght" 800,"wdth" 100;letter-spacing:.6px}
-.scorebug .bug-down{font-size:27px}.scorebug .bug-down--long{font-size:22px}
-.scorebug .bug-banner{font-size:27px;letter-spacing:1px}
+.scorebug text{fill:#fffdf0;font-family:"Scorebug Tomorrow",Arial,sans-serif;font-style:italic;font-weight:700;font-variant-numeric:tabular-nums;text-rendering:geometricPrecision}
+.scorebug .bug-team{outline:none;cursor:default}
+.scorebug .bug-team-panel{stroke-width:1.7;stroke-linejoin:round;transition:filter .15s ease}
+.scorebug .bug-panel-highlight{fill:none;stroke:#fffef1;stroke-opacity:.27;stroke-width:.8;pointer-events:none}
+.scorebug .bug-team-contents{pointer-events:none}
+.scorebug .bug-team:focus-visible .bug-team-panel{stroke:#fff5cd;stroke-width:3}
+.scorebug .bug-team:hover .bug-team-panel{filter:brightness(1.06)}
+.scorebug .bug-situation-panel{stroke:#849184;stroke-opacity:.65;stroke-width:1;stroke-linejoin:round}
+.scorebug .bug-score{font-size:65px;font-weight:800;letter-spacing:-1.6px;paint-order:stroke fill;stroke:#0002;stroke-width:.6}
+.scorebug .bug-score--long{font-size:48px;letter-spacing:-2px}
+.scorebug .bug-abbreviation{font-size:36px;letter-spacing:-1.2px}
+.scorebug .bug-quarter{font-size:25px;letter-spacing:-.6px}
+.scorebug .bug-clock{font-size:30px;font-weight:800;letter-spacing:-.8px}
+.scorebug .bug-down{font-size:25px;letter-spacing:-.8px}
+.scorebug .bug-down--long{font-size:18px;letter-spacing:-.65px}
+.scorebug .bug-field-label{font-family:Arial,sans-serif;font-size:8px;font-style:normal;font-weight:700;letter-spacing:1.2px;fill:#d1dbce}
+.scorebug .bug-field-value{font-size:18px;letter-spacing:-.6px}
+.scorebug .bug-field-value--long{font-size:13px;letter-spacing:-.3px}
+.scorebug .bug-banner{font-size:25px;letter-spacing:-.2px}
+.scorebug .bug-timeouts-label,.scorebug .bug-timeouts-count{font-family:Arial,sans-serif;font-size:10px;font-style:normal;font-weight:700;letter-spacing:.3px;fill:#fff9eb}
+.scorebug .bug-timeouts-count{font-size:11px}
+.scorebug .bug-timeout{stroke:#fff8e3;stroke-opacity:.48;stroke-width:.7}
+.scorebug .bug-timeout--available{fill:#fff9e8}
+.scorebug .bug-timeout--used{fill:#091512;fill-opacity:.58}
+.scorebug .bug-timeouts--unknown .bug-timeouts-count{fill:#e4e5da}
+.scorebug .bug-possession{filter:drop-shadow(0 1px .8px #0008)}
 .scorebug .bug-status-flag text{font-family:Arial,sans-serif;font-size:12px;font-style:normal;font-weight:700;letter-spacing:1.15px;fill:#fff}
 .scorebug .bug-team-logo{filter:drop-shadow(0 1px 1px #0006)}
-.scorebug .bug-vertical-score{font-size:55px;letter-spacing:0;font-variation-settings:"wght" 900,"wdth" 83}
-.scorebug .bug-vertical-abbreviation{font-size:26px;letter-spacing:0}
-.scorebug .bug-vertical-quarter{font-size:15px;letter-spacing:1px}
-.scorebug .bug-vertical-clock{font-size:31px;letter-spacing:.6px;font-variation-settings:"wght" 850,"wdth" 91}
-.scorebug .bug-vertical-down{font-size:19px;letter-spacing:0}
-.scorebug .bug-vertical-banner{font-size:15px;letter-spacing:0;font-variation-settings:"wght" 800,"wdth" 65}
+/* Preserve the original colors. Only these few same-color marks need a thin
+   light contour to separate them from their own team-colored panel. */
+.scorebug .bug-team-logo--contrast{filter:drop-shadow(.65px 0 .2px #fffe) drop-shadow(-.65px 0 .2px #fffe) drop-shadow(0 .65px .2px #fffe) drop-shadow(0 -.65px .2px #fffe) drop-shadow(0 1px 1px #0006)}
+.scorebug .bug-vertical-score{font-size:52px;letter-spacing:-1.9px}
+.scorebug .bug-vertical-score--long{font-size:36px;letter-spacing:-1.8px}
+.scorebug .bug-vertical-abbreviation{font-size:25px;letter-spacing:-1px}
+.scorebug .bug-vertical-quarter{font-size:14px;letter-spacing:.4px}
+.scorebug .bug-vertical-clock{font-size:29px;font-weight:800;letter-spacing:-1px}
+.scorebug .bug-vertical-down{font-size:17px;letter-spacing:-.6px}
+.scorebug .bug-vertical-down--long{font-size:12px;letter-spacing:-.45px}
+.scorebug .bug-vertical-field{font-size:11px;letter-spacing:-.25px}
+.scorebug .bug-vertical-banner{font-size:13px;letter-spacing:-.4px}
+.scorebug .bug-vertical-banner--long{font-size:9px;letter-spacing:-.3px}
 @media(prefers-reduced-motion:reduce){.scorebug,.scorebug *{animation:none!important;transition:none!important}}

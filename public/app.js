@@ -2,6 +2,8 @@ import { renderScorebug } from './scorebug.js';
 import { referenceGame } from './fixtures.js';
 import { localTeamLogo } from './team-assets.js';
 import { attachDetailsHover } from './details-hover.js';
+import { createGameActivity } from './game-activity.js';
+import { createScoreAnimations } from './score-animation.js';
 import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, ScoreboardPoller, feedIsStale, checkedAgo } from './score-client.js';
 
 const $ = (id) => document.getElementById(id);
@@ -9,13 +11,28 @@ const desktop = Boolean(window.scorebugDesktop);
 let preferences = await initializePreferences();
 let snapshot = { data: null, error: null, loading: true };
 let reference = false;
+let demoReference = false, demoSequence = 0, previewContext = null;
 let pipWindow = null;
 let toastTimer;
 let renderedSvg = '';
+const animations = createScoreAnimations($('scorebug-preview'));
+const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear() });
+function updateActivity() { activity.setGame(reference ? null : selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt); }
+function floatingSize() { return preferences.orientation === 'vertical' ? { width: Math.round(160 * preferences.scale), height: Math.round(370 * preferences.scale) } : { width: Math.round(520 * preferences.scale), height: Math.round(176 * preferences.scale) }; }
 
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6500); }
 function formatKickoff(value) { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date) : ''; }
 function phaseLabel(game) { return game?.isLive ? 'LIVE' : ({ halftime: 'HALFTIME', intermission: 'BREAK', final: 'FINAL', scheduled: 'UPCOMING', delayed: 'DELAYED', postponed: 'POSTPONED', suspended: 'SUSPENDED', canceled: 'CANCELED' }[game?.phase] || 'NFL'); }
+function renderDemoControls(game, sample) {
+  const teamSelect = $('demo-team'), status = $('demo-status');
+  if (!teamSelect || !status) return;
+  const matchup = game || referenceGame;
+  for (const option of teamSelect.options) {
+    const side = option.value === 'home' ? 'home' : 'away';
+    option.textContent = `${side === 'away' ? 'Away' : 'Home'} · ${matchup[side].abbreviation}`;
+  }
+  status.textContent = `Preview only — live scores stay unchanged.${sample || !game ? ' Sample matchup: SF at KC.' : ''}`;
+}
 function renderHealth() {
   const stale = snapshot.data && feedIsStale(snapshot.data, Boolean(snapshot.error));
   $('checked-at').textContent = snapshot.error ? `Reconnecting · ${checkedAgo(snapshot.data).toLowerCase()}` : checkedAgo(snapshot.data);
@@ -24,14 +41,20 @@ function renderHealth() {
   if (stale) renderPreview();
 }
 function renderPreview() {
-  const game = reference ? referenceGame : selectGame(snapshot.data?.games, preferences);
+  const selected = selectGame(snapshot.data?.games, preferences);
+  if (selected) demoReference = false;
+  const sample = reference || demoReference;
+  const game = sample ? referenceGame : selected;
+  const nextContext = `${sample ? 'sample' : 'live'}:${game?.id || 'none'}:${preferences.date || 'current'}`;
+  if (nextContext !== previewContext) { previewContext = nextContext; animations.clearDemo(); }
   const root = $('scorebug-preview');
   if (game) {
-    const html = renderScorebug(game, { idPrefix: 'preview', orientation: preferences.orientation, demo: reference, stale: !reference && feedIsStale(snapshot.data, Boolean(snapshot.error)) });
+    const html = renderScorebug(game, { idPrefix: 'preview', orientation: preferences.orientation, demo: sample, stale: !sample && feedIsStale(snapshot.data, Boolean(snapshot.error)) });
     if (html !== renderedSvg) { root.innerHTML = html; renderedSvg = html; }
-    $('game-title').textContent = reference ? 'San Francisco at Kansas City' : `${game.away.name} at ${game.home.name}`;
-    $('phase-badge').textContent = reference ? 'REFERENCE' : phaseLabel(game);
-    $('phase-badge').className = `status-pill${!reference && game.isLive ? ' live' : ''}${!reference && snapshot.error ? ' error' : ''}`;
+    animations.attach(preferences.orientation);
+    $('game-title').textContent = sample ? 'Sample matchup: San Francisco at Kansas City' : `${game.away.name} at ${game.home.name}`;
+    $('phase-badge').textContent = sample ? 'SAMPLE' : phaseLabel(game);
+    $('phase-badge').className = `status-pill${!sample && game.isLive ? ' live' : ''}${!sample && snapshot.error ? ' error' : ''}`;
   } else {
     renderedSvg = '';
     const label = snapshot.loading ? 'Connecting to the NFL feed' : snapshot.error ? 'Unable to reach the score feed' : preferences.gameId ? 'This game is not in the selected schedule' : 'No NFL games for this date';
@@ -41,10 +64,11 @@ function renderPreview() {
     $('phase-badge').textContent = snapshot.error ? 'OFFLINE' : snapshot.loading ? 'CONNECTING' : 'NO GAME';
     $('phase-badge').className = `status-pill${snapshot.error ? ' error' : ''}`;
   }
-  $('preview-caption').textContent = reference ? 'SCREENSHOT REFERENCE / NOT LIVE' : 'HOVER FOR FIELD POSITION + STATS';
-  $('reference-note').hidden = !reference;
-  $('reference-toggle').setAttribute('aria-pressed', String(reference));
-  $('reference-toggle').textContent = reference ? 'Back to live game ↗' : 'Compare reference ↗';
+  $('preview-caption').textContent = sample ? 'Sample matchup · preview only' : 'Hover a team for its stats';
+  $('reference-note').hidden = !sample;
+  $('reference-toggle').setAttribute('aria-pressed', String(sample));
+  $('reference-toggle').textContent = sample ? 'Back to live game' : 'Sample matchup';
+  renderDemoControls(game, sample);
 }
 function renderGames() {
   const games = snapshot.data?.games || [];
@@ -85,7 +109,6 @@ function renderGames() {
 function renderPreferences() {
   const scale = Number(preferences.scale) || 1;
   $('size-range').value = String(scale); $('size-value').textContent = `${Math.round(scale * 100)}%`;
-  $('size-range').style.background = `linear-gradient(to right,var(--accent) ${(scale - .65) / 1.15 * 100}%,#3d4739 ${(scale - .65) / 1.15 * 100}%)`;
   const vertical = preferences.orientation === 'vertical';
   $('scorebug-preview').style.width = `${(vertical ? 144 : 520) * scale}px`;
   $('preview-stage').dataset.orientation = vertical ? 'vertical' : 'horizontal';
@@ -93,22 +116,51 @@ function renderPreferences() {
   $('snap-checkbox').checked = preferences.snapEnabled !== false; $('lock-checkbox').checked = Boolean(preferences.locked);
   for (const button of $('anchor-grid').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.anchor === preferences.anchor));
 }
-const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (state) => { snapshot = state; renderPreview(); renderGames(); renderHealth(); } });
-onPreferences((next) => { const oldDate = preferences.date; preferences = next; if (oldDate !== next.date) poller.setDate(next.date); renderPreferences(); renderPreview(); renderGames(); });
+const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (state) => { snapshot = state; renderPreview(); renderGames(); renderHealth(); if (!state.error) updateActivity(); } });
+onPreferences((next) => {
+  const oldDate = preferences.date;
+  if (oldDate !== next.date || preferences.gameId !== next.gameId || preferences.team !== next.team) { demoReference = false; animations.clearDemo(); }
+  preferences = next; if (oldDate !== next.date) poller.setDate(next.date); renderPreferences(); renderPreview(); renderGames(); updateActivity();
+});
 
-$('game-select').addEventListener('change', (event) => { reference = false; updatePreferences({ gameId: event.target.value || null }); });
+$('game-select').addEventListener('change', (event) => { reference = false; demoReference = false; animations.clearDemo(); updatePreferences({ gameId: event.target.value || null }); });
 $('date-input').addEventListener('change', (event) => updatePreferences({ date: event.target.value.replaceAll('-', '') || null, gameId: null }));
 $('week-button').addEventListener('click', () => updatePreferences({ date: null, gameId: null }));
 $('size-range').addEventListener('input', (event) => {
   const scale = Number(event.target.value);
   updatePreferences({ scale });
   if (pipWindow && !pipWindow.closed) {
-    try { pipWindow.resizeTo(Math.round(520 * scale), Math.round(144 * scale)); } catch { /* Browser may constrain PiP size. */ }
+    try { const size = floatingSize(); pipWindow.resizeTo(size.width, size.height); } catch { /* Browser may constrain PiP size. */ }
   }
 });
-const previewDetails = attachDetailsHover($('scorebug-preview'), { enabled: () => !reference });
-$('reference-toggle').addEventListener('click', () => { reference = !reference; previewDetails.close(); renderPreview(); });
-$('refresh-button').addEventListener('click', () => poller.refresh());
+const previewDetails = attachDetailsHover($('scorebug-preview'), { enabled: () => !reference && !demoReference });
+$('reference-toggle').addEventListener('click', () => {
+  reference = !(reference || demoReference); demoReference = false;
+  animations.clearDemo(); previewDetails.close(); renderPreview(); updateActivity();
+});
+const DEMO_EVENTS = {
+  touchdown: { title: 'TOUCHDOWN', points: 6 },
+  'field-goal': { title: 'FIELD GOAL', points: 3 },
+  safety: { title: 'SAFETY', points: 2 },
+  'extra-point': { title: 'EXTRA POINT', points: 1 },
+  'two-point': { title: 'TWO-POINT CONVERSION', points: 2 },
+  interception: { title: 'INTERCEPTION', points: null },
+  fumble: { title: 'FUMBLE RECOVERED', points: null },
+  'big-play': { title: 'BIG PLAY', points: null, yardsGained: 25 },
+  score: { title: 'SCORE UPDATE', points: 3 },
+};
+$('demo-play')?.addEventListener('click', () => {
+  const selected = selectGame(snapshot.data?.games, preferences);
+  if (!selected && !reference) demoReference = true;
+  renderPreview(); previewDetails.close();
+  const game = reference || demoReference ? referenceGame : selected;
+  const side = $('demo-team')?.value === 'home' ? 'home' : 'away';
+  const kind = Object.hasOwn(DEMO_EVENTS, $('demo-event')?.value) ? $('demo-event').value : 'touchdown';
+  const event = { id: `demo:${++demoSequence}`, gameId: game.id, kind, teamId: game[side].id,
+    detail: 'Animation preview only.', playId: null, period: null, clock: null, yardsGained: null, ...DEMO_EVENTS[kind] };
+  animations.demo(event, game);
+});
+$('refresh-button').addEventListener('click', () => { poller.refresh(); activity.refresh(); });
 $('snap-checkbox').addEventListener('change', (event) => updatePreferences({ snapEnabled: event.target.checked }));
 $('lock-checkbox').addEventListener('change', (event) => updatePreferences({ locked: event.target.checked }));
 $('anchor-grid').addEventListener('click', (event) => { const button = event.target.closest('button[data-anchor]'); if (button) updatePreferences({ anchor: button.dataset.anchor }); });
@@ -125,13 +177,14 @@ async function floatWidget() {
   if (desktop) { await updatePreferences({ anchor: 'bottom-center' }); toast('Scorebug snapped to the bottom center.'); return; }
   if (pipWindow && !pipWindow.closed) { pipWindow.focus(); return; }
   if (!window.documentPictureInPicture?.requestWindow) {
-    const popup = window.open('/widget.html', 'scorebug-overlay', `popup,width=${Math.round(520 * preferences.scale)},height=${Math.round(144 * preferences.scale)}`);
+    const size = floatingSize();
+    const popup = window.open('/widget.html', 'scorebug-overlay', `popup,width=${size.width},height=${size.height}`);
     toast(popup ? 'Pin this window with PowerToys: Win + Ctrl + T. The desktop app supports snapping.' : 'Popup blocked. Use Clean view, then pin it with PowerToys.');
     return;
   }
   try {
     // Must stay directly inside the user gesture. PiP owns its own runtime/timers.
-    pipWindow = await window.documentPictureInPicture.requestWindow({ width: Math.round(520 * preferences.scale), height: Math.round(144 * preferences.scale) });
+    pipWindow = await window.documentPictureInPicture.requestWindow(floatingSize());
     pipWindow.scorebugInitialPreferences = getPreferences();
     const doc = pipWindow.document;
     doc.documentElement.lang = 'en'; doc.title = 'Scorebug — Live NFL';
@@ -147,18 +200,21 @@ async function floatWidget() {
 }
 $('float-button').addEventListener('click', floatWidget);
 if (desktop) {
+  document.body.dataset.mode = 'desktop';
+  if ($('page-title')) $('page-title').textContent = 'Scorebug settings';
   $('desktop-controls').hidden = false; $('desktop-banner').hidden = true;
-  $('mode-label').textContent = 'DESKTOP COMPANION'; $('float-button-label').textContent = 'Snap to bottom center';
-  $('floating-copy').textContent = 'Transparent and always on top. Side positions turn vertical; top and bottom stay horizontal. Hover for field position and stats.';
+  $('mode-label').textContent = 'Windows app'; $('float-button-label').textContent = 'Snap to bottom center';
+  $('floating-copy').textContent = 'Transparent and always on top. Drop at a side to turn vertical; top and bottom stay horizontal. Hover either team for its stats.';
   $('floating-hint').textContent = 'Hover the scorebug for controls, or right-click it for the full menu. Close this settings window to keep watching.';
   $('clean-button').hidden = true;
 } else if (!window.documentPictureInPicture?.requestWindow) {
   $('float-button-label').textContent = 'Open mini window';
   $('floating-hint').textContent = 'Pin it with PowerToys: Win + Ctrl + T. For automatic snapping, use the desktop app.';
 }
-renderPreferences(); poller.start();
+if (!desktop) $('mode-label').textContent = 'Browser window';
+renderPreferences(); activity.start(); poller.start();
 let healthTimer = setInterval(renderHealth, 1000);
-window.addEventListener('pagehide', () => { poller.stop(); clearInterval(healthTimer); });
+window.addEventListener('pagehide', () => { poller.stop(); activity.stop(); clearInterval(healthTimer); });
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted) { poller.start(); clearInterval(healthTimer); healthTimer = setInterval(renderHealth, 1000); }
+  if (event.persisted) { activity.start(); poller.start(); clearInterval(healthTimer); healthTimer = setInterval(renderHealth, 1000); }
 });
