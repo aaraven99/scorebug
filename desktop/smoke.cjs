@@ -69,7 +69,8 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
 
         assert.equal(widget.isAlwaysOnTop(), true);
         assert.equal(widget.isResizable(), false);
-        assert.match(widget.getBackgroundColor(), /^#(?:00000000|0000)$/i);
+        // The getter omits alpha; the capture below verifies actual transparency.
+        assert.equal(widget.getBackgroundColor().toLowerCase(), '#000000');
         const bounds = widget.getBounds();
         const content = widget.getContentBounds();
         for (const key of ['x', 'y', 'width', 'height']) assert.ok(Math.abs(bounds[key] - content[key]) <= 2, `Unexpected window frame ${key}`);
