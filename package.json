@@ -1,0 +1,17 @@
+{
+  "name": "scorebug",
+  "version": "1.1.0",
+  "private": true,
+  "description": "A classic broadcast scorebug with live NFL data and a floating desktop companion.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "desktop": "npm --prefix desktop start"
+  }
+}

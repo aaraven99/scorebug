@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vercel/
+.env*
+!.env.example
+desktop/release/
+desktop/dist/
+desktop/app/
+desktop/.stage/
+test-results/
+.DS_Store
+*.log
