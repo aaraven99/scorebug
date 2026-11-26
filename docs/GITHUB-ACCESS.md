@@ -12,19 +12,26 @@ A GitHub website login and a connected app have separate permissions. If a conne
 
 ## Publish a new download
 
-1. Set the same version in the root and desktop `package.json` and lockfiles.
-2. Merge the changes and wait for the Windows workflow to pass.
-3. Create and push a matching tag, such as `v1.2.0`, at the commit you verified.
-4. The tag workflow runs the Windows checks again, packages the app, and publishes the release after its assets are uploaded and checked.
+You can publish entirely through GitHub's website:
 
-From an authenticated clone, the tag commands are:
+1. Set a new, matching version in the root and desktop `package.json` and lockfiles, then merge those changes into `main`.
+2. Open **Actions → Build Windows desktop app → Run workflow**.
+3. Select the **main** branch and check **Publish the tested main commit as the latest Windows release**.
+4. Click **Run workflow**. The workflow tests and builds that exact commit, uploads the verified files to a draft, and then publishes it as the latest release.
+
+The publish checkbox defaults to off. Leaving it unchecked builds downloadable Actions artifacts without publishing a release. Publication from this manual action is allowed only on `main`; no separate tag or empty release needs to be created in the browser.
+
+### Publish with a tag instead
+
+Pushing a matching version tag also runs the full Windows checks and release process. From an authenticated clone:
+
 
 ```sh
 git tag v1.2.0 VERIFIED_COMMIT_SHA
 git push origin v1.2.0
 ```
 
-Use the version and commit you intend to publish. The workflow rejects a tag that does not match the package versions.
+Use the version and commit you intend to publish. The workflow rejects a tag that does not match the package versions or points to a different commit from the tested artifact.
 
 Each successful Windows run uploads **Scorebug-Windows-x64** with:
 
@@ -33,9 +40,9 @@ Each successful Windows run uploads **Scorebug-Windows-x64** with:
 - **SHA256SUMS.txt** — checksums for the two downloads.
 - **release-info.json** — the build’s version, source commit, and asset hashes.
 
-The automated release job has write permission only on a tag push, after the Windows job succeeds. It can resume an existing release for that same version. It reuses matching assets and replaces differing assets only under that tag. Existing release notes and the latest-version selection are preserved when updating an already-published release.
+Only the release job receives repository write permission, after all Windows checks, the native smoke test, and packaging succeed. It uses this same run's artifact, verifies its source commit, checks every file's size and SHA-256 hash, and publishes only after the uploaded files match. Drafts are located by authenticated release listing and retained numeric IDs, so an unfinished draft can be resumed.
 
-If you publish through GitHub’s website, use the assets from the successful Windows run for the same source version. Attach the ZIP, installer, and checksum file before publishing. This keeps the download usable immediately.
+If an upload or publication request fails, use **Re-run failed jobs** on that workflow run. The release job reuses the same verified build and replaces incomplete or mismatched uploads only while the release remains a draft. A published release with matching files is left unchanged. Different files in an already-published release, including an immutable release, cause a clear failure: bump the version for a new release. Do not move an existing version tag or expect a fresh rebuild to have identical ZIP hashes.
 
 ## Permanent download links
 
@@ -49,4 +56,4 @@ The desktop app is unsigned. Publishing a release does not change that.
 
 ## References
 
-[GitHub Desktop: commit and push](https://docs.github.com/en/desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project-in-github-desktop) · [Managing GitHub releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
+[GitHub Desktop: commit and push](https://docs.github.com/en/desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project-in-github-desktop) · [Manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow) · [GitHub release API](https://docs.github.com/en/rest/releases/releases) · [Release asset API](https://docs.github.com/en/rest/releases/assets)

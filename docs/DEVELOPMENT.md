@@ -18,7 +18,7 @@ The [ESPN scoreboard](https://site.api.espn.com/apis/site/v2/sports/football/nfl
 
 A score-feed failure preserves the last received scores with **FEED DELAYED** and backs off retries to 20/40/60 seconds. Stats failures label old totals as delayed. Normal polling resumes after success. Desktop renderer throttling is disabled, but the computer must remain awake and online; browsers may throttle or discard ordinary background tabs.
 
-**Compare reference** is a labeled SF/KC design preview, never the live feed or an error fallback.
+**Sample matchup** is a labeled SF/KC design preview, never the live feed or an error fallback.
 
 ## Run and verify from source
 
@@ -49,7 +49,7 @@ npm run test:smoke --prefix desktop
 npm run dist:win --prefix desktop
 ```
 
-The suites cover feed normalization, missing/malformed data, event deduplication and silent baselines, polling recovery, team hit areas, screen-edge snapping, and outward stats placement. Windows CI checks the actual native window, preload, positioning, team-stats IPC, and transparency before packaging. Workflow artifacts are retained for 30 days. Tagged releases keep the public downloads available at a stable URL; see [publishing a release](GITHUB-ACCESS.md#publish-a-new-download).
+The suites cover feed normalization, missing/malformed data, event deduplication and silent baselines, polling recovery, team hit areas, screen-edge snapping, and outward stats placement. Windows CI checks the actual native window, preload, positioning, team-stats IPC, and transparency before packaging. Workflow artifacts are retained for 30 days. Run **Build Windows desktop app** on `main` with its publish checkbox enabled, or push a matching version tag, to publish the verified downloads at a stable URL. Publication uses that run's exact commit and checks asset hashes before making the draft public; see [publishing a release](GITHUB-ACCESS.md#publish-a-new-download).
 
 ### API and code map
 
