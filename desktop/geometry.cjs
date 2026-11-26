@@ -48,15 +48,34 @@ function anchorBounds(anchor, size, workArea, margin = 16) {
 }
 
 function nearestAnchor(bounds, workArea, threshold = 56, margin = 16) {
-  let result = null;
-  for (const anchor of ANCHORS) {
-    const target = anchorBounds(anchor, bounds, workArea, margin);
-    const distance = Math.hypot(target.x - bounds.x, target.y - bounds.y);
-    if (distance <= threshold && (!result || distance < result.distance)) {
-      result = { anchor, bounds: target, distance };
-    }
+  // Snap anywhere along an edge. Requiring proximity to the exact side-center
+  // point left most normal side drags floating in their old orientation.
+  const distances = {
+    left: Math.max(0, bounds.x - workArea.x - margin),
+    right: Math.max(0, workArea.x + workArea.width - margin - bounds.x - bounds.width),
+    top: Math.max(0, bounds.y - workArea.y - margin),
+    bottom: Math.max(0, workArea.y + workArea.height - margin - bounds.y - bounds.height)
+  };
+  const horizontal = Math.min(distances.left, distances.right) <= threshold
+    ? (distances.left <= distances.right ? 'left' : 'right') : null;
+  const vertical = Math.min(distances.top, distances.bottom) <= threshold
+    ? (distances.top <= distances.bottom ? 'top' : 'bottom') : null;
+  if (vertical || horizontal) {
+    const anchor = vertical ? `${vertical}-${horizontal || 'center'}` : `middle-${horizontal}`;
+    return { anchor, bounds: anchorBounds(anchor, bounds, workArea, margin), distance: Math.min(...Object.values(distances)) };
   }
-  return result;
+  const target = anchorBounds('center', bounds, workArea, margin);
+  const distance = Math.hypot(target.x - bounds.x, target.y - bounds.y);
+  return distance <= threshold ? { anchor: 'center', bounds: target, distance } : null;
+}
+
+function widgetSize(scale = 1, orientation = 'horizontal') {
+  const vertical = orientation === 'vertical';
+  const width = Math.round((vertical ? 160 : 520) * scale);
+  // Controls and the transparent margins use CSS pixels, so they must not shrink
+  // with the scorebug. Reserve the feed-status badge even while it is absent.
+  const ratio = vertical ? 367 / 160 : 162 / 600;
+  return { width, height: Math.ceil(Math.max(1, width - 16) * ratio) + 39 };
 }
 
 function displayForBounds(bounds, displays, fallbackId) {
@@ -88,35 +107,71 @@ function overlapArea(a, b) {
     Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
 }
 
-function detailsBounds(widgetBounds, workArea, size = { width: 420, height: 480 }, gap = 10) {
+function detailsBounds(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', size = { width: 220, height: 230 } } = {}) {
   const width = Math.min(size.width, workArea.width);
   const height = Math.min(size.height, workArea.height);
-  const centeredX = widgetBounds.x + (widgetBounds.width - width) / 2;
-  const centeredY = widgetBounds.y + (widgetBounds.height - height) / 2;
-  const above = { x: centeredX, y: widgetBounds.y - height - gap, width, height };
-  const below = { x: centeredX, y: widgetBounds.y + widgetBounds.height + gap, width, height };
-  const right = { x: widgetBounds.x + widgetBounds.width + gap, y: centeredY, width, height };
-  const left = { x: widgetBounds.x - width - gap, y: centeredY, width, height };
-  const preferAbove = widgetBounds.y + widgetBounds.height / 2 >= workArea.y + workArea.height / 2;
-  const vertical = widgetBounds.height > widgetBounds.width;
-  const preferRight = widgetBounds.x + widgetBounds.width / 2 < workArea.x + workArea.width / 2;
-  const candidates = vertical
-    ? (preferRight ? [right, left, below, above] : [left, right, below, above])
-    : (preferAbove ? [above, below, right, left] : [below, above, right, left]);
+  const team = teamPanelBounds(widgetBounds, orientation, side);
+  const away = teamPanelBounds(widgetBounds, orientation, 'away');
+  const home = teamPanelBounds(widgetBounds, orientation, 'home');
+  const colored = { x: Math.min(away.x, home.x), y: Math.min(away.y, home.y),
+    width: Math.max(away.x + away.width, home.x + home.width) - Math.min(away.x, home.x),
+    height: Math.max(away.y + away.height, home.y + home.height) - Math.min(away.y, home.y) };
+  const y = team.y + (team.height - height) / 2;
+  const right = { x: colored.x + colored.width, y, width, height };
+  const left = { x: colored.x - width, y, width, height };
+  const candidates = side === 'away' ? [left, right] : [right, left];
   const clamped = candidates.map((bounds) => clampBounds(bounds, workArea));
-  // Clamping may turn an off-screen candidate into one that overlaps the bug.
-  // Prefer a non-overlapping placement, preserving the directional preference.
-  const unobstructed = clamped.find((bounds) => overlapArea(bounds, widgetBounds) === 0);
-  return unobstructed || clamped.reduce((best, bounds) => overlapArea(bounds, widgetBounds) < overlapArea(best, widgetBounds) ? bounds : best);
+  // Native bounds include transparent margins. Touch the colored edge instead;
+  // if the preferred side is offscreen, place the extension on the inward side.
+  const unobstructed = clamped.find((bounds) => overlapArea(bounds, colored) <= Math.max(height, colored.height));
+  return unobstructed || clamped.reduce((best, bounds) => overlapArea(bounds, colored) < overlapArea(best, colored) ? bounds : best);
 }
 
 function scorebugHitBounds(bounds, orientation = 'horizontal') {
   const width = Math.max(1, bounds.width - 16);
   // Match each SVG's aspect ratio instead of including the transparent space
   // reserved above it for controls. A delayed-feed badge is not a hover target.
-  const aspect = orientation === 'vertical' ? 310 / 160 : 117 / 600;
-  const height = Math.max(1, Math.min(bounds.height - 8, Math.ceil(width * aspect)));
+  const aspect = orientation === 'vertical' ? 348 / 160 : 138 / 600;
+  const height = Math.max(1, Math.min(bounds.height - 8, width * aspect));
   return { x: bounds.x + 8, y: bounds.y + bounds.height - 8 - height, width, height };
+}
+
+const TEAM_POLYGONS = Object.freeze({
+  horizontal: {
+    away: [[24, 4], [303, 4], [285, 88], [6, 88]],
+    home: [[308, 4], [595, 4], [577, 88], [290, 88]]
+  },
+  vertical: {
+    away: [[10, 2], [159, 2], [149, 121], [1, 121]],
+    home: [[10, 128], [159, 128], [149, 247], [1, 247]]
+  }
+});
+
+function teamPanelBounds(bounds, orientation = 'horizontal', side = 'home') {
+  const vertical = orientation === 'vertical';
+  const bug = scorebugHitBounds(bounds, orientation);
+  const factor = bug.width / (vertical ? 160 : 600);
+  const polygon = TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'][side === 'away' ? 'away' : 'home'];
+  const xs = polygon.map(([x]) => x), ys = polygon.map(([, y]) => y);
+  return { x: bug.x + Math.min(...xs) * factor, y: bug.y + Math.min(...ys) * factor,
+    width: (Math.max(...xs) - Math.min(...xs)) * factor, height: (Math.max(...ys) - Math.min(...ys)) * factor };
+}
+
+function teamAtPoint(bounds, point, orientation = 'horizontal') {
+  const vertical = orientation === 'vertical';
+  const bug = scorebugHitBounds(bounds, orientation);
+  if (!containsPoint(bug, point)) return null;
+  const factor = bug.width / (vertical ? 160 : 600);
+  const x = (point.x - bug.x) / factor, y = (point.y - bug.y) / factor;
+  for (const [side, polygon] of Object.entries(TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'])) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i], [xj, yj] = polygon[j];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    if (inside) return side;
+  }
+  return null;
 }
 
 function hoverBridge(a, b) {
@@ -136,4 +191,4 @@ function hoverBridge(a, b) {
   return null;
 }
 
-module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, containsPoint, detailsBounds, scorebugHitBounds, hoverBridge };
+module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsBounds, scorebugHitBounds, teamPanelBounds, teamAtPoint, hoverBridge };

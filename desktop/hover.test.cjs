@@ -43,3 +43,22 @@ test('dragging closes the panel and keyboard-opened focus can keep it available'
   assert.equal(hover.update({ now: 1100, overWidget: true, detailsOpen: true, blocked: true }), 'close');
   assert.equal(hover.update({ now: 2000, overWidget: true, detailsOpen: false }), null);
 });
+
+test('opening requires a deliberate dwell on the same team', () => {
+  const hover = new HoverIntent();
+  hover.update({ now: 0, overWidget: false });
+  assert.equal(hover.update({ now: 100, overWidget: true, side: 'away' }), null);
+  assert.equal(hover.update({ now: 500, overWidget: true, side: 'home' }), null);
+  assert.equal(hover.update({ now: 700, overWidget: true, side: 'home' }), null);
+  assert.equal(hover.update({ now: 920, overWidget: true, side: 'home' }), 'open');
+});
+
+test('crossing to the other colored team switches the existing extension after a short dwell', () => {
+  const hover = new HoverIntent();
+  hover.opened();
+  assert.equal(hover.update({ now: 0, overWidget: true, detailsOpen: true, side: 'home', activeSide: 'home' }), null);
+  assert.equal(hover.update({ now: 100, overWidget: true, detailsOpen: true, side: 'away', activeSide: 'home' }), null);
+  assert.equal(hover.update({ now: 250, overWidget: true, detailsOpen: true, side: 'away', activeSide: 'home' }), null);
+  assert.equal(hover.update({ now: 260, overWidget: true, detailsOpen: true, side: 'away', activeSide: 'home' }), 'switch');
+  assert.equal(hover.update({ now: 300, overWidget: false, overDetails: true, detailsOpen: true, activeSide: 'away' }), null);
+});

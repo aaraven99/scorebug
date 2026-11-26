@@ -8,7 +8,8 @@ contextBridge.exposeInMainWorld('scorebugDesktop', {
   setPreferences: (patch) => ipcRenderer.invoke('scorebug:preferences:set', patch),
   getState: () => ipcRenderer.invoke('scorebug:state'),
   openSettings: () => ipcRenderer.invoke('scorebug:settings'),
-  showDetails: () => ipcRenderer.invoke('scorebug:details:show'),
+  showDetails: (side) => ipcRenderer.invoke('scorebug:details:show', side),
+  setDefaultDetailsSide: (side) => ipcRenderer.invoke('scorebug:details:default-side', side),
   hideDetails: () => ipcRenderer.invoke('scorebug:details:hide'),
   closeWidget: () => ipcRenderer.invoke('scorebug:quit'),
   onDetailsVisibilityChanged: (callback) => {
@@ -16,6 +17,12 @@ contextBridge.exposeInMainWorld('scorebugDesktop', {
     const listener = (_event, visible) => callback(visible);
     ipcRenderer.on('scorebug:details:visibility', listener);
     return () => ipcRenderer.removeListener('scorebug:details:visibility', listener);
+  },
+  onDetailsSideChanged: (callback) => {
+    if (typeof callback !== 'function') throw new TypeError('A callback is required');
+    const listener = (_event, side) => callback(side);
+    ipcRenderer.on('scorebug:details:side', listener);
+    return () => ipcRenderer.removeListener('scorebug:details:side', listener);
   },
   onPreferencesChanged: (callback) => {
     if (typeof callback !== 'function') throw new TypeError('A callback is required');
