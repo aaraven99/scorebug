@@ -1,0 +1,21 @@
+/* Saira by Omnibus-Type, SIL OFL: fonts/Saira-OFL.txt.
+   A real italic variable face; this is a recreation, not a verified FOX font. */
+@font-face{font-family:"Scorebug Saira";src:url('/fonts/Saira-Italic.ttf') format('truetype');font-style:italic;font-weight:100 900;font-stretch:50% 125%;font-display:swap}
+.scorebug{display:block;width:100%;height:auto;overflow:visible;user-select:none;-webkit-user-select:none;isolation:isolate;shape-rendering:geometricPrecision}
+.scorebug text{fill:#fffdf0;font-family:"Scorebug Saira","Arial",sans-serif;font-style:italic;font-weight:800;font-variation-settings:"wght" 800,"wdth" 94;font-variant-numeric:tabular-nums;text-rendering:geometricPrecision}
+.scorebug .bug-score{font-size:64px;font-weight:900;font-variation-settings:"wght" 900,"wdth" 75;letter-spacing:-1px}
+.scorebug .bug-score--long{font-size:50px;letter-spacing:-1.5px}
+.scorebug .bug-abbreviation{font-size:37px;letter-spacing:-1px}
+.scorebug .bug-quarter,.scorebug .bug-clock,.scorebug .bug-down{font-size:28px;letter-spacing:.2px}
+.scorebug .bug-clock{font-size:30px;font-variation-settings:"wght" 800,"wdth" 100;letter-spacing:.6px}
+.scorebug .bug-down{font-size:27px}.scorebug .bug-down--long{font-size:22px}
+.scorebug .bug-banner{font-size:27px;letter-spacing:1px}
+.scorebug .bug-status-flag text{font-family:Arial,sans-serif;font-size:12px;font-style:normal;font-weight:700;letter-spacing:1.15px;fill:#fff}
+.scorebug .bug-team-logo{filter:drop-shadow(0 1px 1px #0006)}
+.scorebug .bug-vertical-score{font-size:55px;letter-spacing:0;font-variation-settings:"wght" 900,"wdth" 83}
+.scorebug .bug-vertical-abbreviation{font-size:26px;letter-spacing:0}
+.scorebug .bug-vertical-quarter{font-size:15px;letter-spacing:1px}
+.scorebug .bug-vertical-clock{font-size:31px;letter-spacing:.6px;font-variation-settings:"wght" 850,"wdth" 91}
+.scorebug .bug-vertical-down{font-size:19px;letter-spacing:0}
+.scorebug .bug-vertical-banner{font-size:15px;letter-spacing:0;font-variation-settings:"wght" 800,"wdth" 65}
+@media(prefers-reduced-motion:reduce){.scorebug,.scorebug *{animation:none!important;transition:none!important}}

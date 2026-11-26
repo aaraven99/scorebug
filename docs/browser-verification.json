@@ -1,0 +1,12 @@
+{
+  "testedAt": "2026-11-26T19:19:28.110Z",
+  "liveFeed": true,
+  "desktopLayout": true,
+  "mobileLayout": true,
+  "selection": true,
+  "staleAndRecovery": true,
+  "bfcacheResume": true,
+  "pipSupported": true,
+  "pipVerified": true,
+  "errors": []
+}
