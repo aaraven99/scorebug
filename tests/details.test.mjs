@@ -82,6 +82,59 @@ test('duplicated current/previous drives are deduplicated and absent play data r
   assert.deepEqual(result.recentPlays, []);
 });
 
+test('ESPN scoring records identify the scoring team and retain same-ID TD/conversion components', () => {
+  const payload = fixture();
+  const td = {
+    id: '123454', sequenceNumber: '400', type: { id: '67', text: 'Passing Touchdown' },
+    text: 'Pass for 41 yards, TOUCHDOWN. TWO-POINT CONVERSION ATTEMPT. ATTEMPT SUCCEEDS.',
+    awayScore: 8, homeScore: 7, scoringPlay: true, scoringType: { name: 'touchdown' },
+    pointAfterAttempt: { id: 16, text: 'Two Point Rush', value: 2 }, isTurnover: false, statYardage: 41,
+    teamParticipants: [{ id: '3', type: 'offense' }, { id: '8', type: 'defense' }],
+    start: { team: { id: '3' } }, end: { team: { id: '3' } },
+  };
+  payload.drives.current.plays.push(td);
+  payload.scoringPlays = [{ id: '123454', text: 'Scoring summary.', type: td.type, team: { id: '3' }, awayScore: 8, homeScore: 7, scoringType: td.scoringType }];
+  const result = normalizeGameDetails(payload);
+  assert.equal(result.lastPlay.id, '123454');
+  assert.equal(result.lastPlay.text, td.text);
+  assert.equal(result.lastPlay.sequenceNumber, 400);
+  assert.equal(result.lastPlay.typeId, '67');
+  assert.equal(result.lastPlay.scoringTeamId, '3');
+  assert.deepEqual(result.lastPlay.scores, { away: 8, home: 7 });
+  assert.deepEqual(result.lastPlay.pointAfterAttempt, { typeId: '16', type: 'Two Point Rush', points: 2 });
+  assert.equal(result.eventPlays.filter((entry) => entry.id === '123454').length, 1);
+});
+
+test('turnover flags and defensive scoring attribution survive without inferring every fumble is lost', () => {
+  const payload = fixture();
+  payload.drives.current.plays = [
+    { id: '123454', sequenceNumber: '400', text: 'FUMBLES, and recovers.', type: { id: '9', text: 'Fumble Recovery (Own)' }, isTurnover: false, start: { team: { id: '3' } }, end: { team: { id: '3' } } },
+    { id: '123455', sequenceNumber: '500', text: 'FUMBLES, RECOVERED by the defense.', type: { id: '29', text: 'Fumble Recovery (Opponent)' }, isTurnover: true, start: { team: { id: '3' } }, end: { team: { id: '8' } } },
+    { id: '123456', sequenceNumber: '600', text: 'FUMBLES. PENALTY in the End Zone, SAFETY.', type: { id: '20', text: 'Safety' }, scoringPlay: true, scoringType: { name: 'safety' }, isTurnover: false, awayScore: 0, homeScore: 9, start: { team: { id: '3' } }, end: { team: { id: '8' } } },
+  ];
+  payload.scoringPlays = [{ id: '123456', text: 'Safety.', team: { id: '8' }, scoringType: { name: 'safety' } }];
+  const plays = normalizeGameDetails(payload).eventPlays;
+  assert.equal(plays.find((entry) => entry.id === '123454').isTurnover, false);
+  assert.equal(plays.find((entry) => entry.id === '123455').isTurnover, true);
+  const safety = plays.find((entry) => entry.id === '123456');
+  assert.equal(safety.isTurnover, false);
+  assert.equal(safety.offenseTeamId, '3');
+  assert.equal(safety.scoringTeamId, '8');
+});
+
+test('animation evidence keeps at most 24 recent plays while hover keeps three, including mixed scoring-list sources', () => {
+  const payload = fixture();
+  payload.drives.current.plays = Array.from({ length: 30 }, (_, index) => ({ id: String(123500 + index), sequenceNumber: String(index * 100), text: `Play ${index}.` }));
+  // This old scoring record has no corresponding drive or sequence. Its full
+  // numeric event ID must not sort ahead of newer drive sequence numbers.
+  payload.scoringPlays = [{ id: '123400', text: 'An older field goal.', type: { id: '59', text: 'Field Goal Good' }, team: { id: '3' } }];
+  const result = normalizeGameDetails(payload);
+  assert.equal(result.eventPlays.length, 24);
+  assert.equal(result.recentPlays.length, 3);
+  assert.deepEqual(result.recentPlays.map((entry) => entry.id), ['123529', '123528', '123527']);
+  assert.equal(result.eventPlays.some((entry) => entry.id === '123400'), false);
+});
+
 test('actual current situation is included only during live play, not halftime or a completed drive', () => {
   const payload = fixture();
   payload.header.competitions[0].situation = { possession: '3', down: 3, distance: 15, possessionText: 'CHI 20', yardsToEndzone: 80 };

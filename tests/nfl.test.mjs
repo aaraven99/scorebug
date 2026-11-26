@@ -46,6 +46,39 @@ test('a kickoff/scoring transition never invents a negative down or play clock',
   assert.equal(game.lastPlay, 'Official Timeout at 04:07.');
 });
 
+test('structured scoreboard last plays preserve identity and explicit facts without assigning the current clock to the old play', () => {
+  // The scoreboard's situation.lastPlay carries IDs/type/value/yardage, but
+  // often does not carry a play clock, score snapshot, or turnover flag.
+  const game = normalizeGame(event({ situation: { lastPlay: {
+    id: '401873081200', type: { id: '68', text: 'Rushing Touchdown' }, text: 'Rush for a touchdown.',
+    scoreValue: 6, statYardage: 20, team: { id: '3' }, start: { team: { id: '3' } }, end: { team: { id: '3' } },
+  } } }));
+  assert.equal(game.lastPlay, 'Rush for a touchdown.');
+  assert.equal(game.lastPlayDetails.id, '401873081200');
+  assert.equal(game.lastPlayDetails.typeId, '68');
+  assert.equal(game.lastPlayDetails.scoreValue, 6);
+  assert.equal(game.lastPlayDetails.scoringTeamId, '3');
+  assert.equal(game.lastPlayDetails.yardsGained, 20);
+  assert.equal(game.lastPlayDetails.clock, null);
+  assert.equal(game.lastPlayDetails.period, null);
+  assert.equal(game.lastPlayDetails.isTurnover, null);
+  assert.deepEqual(game.lastPlayDetails.scores, { away: null, home: null });
+});
+
+test('missing and invalid play metadata stays unknown and a no-play penalty remains explicit', () => {
+  const game = normalizeGame(event({ situation: { lastPlay: {
+    id: 'invalid', text: 'Pass for 99 yards. NO PLAY.', type: { id: '24', text: 'Pass Reception' },
+    scoreValue: '', statYardage: true, isTurnover: 'true', team: { id: '999' },
+  } } }));
+  assert.equal(game.lastPlayDetails.id, null);
+  assert.equal(game.lastPlayDetails.scoreValue, null);
+  assert.equal(game.lastPlayDetails.yardsGained, null);
+  assert.equal(game.lastPlayDetails.scoringTeamId, null);
+  assert.equal(game.lastPlayDetails.isTurnover, null);
+  assert.equal(game.lastPlayDetails.isNoPlay, true);
+  assert.equal(normalizeGame(event({ situation: null })).lastPlayDetails, null);
+});
+
 test('scheduled and missing data do not become made-up clocks, timeouts, scores, or possession', () => {
   const input = event({ status: { displayClock: '0:00', period: 0, type: { state: 'pre', name: 'STATUS_SCHEDULED' } }, situation: null });
   delete input.competitions[0].competitors[0].score;
