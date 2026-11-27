@@ -3,6 +3,14 @@ const LEAGUE = /^[a-z][a-z0-9.-]{0,39}$/;
 const STYLE = /^[a-z][a-z0-9-]{0,79}$/;
 const shortText = (value, length = 100) => typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, length) : '';
 export const DEFAULT_LEAGUE_ID = 'nfl';
+export const DEFAULT_RACING_ROWS = 6;
+export const MIN_RACING_ROWS = 3;
+export const MAX_RACING_ROWS = 60;
+export function normalizeRacingRows(value) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(MAX_RACING_ROWS, Math.max(MIN_RACING_ROWS, Math.round(value)))
+    : DEFAULT_RACING_ROWS;
+}
 export function validLeagueId(value) { return typeof value === 'string' && LEAGUE.test(value); }
 export function supportedGameId(value) { return typeof value === 'string' && ID.test(value); }
 export function validDate(value) {
@@ -41,10 +49,11 @@ export function normalizePreferencePatch(patch = {}) {
   if (Object.hasOwn(patch, 'date')) result.date = validDate(patch.date) ? patch.date : null;
   if (Object.hasOwn(patch, 'team')) result.team = typeof patch.team === 'string' && /^[A-Z]{2,4}$/.test(patch.team) ? patch.team : null;
   if (typeof patch.scale === 'number' && Number.isFinite(patch.scale)) result.scale = Math.min(1.8, Math.max(0.65, patch.scale));
+  if (typeof patch.racingRows === 'number' && Number.isFinite(patch.racingRows)) result.racingRows = normalizeRacingRows(patch.racingRows);
   if (['horizontal', 'vertical'].includes(patch.orientation)) result.orientation = patch.orientation;
   if (Object.hasOwn(patch,'anchor') && patch.anchor === null) result.anchor = null;
   if (/^(?:top|bottom)-(?:left|center|right)$|^middle-(?:left|right)$|^center$/.test(patch.anchor || '')) result.anchor = patch.anchor;
-  for (const key of ['snapEnabled', 'locked']) if (typeof patch[key] === 'boolean') result[key] = patch[key];
+  for (const key of ['snapEnabled', 'locked', 'styleAuto']) if (typeof patch[key] === 'boolean') result[key] = patch[key];
   if (['top', 'bottom'].includes(patch.contentAlignment)) result.contentAlignment = patch.contentAlignment;
   return result;
 }

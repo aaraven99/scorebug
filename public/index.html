@@ -25,13 +25,26 @@
         <button type="button" class="text-button" id="style-browser-toggle" aria-expanded="false" aria-controls="style-browser">Browse styles</button>
       </section>
       <p class="style-note" id="style-note"></p>
+      <div id="racing-row-controls" class="racing-row-controls" hidden>
+        <div class="size-row"><label for="racing-rows">Drivers shown</label><output id="racing-rows-value" for="racing-rows">6</output></div>
+        <input id="racing-rows" type="range" min="3" max="22" step="1" value="6" aria-label="Drivers shown">
+        <p id="racing-rows-note" class="small-note">Show the front runners or expand to the full field.</p>
+      </div>
       <div id="style-browser" class="style-browser" hidden><div class="style-browser-tools"><label for="style-search">Find a style</label><input id="style-search" type="search" placeholder="Blades, CBS, NBA, timing tower…"><label class="style-all-label"><input type="checkbox" id="all-styles" checked> All sports</label></div><div id="style-gallery" class="style-gallery" aria-label="Scorebug styles"></div><p class="small-note">Broadcast-inspired recreations adapted to this app. Network names identify the references; Scorebug is not affiliated with those broadcasters.</p></div>
       <section class="favorites-section" aria-labelledby="favorites-title">
         <div class="live-games-heading"><h2 id="favorites-title">Your favorites <span id="favorites-count"></span></h2></div>
         <div id="favorite-chips" class="favorite-chips" aria-label="Saved favorites"></div>
         <p id="favorites-message" class="live-games-message" role="status">Add your teams for a shortcut when they’re playing.</p>
         <div id="favorite-games" class="live-games" aria-label="Favorite teams playing now"></div>
-        <details id="favorite-editor"><summary>Add a favorite</summary><div class="favorite-editor-controls"><label>Search teams or competitors<input type="search" id="favorite-search" placeholder="Chicago Bears…" autocomplete="off"></label><label>Choose from this league<select id="favorite-team-select"><option value="">Loading teams…</option></select></label><button id="add-favorite" type="button" class="secondary-button">Add favorite</button></div><p id="favorite-directory-status" class="small-note" role="status"></p></details>
+        <details id="favorite-editor"><summary>Add a favorite</summary>
+          <div class="favorite-editor-controls">
+            <label>Search teams or competitors<input type="search" id="favorite-search" placeholder="Chicago Bears…" autocomplete="off" aria-controls="favorite-results"></label>
+            <label>Search in<select id="favorite-league-select"><option value="all">All available teams</option></select></label>
+          </div>
+          <ul id="favorite-results" class="favorite-results" aria-label="Matching teams"></ul>
+          <p id="favorite-directory-status" class="small-note" role="status" aria-live="polite"></p>
+          <button id="favorite-retry" type="button" class="secondary-button" hidden>Try loading teams again</button>
+        </details>
       </section>
       <section class="live-games-section" aria-labelledby="live-games-title">
         <div class="live-games-heading"><h2 id="live-games-title">Live now <span id="live-games-count"></span></h2><button id="follow-live" class="secondary-button" type="button" aria-pressed="true" aria-describedby="selection-mode">Automatic</button></div>
@@ -53,7 +66,7 @@
       <p id="reference-note" class="small-note" hidden>Sample matchup for checking the design. Your floating scorebug still follows your selected game.</p>
       <section id="animation-demo" class="animation-demo" aria-labelledby="demo-title">
         <div class="demo-heading"><h2 id="demo-title">Try an animation</h2><p id="demo-status" role="status">Preview only. Your live score won’t change.</p></div>
-        <div class="demo-controls"><label>Team<select id="demo-team"><option value="away">Away team</option><option value="home">Home team</option></select></label><label>Animation<select id="demo-event"><option value="touchdown">Touchdown</option><option value="field-goal">Field goal</option><option value="safety">Safety</option><option value="extra-point">Extra point</option><option value="two-point">Two-point conversion</option><option value="interception">Interception</option><option value="fumble">Fumble turnover</option><option value="big-play">Big play</option><option value="score">Score update</option></select></label><button type="button" id="demo-play" class="secondary-button">Play demo</button></div>
+        <div class="demo-controls"><label id="demo-competitor-control"><span id="demo-competitor-label">Team</span><select id="demo-team"><option value="away">Away team</option><option value="home">Home team</option></select></label><label>Animation<select id="demo-event"><option value="touchdown">Touchdown</option><option value="field-goal">Field goal</option><option value="safety">Safety</option><option value="extra-point">Extra point</option><option value="two-point">Two-point conversion</option><option value="interception">Interception</option><option value="fumble">Fumble turnover</option><option value="big-play">Big play</option><option value="score">Score update</option></select></label><button type="button" id="demo-play" class="secondary-button">Play demo</button></div>
       </section>
       <div class="controls-grid">
         <section class="settings-section" aria-labelledby="float-panel-title">

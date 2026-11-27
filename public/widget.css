@@ -6,6 +6,9 @@
 .widget-page[data-desktop] .widget-stats-label{display:none}.widget-page[data-desktop] .widget-stats-icon{display:block!important}.widget-page[data-desktop]:not([data-orientation=vertical]) .widget-toolbar button{width:22px;padding:0}
 .widget-page:not([data-desktop]) .widget-root{padding:31px 8px 8px}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-board{max-width:var(--widget-side-width,144px)}
 .widget-layout-controls{display:flex;align-items:center;gap:1px;margin-right:3px;padding-right:4px;border-right:1px solid #465047}.widget-layout-controls button[aria-pressed=true]{background:#344139;color:#fff}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-toolbar{right:2px;height:auto;flex-wrap:wrap;max-width:calc(100% - 4px)}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-layout-controls{width:100%;justify-content:center;margin:0;padding:0 0 2px;border:0;border-bottom:1px solid #465047}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-root{padding-top:56px}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-hint{display:none}
+/* A very tall classification may need a narrow native window. Keep the three
+   essential controls reachable; refresh and Game Center remain in settings. */
+@media(max-width:101px){.widget-page[data-desktop] .widget-toolbar{left:2px;right:2px;gap:0;justify-content:space-between}.widget-page[data-desktop] .widget-toolbar button{min-width:0;flex:1;padding:0}.widget-page[data-desktop] .widget-toolbar .widget-refresh-button,.widget-page[data-desktop] .widget-toolbar .widget-game-center-button{display:none}}
 /* The iframe reveals the joined blade from its exact score-panel seam. */
 .details-popover{border-radius:0;animation:none}
 /* Announcements occupy only the team panels. Their timers live in the owner window. */
@@ -16,17 +19,19 @@
 .score-animation-content{display:flex;height:100%;width:100%;align-items:center;justify-content:center;gap:clamp(7px,2.4cqw,13px);padding:3px clamp(11px,4cqw,22px);position:relative;z-index:1}
 .score-animation-art{position:relative;align-self:stretch;flex:0 0 clamp(42px,14cqw,76px);display:grid;place-items:center;isolation:isolate;min-width:0}
 .score-animation-logo{width:clamp(32px,10.6cqw,57px);height:clamp(32px,10.6cqw,57px);object-fit:contain;filter:drop-shadow(0 1px 2px #0008);position:relative;z-index:2}
-.score-animation-crest-fallback{font:900 clamp(15px,4.7cqw,26px)/1 Arial,sans-serif;font-style:italic;letter-spacing:-.6px}
+.score-animation-crest-fallback{font:900 clamp(15px,4.7cqw,26px)/1 Arial,sans-serif;font-style:italic;letter-spacing:-.6px;display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.score-animation-flag{width:clamp(32px,10.6cqw,57px);height:auto;max-height:100%;filter:drop-shadow(0 1px 2px #0005)}
+.score-animation-session-art .score-animation-crest-fallback{border:2px solid currentColor;border-radius:3px;padding:5px 4px;font-size:clamp(12px,3.5cqw,21px);font-style:normal;letter-spacing:0}
 .score-animation-player-photo{position:absolute;z-index:1;bottom:-4%;left:-12%;width:124%;height:116%;object-fit:contain;object-position:center bottom;opacity:0;transition:opacity .16s ease;filter:drop-shadow(0 1px 2px #0004)}
 .score-animation-art[data-portrait=ready] .score-animation-player-photo{opacity:1}
 .score-animation-art[data-portrait=ready] .score-animation-logo,.score-animation-art[data-portrait=ready] .score-animation-crest-fallback{position:absolute;right:-2px;bottom:3px;width:clamp(16px,4.3cqw,23px);height:clamp(16px,4.3cqw,23px);padding:2px;border-radius:50%;background:#fffffff0;filter:drop-shadow(0 1px 2px #0005)}
 .score-animation-art[data-portrait=ready] .score-animation-crest-fallback{display:grid;place-items:center;color:#18231e;text-shadow:none;font-size:7px;letter-spacing:-.4px}
 .score-animation-copy{display:flex;flex:0 1 auto;flex-direction:column;align-items:flex-start;justify-content:center;min-width:0;max-width:calc(100% - 58px);gap:2px}
 .score-animation-meta{display:flex;align-items:center;flex-wrap:nowrap;gap:6px;min-width:0;max-width:100%;line-height:1}
-.score-animation-detail{font:700 clamp(7px,1.8cqw,10px)/1.15 Arial,sans-serif;letter-spacing:1.1px;color:#fff9e9;white-space:nowrap}
-.score-animation .score-animation-title{font-family:"Scorebug Tomorrow",Arial,sans-serif;font-style:italic;font-weight:800;line-height:1.03;font-size:clamp(14px,5.2cqw,28px);letter-spacing:-.65px;text-align:left;max-width:100%;text-wrap:balance}
+.score-animation-detail{font:700 clamp(7px,1.8cqw,10px)/1.15 Arial,sans-serif;letter-spacing:1.1px;color:#fff9e9;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.score-animation .score-animation-title{font-family:"Scorebug Tomorrow",Arial,sans-serif;font-style:italic;font-weight:800;line-height:1.03;font-size:clamp(14px,5.2cqw,28px);letter-spacing:-.65px;text-align:left;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:.12em}
 .score-animation .score-animation-title--long{font-size:clamp(12px,4.6cqw,25px);letter-spacing:-.55px}
-.score-animation-player-name,.score-animation-team-name{font:700 clamp(9px,2.6cqw,14px)/1.15 Arial,sans-serif;letter-spacing:.1px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.score-animation-player-name,.score-animation-team-name{font:700 clamp(9px,2.6cqw,14px)/1.15 Arial,sans-serif;letter-spacing:.1px;display:block;min-width:0;width:100%;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal;color:#fff}
 .score-animation-team-name{font-weight:600;color:#fff9e9}
 .score-animation .score-animation-demo-label{display:inline-block;flex:none;background:#fff;color:#25332a;border-radius:2px;padding:2px 4px;font:800 clamp(6px,1.5cqw,8px)/1 Arial,sans-serif;letter-spacing:.5px;text-shadow:none}
 .score-animation.is-playing{animation:score-enter .28s cubic-bezier(.22,.72,.28,1) both}
@@ -40,12 +45,14 @@
 .score-animation-host[data-animation-orientation=vertical] .score-animation-art{align-self:center;flex:0 1 clamp(40px,62cqw,96px);width:clamp(40px,62cqw,96px);min-height:clamp(30px,35cqw,56px)}
 .score-animation-host[data-animation-orientation=vertical] .score-animation-logo{width:clamp(28px,40cqw,60px);height:clamp(28px,40cqw,60px)}
 .score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-logo,.score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-crest-fallback{width:clamp(12px,15.6cqw,25px);height:clamp(12px,15.6cqw,25px);right:3px;bottom:2px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-copy{max-width:100%;flex:none;align-items:center;gap:clamp(2px,3cqw,5px)}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-copy{width:100%;max-width:100%;flex:none;align-items:center;gap:clamp(2px,3cqw,5px)}
 .score-animation-host[data-animation-orientation=vertical] .score-animation-meta{justify-content:center;gap:5px}
 .score-animation-host[data-animation-orientation=vertical] .score-animation-detail{font-size:clamp(6px,5.8cqw,9px);letter-spacing:.5px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-title{font-size:clamp(10px,10.6cqw,17px);line-height:1.08;text-align:center;overflow-wrap:normal;letter-spacing:-.65px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-title{font-size:clamp(10px,10.6cqw,17px);line-height:1.08;text-align:center;white-space:normal;text-wrap:balance;overflow-wrap:normal;word-break:normal;letter-spacing:-.65px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;padding-right:0}
 .score-animation-host[data-animation-orientation=vertical] .score-animation-title--long{font-size:clamp(9px,9.4cqw,15px)}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-player-name,.score-animation-host[data-animation-orientation=vertical] .score-animation-team-name{font-size:clamp(8px,7.5cqw,12px);line-height:1.15;white-space:normal;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-player-name,.score-animation-host[data-animation-orientation=vertical] .score-animation-team-name{font-size:clamp(8px,7.5cqw,12px);line-height:1.15;white-space:nowrap;text-align:center;display:block;overflow-wrap:normal}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-flag{width:clamp(28px,40cqw,60px)}
+.score-animation-host[data-animation-orientation=vertical][data-animation-sport=racing] .score-animation-art{min-height:clamp(10px,10cqw,20px)}
 .score-animation-host[data-animation-orientation=vertical] .score-animation-demo-label{font-size:clamp(5px,4.4cqw,7px)}
 @container scorebug-animation (max-width:380px){.score-animation-host[data-animation-orientation=horizontal] .score-animation-content{padding-top:2px;padding-bottom:2px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-copy{gap:1px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-meta{gap:4px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-demo-label{padding:1px 3px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-detail{letter-spacing:.5px}}
 @keyframes score-enter{from{opacity:0;transform:translateX(-7%);clip-path:polygon(0 0,0 0,0 100%,0 100%)}to{opacity:1;transform:translateX(0);clip-path:var(--event-frame)}}
