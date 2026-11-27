@@ -9,11 +9,17 @@ const { scorebugHitBounds, teamPanelBounds, teamAtPoint, detailsWindowShape, DET
 const execFileAsync = promisify(execFile);
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-async function waitFor(label, probe, timeout = 10000) {
+async function waitFor(label, probe, timeout = 10000, stableFor = 0) {
   const end = Date.now() + timeout;
   let lastError;
+  let stableSince = null;
   while (Date.now() < end) {
-    try { if (await probe()) return; } catch (error) { lastError = error; }
+    try {
+      if (await probe()) {
+        stableSince ??= Date.now();
+        if (Date.now() - stableSince >= stableFor) return;
+      } else stableSince = null;
+    } catch (error) { lastError = error; stableSince = null; }
     await pause(100);
   }
   throw new Error(`${label} did not become ready${lastError ? `: ${lastError.message}` : ''}`);
@@ -40,7 +46,9 @@ $extendedStyle = [ScorebugWindowStyle]::GetWindowLongPtr($hwnd, -20).ToInt64()
 `;
   const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', source], {
     windowsHide: true,
-    timeout: 10000
+    // A cold hosted runner can spend about ten seconds compiling Add-Type.
+    // The native HWND assertions below still verify the resulting styles.
+    timeout: 30000
   });
   return JSON.parse(stdout.trim());
 }
@@ -74,7 +82,7 @@ try {
 `;
   await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', source], {
     windowsHide: true,
-    timeout: 10000
+    timeout: 30000
   });
 }
 
@@ -102,7 +110,7 @@ $point.Y = ${Math.round(point.y)}
 $hit = [ScorebugWindowHit]::WindowFromPoint($point)
 [ScorebugWindowHit]::GetAncestor($hit, 2).ToInt64().ToString()
 `;
-  const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', source], { windowsHide: true, timeout: 10000 });
+  const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', source], { windowsHide: true, timeout: 30000 });
   return stdout.trim();
 }
 
@@ -572,6 +580,26 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         }
         const compactBounds = widget.getBounds();
         const compactPreferences = (await evaluate('window.scorebugDesktop.getState()')).preferences;
+        const waitForCompactRestore = async (label, ready) => {
+          let observed;
+          try {
+            // On macOS, closed/visible can precede the Dock restoring its work
+            // area. Require the original bounds and preferences to stay exact
+            // beyond the 350 ms native move debounce, not just match once.
+            await waitFor(label, async () => {
+              if (!await ready()) return false;
+              const bounds = widget.getBounds();
+              const preferences = (await evaluate('window.scorebugDesktop.getState()')).preferences;
+              observed = { bounds, workArea: screen.getDisplayMatching(bounds).workArea, preferences };
+              assert.deepEqual(bounds, compactBounds, 'Exiting fullscreen moved the floating scorebug');
+              assert.deepEqual(preferences, compactPreferences, 'Exiting fullscreen changed compact preferences');
+              return true;
+            }, 10000, 500);
+          } catch (error) {
+            error.message += `; fullscreen restore: ${JSON.stringify({ expectedBounds: compactBounds, expectedPreferences: compactPreferences, observed })}`;
+            throw error;
+          }
+        };
         await assert.rejects(() => evaluate('window.scorebugDesktop.setGameCenterFullscreen(true)'), /Request denied/);
         await assert.rejects(() => evaluate('window.scorebugDesktop.closeGameCenter()'), /Request denied/);
         await evaluate('window.__gameCenterState = null; window.scorebugDesktop.onGameCenterState(state => { window.__gameCenterState = state; }); void 0;');
@@ -600,25 +628,25 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         center.focus();
         center.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
         center.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
-        await waitFor('Escape exits fullscreen and restores the floating scorebug', async () => !center.isFullScreen() && widget.isVisible() && !(await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
+        await waitForCompactRestore('Escape exits fullscreen and restores the floating scorebug', async () => !center.isFullScreen() && widget.isVisible() && !(await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen);
         assert.deepEqual(widget.getBounds(), compactBounds, 'Exiting fullscreen moved the floating scorebug');
         await centerEvaluate('document.querySelector("#center-fullscreen").click(); void 0;');
         await waitFor('Visible fullscreen control can enter fullscreen again', async () => center.isFullScreen() && !widget.isVisible() && (await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
         center.focus();
         center.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'F11' });
         center.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'F11' });
-        await waitFor('F11 in Game Center exits fullscreen', async () => !center.isFullScreen() && widget.isVisible() && !(await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
+        await waitForCompactRestore('F11 in Game Center exits fullscreen', async () => !center.isFullScreen() && widget.isVisible() && !(await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen);
         await centerEvaluate('window.scorebugDesktop.setGameCenterFullscreen(true)');
         await waitFor('Game Center is fullscreen before closing', async () => center.isFullScreen() && !widget.isVisible() && (await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
         await centerEvaluate('document.querySelector("#center-close").click(); void 0;');
-        await waitFor('Closing Game Center restores the floating scorebug', () => !getGameCenter() && widget.isVisible(), 3000);
+        await waitForCompactRestore('Closing Game Center restores the floating scorebug', () => !getGameCenter() && widget.isVisible());
         assert.deepEqual(widget.getBounds(), compactBounds);
         assert.deepEqual((await evaluate('window.scorebugDesktop.getState()')).preferences, compactPreferences);
         await waitFor('Close state reaches the compact window', () => evaluate('window.__gameCenterState?.open === false && window.__gameCenterState?.fullscreen === false'), 3000);
         check('Game Center reuses a secure fullscreen window, exits with Escape/F11, restricts its IPC controls and restores the compact scoreboard');
         summary.passed = true;
       })(),
-      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 75 seconds')), 75000); })
+      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 150 seconds')), 150000); })
     ]);
   } catch (error) {
     summary.error = error.stack || String(error);

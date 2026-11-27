@@ -29,12 +29,12 @@ function cleanUp(code) {
 
 const deadline = setTimeout(() => {
   timedOut = true;
-  console.error('[native smoke] FAIL: Electron exceeded the 80-second runtime limit.');
+  console.error('[native smoke] FAIL: Electron exceeded the 165-second runtime limit.');
   if (process.platform === 'win32' && child.pid) {
     const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'inherit' });
     killer.on('error', () => child.kill('SIGKILL'));
   } else child.kill('SIGKILL');
-}, 80000);
+}, 165000);
 
 child.on('error', (error) => { console.error(`[native smoke] Could not launch Electron: ${error.message}`); cleanUp(1); });
 child.on('close', (code) => cleanUp(code));
