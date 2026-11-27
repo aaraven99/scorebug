@@ -14,7 +14,7 @@ export async function verifyFavoriteRemovalDuringLogoFailure({page,net,pass,engi
   // data from earlier tests. Only this test's saved favorite uses the query.
   const logo=new URL(bears.logo);logo.searchParams.set('qa-favorite-failure',`${engine}-${pass}`);
   const favorites=[['nfl',{...bears,logo:logo.href}],['nwsl',stars]].map(([leagueId,team])=>({leagueId,teamId:team.id,name:team.name,abbreviation:team.abbreviation,logo:team.logo,color:team.color}));
-  let releaseImage,pointerDown=false,requests=0;
+  let releaseImage,pointerDown=false,requests=0,gestureTrace=[];
   const failureGate=new Promise(resolve=>releaseImage=resolve);
   const match=url=>url.href===logo.href;
   const failLogo=async route=>{
@@ -32,35 +32,61 @@ export async function verifyFavoriteRemovalDuringLogoFailure({page,net,pass,engi
       const key='scorebug.preferences.v2',saved=JSON.parse(localStorage.getItem(key)||'{}');
       localStorage.setItem(key,JSON.stringify({...saved,favorites}));
     },favorites);
+    const beforeReload=await page.evaluate(()=>({scrollX,scrollY,readyState:document.readyState,scrollRestoration:history.scrollRestoration}));
     await page.reload({waitUntil:'domcontentloaded'});
+    await page.evaluate(logo=>{
+      const trace=[];
+      const measure=kind=>{
+        const image=[...document.querySelectorAll('#favorite-chips img')].find(image=>image.src===logo),chip=image?.parentElement,button=chip?.querySelector('button');
+        const rect=node=>node?.getBoundingClientRect().toJSON()??null,buttonRect=rect(button),active=document.activeElement;
+        const value={kind,at:performance.now(),scrollX,scrollY,readyState:document.readyState,scrollRestoration:history.scrollRestoration,
+          scrollBehavior:getComputedStyle(document.documentElement).scrollBehavior,button:buttonRect,
+          documentButton:buttonRect?{x:buttonRect.x+scrollX,y:buttonRect.y+scrollY,width:buttonRect.width,height:buttonRect.height}:null,
+          chip:rect(chip),chips:rect(document.querySelector('#favorite-chips')),section:rect(document.querySelector('.favorites-section')),controls:rect(document.querySelector('.sport-controls')),
+          active:{tag:active?.tagName,id:active?.id,label:active?.getAttribute('aria-label')}};
+        trace.push(value);return value;
+      };
+      const observe=event=>measure(event.type),events=['load','pageshow','scroll','pointerdown','pointerup','click'];
+      for(const event of events)window.addEventListener(event,observe,true);
+      window.__qaFavoriteGestureMeasure=measure;
+      window.__qaFavoriteGestureTrace=()=>[...trace];
+      window.__qaStopFavoriteGestureTrace=()=>{for(const event of events)window.removeEventListener(event,observe,true);};
+      measure('after-domcontentloaded');
+    },logo.href);
     const remove=page.getByRole('button',{name:`Remove ${bears.name} from favorites`,exact:true});
     await remove.scrollIntoViewIfNeeded();
     const pending=await remove.locator('..').locator('img').evaluate(image=>!image.complete);
     truth(pending&&requests>0,'The actual favorite-logo request is still pending before pointerdown');
     const before=await remove.boundingBox();truth(Boolean(before),'The Remove button has visible bounds');
+    await page.evaluate(()=>window.__qaFavoriteGestureMeasure('before-pointer'));
     await page.mouse.move(before.x+before.width/2,before.y+before.height/2);
-    await page.mouse.down();pointerDown=true;releaseImage();
+    await page.mouse.down();pointerDown=true;
+    await page.evaluate(()=>window.__qaFavoriteGestureMeasure('after-pointerdown'));
+    releaseImage();
     await page.waitForFunction(url=>{
       const image=[...document.querySelectorAll('#favorite-chips img')].find(image=>image.src===url);
       return image?.complete&&image.naturalWidth===0;
     },logo.href);
     const after=await remove.boundingBox();
-    equal(after,before,'A failed favorite logo must not move or resize the Remove button during a pointer gesture');
+    gestureTrace=await page.evaluate(()=>{window.__qaFavoriteGestureMeasure('after-image-error');return window.__qaFavoriteGestureTrace();});
+    equal(after,before,`A failed favorite logo must not move or resize the Remove button during a pointer gesture\nGesture trace: ${JSON.stringify({beforeReload,events:gestureTrace})}`);
     await page.mouse.up();pointerDown=false;
     equal((await prefs(page)).favorites.map(team=>team.teamId),[stars.id],'The original pointerup removes Bears immediately');
     equal(await page.locator('#favorite-chips button').count(),1,'Only the Stars favorite remains in the UI');
     await page.getByRole('button',{name:`Remove ${stars.name} from favorites`,exact:true}).click();
     await page.selectOption('#league-select','nfl');await page.selectOption('#style-select','nfl-blades');
     equal((await prefs(page)).favorites,[],'A second removal and rapid sport/style changes keep both teams removed');
+    gestureTrace=await page.evaluate(()=>{window.__qaFavoriteGestureMeasure('after-removals');window.__qaStopFavoriteGestureTrace();return window.__qaFavoriteGestureTrace();});
     await page.reload({waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>document.querySelector('#league-select')?.options.length>20);
     const restored=await prefs(page);
     equal(restored.favorites,[],'Both removals persist after reload');
     equal([restored.leagueId,restored.styleId],['nfl','nfl-blades'],'The requested sport and style persist with the removals');
     equal(await page.locator('#favorite-chips button').count(),0);
-    return {before,after,requests,remainingFavorites:restored.favorites.length};
+    return {before,after,requests,remainingFavorites:restored.favorites.length,beforeReload,gestureTrace};
   }finally{
     releaseImage();if(pointerDown)await page.mouse.up();
+    await page.evaluate(()=>window.__qaStopFavoriteGestureTrace?.());
     await page.unroute(match,failLogo);
     await page.evaluate(async original=>{await(await import('/score-client.js')).updatePreferences(original,{updateURL:true});},original);
   }
