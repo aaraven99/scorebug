@@ -1,20 +1,41 @@
 import { initializePreferences, onPreferences, selectGame, ScoreboardPoller, feedIsStale } from './score-client.js';
 import { GameDetailsPoller } from './game-details-client.js';
 import { localTeamLogo } from './team-assets.js';
-import { teamColor } from './scorebug.js';
-import { bladeOutline, BLADE_OPEN_MS } from './details-blade.js';
+import { teamColor, teamGradientStops } from './scorebug.js';
+import { bladeOutline, bladeGradientSpace, BLADE_OPEN_MS } from './details-blade.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 let side = params.get('side') === 'away' ? 'away' : 'home';
 let presentation = { side, direction: params.get('direction') || (side === 'away' ? 'left' : 'right'), orientation: params.get('orientation') || 'horizontal', phase: 'closed' };
 let presentationRevision = 0, renderReady = false;
-const presentationKeys = ['joinTop','joinBottom','joinTopX','joinBottomX','joinLeft','joinRight','joinY'];
+const presentationKeys = ['joinTop','joinBottom','joinTopX','joinBottomX','joinLeft','joinRight','joinY','neckHeight','gradientX','gradientY','gradientWidth','gradientHeight'];
 for (const key of presentationKeys) if (params.has(key)) presentation[key] = Number(params.get(key));
+function paintBlade(color) {
+  document.documentElement.style.setProperty('--team-color', color);
+  const stops = teamGradientStops({ color }, side);
+  for (const [index, stop] of [...$('blade-fill').querySelectorAll('stop')].entries()) {
+    stop.setAttribute('offset', stops[index].offset);
+    stop.setAttribute('stop-color', stops[index].color);
+  }
+}
 function drawBlade() {
   const outline = bladeOutline(innerWidth, innerHeight, presentation);
   document.querySelector('.blade-frame').setAttribute('viewBox', `0 0 ${outline.width} ${outline.height}`);
   $('blade-outline').setAttribute('d', outline.path);
+  $('blade-border').setAttribute('d', outline.borderPath);
+  $('blade-connector').setAttribute('d', outline.path);
+  $('blade-connector').style.display = outline.connector ? '' : 'none';
+  if (outline.connector) {
+    $('blade-connector-fill').setAttribute('y1', outline.connector.start);
+    $('blade-connector-fill').setAttribute('y2', outline.connector.end);
+    for (const stop of $('blade-connector-fill').querySelectorAll('stop')) stop.setAttribute('stop-color', outline.connector.color);
+  }
+  const gradient = bladeGradientSpace(outline.width, outline.height, presentation);
+  for (const id of ['blade-fill','blade-bevel']) {
+    $(id).setAttribute('gradientUnits', 'userSpaceOnUse');
+    $(id).setAttribute('gradientTransform', gradient.transform);
+  }
   document.querySelector('.team-details').style.clipPath = outline.clip;
   const { top,right,bottom,left } = outline.inset;
   document.querySelector('.blade-content').style.inset = `${top}px ${right}px ${bottom}px ${left}px`;
@@ -27,6 +48,7 @@ function applyPresentation(value) {
   if (['horizontal','vertical'].includes(value.orientation)) next.orientation = value.orientation;
   if (['closed','opening','open','closing'].includes(value.phase)) next.phase = value.phase;
   for (const key of presentationKeys) if (Number.isFinite(value[key])) next[key] = value[key];
+  if (Object.hasOwn(value, 'direction') && !Number.isFinite(value.neckHeight)) delete next.neckHeight;
   if (typeof value.teamColor === 'string' && /^#[\da-f]{6}$/i.test(value.teamColor)) next.teamColor = value.teamColor;
   const wasClosed = presentation.phase === 'closed';
   presentation = next; side = next.side;
@@ -38,7 +60,7 @@ function applyPresentation(value) {
   if (wasClosed && next.phase !== 'closed') document.querySelector('.blade-reveal').getBoundingClientRect();
   document.body.dataset.phase = next.phase;
   document.querySelector('.blade-content').inert = ['closed','closing'].includes(next.phase);
-  if (next.teamColor) document.documentElement.style.setProperty('--team-color', next.teamColor);
+  if (next.teamColor) paintBlade(next.teamColor);
   if (renderReady) render();
 }
 applyPresentation(presentation);
@@ -82,7 +104,7 @@ function render() {
   const statsDelayed = Boolean(summary?.statsStale);
   document.body.dataset.side = side;
   const color = presentation.teamColor || (team ? teamColor(team, side) : '#33483b');
-  document.documentElement.style.setProperty('--team-color', color);
+  paintBlade(color);
   $('details-name').textContent = `${side === 'away' ? 'AWAY' : 'HOME'} · ${statsDelayed ? 'STATS DELAYED' : 'TEAM STATS'}`;
   $('details-name').classList.toggle('delayed', statsDelayed);
   $('details-name').title = statsDelayed ? 'Team totals are delayed. Recent plays can still update.' : '';

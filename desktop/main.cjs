@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsPlacement, teamAtPoint, hoverBridge } = require('./geometry.cjs');
+const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, containsPoint, detailsPlacement, detailsWindowShape, teamAtPoint, hoverBridge } = require('./geometry.cjs');
 const { HoverIntent } = require('./hover.cjs');
 const { UpdateController } = require('./updates.cjs');
 const { DetailsLifecycle } = require('./details-lifecycle.cjs');
@@ -20,6 +20,7 @@ const DEFAULTS = Object.freeze({
   locked: false,
   autoUpdates: true,
   orientation: 'horizontal',
+  contentAlignment: 'bottom',
   bounds: null,
   displayId: null
 });
@@ -35,6 +36,7 @@ let pendingDetails = null;
 let defaultDetailsSide = 'home';
 let detailsExplicit = false;
 let detailsHoverTimer = null;
+const detailsInput = new WeakMap();
 const hoverIntent = new HoverIntent();
 const detailsLifecycle = new DetailsLifecycle({
   onPhase: (win) => { if (details === win) publishDetailsPresentation(); },
@@ -102,8 +104,8 @@ function cleanPatch(patch) {
 }
 
 function publicPreferences() {
-  const { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, autoUpdates } = preferences;
-  return { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, autoUpdates };
+  const { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
+  return { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
 }
 
 function orientationForAnchor(anchor) {
@@ -117,6 +119,7 @@ function readPreferences() {
     const saved = JSON.parse(fs.readFileSync(preferencesPath, 'utf8'));
     preferences = { ...DEFAULTS, ...cleanPatch(saved) };
     preferences.orientation = preferences.anchor ? orientationForAnchor(preferences.anchor) : saved.orientation === 'vertical' ? 'vertical' : 'horizontal';
+    preferences.contentAlignment = contentAlignmentForAnchor(preferences.anchor, saved.contentAlignment);
     if (saved.bounds && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(saved.bounds[key]))) {
       preferences.bounds = saved.bounds;
     }
@@ -153,8 +156,8 @@ function publishUpdateState(value) {
   updateTray();
 }
 
-function currentSize() {
-  return widgetSize(preferences.scale, preferences.orientation);
+function currentSize(workArea) {
+  return widgetSize(preferences.scale, preferences.orientation, workArea);
 }
 
 function preferredDisplay() {
@@ -166,8 +169,9 @@ function preferredDisplay() {
 function placeWidget(forceDisplay) {
   if (!widget || widget.isDestroyed()) return;
   if (preferences.anchor) preferences.orientation = orientationForAnchor(preferences.anchor);
+  preferences.contentAlignment = contentAlignmentForAnchor(preferences.anchor, preferences.contentAlignment);
   const display = forceDisplay || preferredDisplay();
-  const size = currentSize();
+  const size = currentSize(display.workArea);
   const bounds = preferences.anchor
     ? anchorBounds(preferences.anchor, size, display.workArea)
     : clampBounds({ ...(preferences.bounds || widget.getBounds()), ...size }, display.workArea);
@@ -266,10 +270,35 @@ function placeDetails() {
   if (!widget || widget.isDestroyed() || !details || details.isDestroyed()) return;
   const bounds = widget.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const placement = detailsPlacement(bounds, area, { side: detailsSide || defaultDetailsSide, orientation: preferences.orientation });
+  const placement = detailsPlacement(bounds, area, { side: detailsSide || defaultDetailsSide, orientation: preferences.orientation, contentAlignment: preferences.contentAlignment });
   detailsPresentation = placement.presentation;
   details.setBounds(placement.bounds, false);
+  applyDetailsShape(details, placement.presentation);
   publishDetailsPresentation();
+}
+
+function applyDetailsShape(win, presentation) {
+  const regions = detailsWindowShape(presentation);
+  if (detailsInput.get(win)?.ignored) win.setIgnoreMouseEvents(false);
+  const state = { regions, native: false, ignored: false };
+  // Shaping also makes the transparent area around the long top connector
+  // click-through, leaving the widget's controls usable underneath it.
+  if (process.platform === 'win32' || process.platform === 'linux') {
+    try { win.setShape(regions); state.native = true; }
+    catch { /* The cursor-based fallback below covers unsupported compositors. */ }
+  }
+  detailsInput.set(win, state);
+}
+
+function updateDetailsInput(pointer, bounds) {
+  const state = details && detailsInput.get(details);
+  if (!state || state.native) return;
+  const local = bounds && { x: pointer.x - bounds.x, y: pointer.y - bounds.y };
+  const ignored = Boolean(local && state.regions.length && containsPoint(bounds, pointer) && !state.regions.some((region) => containsPoint(region, local)));
+  if (ignored !== state.ignored) {
+    details.setIgnoreMouseEvents(ignored, { forward: true });
+    state.ignored = ignored;
+  }
 }
 
 function finishDetailsExit(win) {
@@ -345,7 +374,7 @@ function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
   detailsSide = side;
   detailsExplicit = focus;
   const area = screen.getDisplayMatching(widget.getBounds()).workArea;
-  const placement = detailsPlacement(widget.getBounds(), area, { side, orientation: preferences.orientation });
+  const placement = detailsPlacement(widget.getBounds(), area, { side, orientation: preferences.orientation, contentAlignment: preferences.contentAlignment });
   detailsPresentation = placement.presentation;
   const win = new BrowserWindow({
     ...placement.bounds,
@@ -368,6 +397,7 @@ function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
     webPreferences: webPreferences()
   });
   details = win;
+  applyDetailsShape(win, placement.presentation);
   win.setMenu(null);
   win.setAlwaysOnTop(true, 'floating');
   secureWindow(win);
@@ -408,8 +438,9 @@ function monitorHoverDetails() {
   const pointer = screen.getCursorScreenPoint();
   const bounds = widget.getBounds();
   const panel = details && !details.isDestroyed() ? details.getBounds() : null;
+  updateDetailsInput(pointer, panel);
   const open = Boolean(panel);
-  const side = teamAtPoint(bounds, pointer, preferences.orientation);
+  const side = teamAtPoint(bounds, pointer, preferences.orientation, preferences.contentAlignment);
   const overDetails = containsPoint(panel, pointer);
   if (open && detailsLifecycle.phaseFor(details) === 'closing' && !blocked && !hoverIntent.dismissed && (side || overDetails)) {
     // Returning to the old team reverses the same CSS transition immediately.
@@ -495,7 +526,7 @@ function showWidget() {
 
 function createWidget() {
   const display = preferredDisplay();
-  const size = currentSize();
+  const size = currentSize(display.workArea);
   const initialBounds = preferences.anchor
     ? anchorBounds(preferences.anchor, size, display.workArea)
     : clampBounds({ ...(preferences.bounds || display.workArea), ...size }, display.workArea);

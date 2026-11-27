@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ANCHORS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, widgetSize, detailsBounds, detailsPlacement, DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, teamAtPoint, hoverBridge, containsPoint } = require('./geometry.cjs');
+const { ANCHORS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, detailsBounds, detailsPlacement, detailsWindowShape, DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, teamAtPoint, hoverBridge, containsPoint } = require('./geometry.cjs');
 
 test('all nine anchors stay inside a negative-coordinate monitor work area', () => {
   const area = { x: -1920, y: 80, width: 1920, height: 1000 };
@@ -48,6 +48,62 @@ test('all sizes reserve unscaled toolbar room and the complete status badge', ()
   assert.deepEqual(widgetSize(1.8, 'vertical'), { width: 288, height: 663 });
 });
 
+test('top docks put visible team panels close to the work area with controls and badges below', () => {
+  const displays = [
+    { scaleFactor: 1, workArea: { x: 0, y: 0, width: 1920, height: 1040 } },
+    { scaleFactor: 1.5, workArea: { x: -1280, y: 48, width: 1280, height: 672 } },
+    { scaleFactor: 2, workArea: { x: 0, y: -850, width: 1440, height: 850 } }
+  ];
+  for (const { workArea: area } of displays) {
+    for (const scale of [0.65, 1, 1.8]) {
+      for (const anchor of ['top-left', 'top-center', 'top-right']) {
+        const widget = anchorBounds(anchor, widgetSize(scale, 'horizontal', area), area);
+        const alignment = contentAlignmentForAnchor(anchor);
+        const bug = scorebugHitBounds(widget, 'horizontal', alignment);
+        const team = teamPanelBounds(widget, 'horizontal', 'away', alignment);
+        assert.equal(widget.y, area.y, 'the full window begins inside the taskbar-safe work area');
+        assert.equal(bug.y, area.y + 8);
+        assert.ok(team.y - area.y >= 8 && team.y - area.y <= 16, `${anchor}, scale ${scale}`);
+        const toolbarTop = widget.y + widget.height - 28;
+        assert.ok(bug.y + bug.width * 162 / 600 <= toolbarTop - 2, 'even the below-status badge clears the toolbar');
+        assert.ok(widget.y + widget.height <= area.y + area.height);
+        for (const side of ['home', 'away']) {
+          const panel = teamPanelBounds(widget, 'horizontal', side, alignment);
+          assert.equal(teamAtPoint(widget, { x: panel.x + panel.width / 2, y: panel.y + panel.height / 2 }, 'horizontal', alignment), side);
+        }
+        assert.equal(teamAtPoint(widget, { x: bug.x + bug.width / 2, y: toolbarTop + 8 }, 'horizontal', alignment), null);
+      }
+    }
+  }
+});
+
+test('free dragging preserves content alignment while new anchors choose their own layout', () => {
+  for (const previous of ['top', 'bottom']) {
+    assert.equal(contentAlignmentForAnchor(null, previous), previous);
+    for (const anchor of ANCHORS) {
+      assert.equal(contentAlignmentForAnchor(anchor, previous), anchor.startsWith('top-') ? 'top' : 'bottom');
+    }
+  }
+  assert.equal(contentAlignmentForAnchor(null, 'invalid'), 'bottom');
+});
+
+test('short high-DPI work areas fit the complete vertical SVG proportionally', () => {
+  const area = { x: -960, y: 36, width: 960, height: 550 };
+  const size = widgetSize(1.8, 'vertical', area);
+  assert.deepEqual(size, { width: 238, height: 549 });
+  for (const anchor of ['middle-left', 'middle-right', 'bottom-center', 'top-center']) {
+    const widget = anchorBounds(anchor, size, area);
+    assert.equal(widget.width, size.width);
+    assert.equal(widget.height, size.height, 'anchoring must not clip the fitted height');
+    const alignment = contentAlignmentForAnchor(anchor);
+    const bug = scorebugHitBounds(widget, 'vertical', alignment);
+    assert.ok(Math.abs(bug.height - bug.width * 348 / 160) < 0.000001);
+    const badgeHeight = bug.width * 19 / 160;
+    assert.ok(alignment === 'top' ? bug.y + bug.height + badgeHeight <= widget.y + widget.height - 31 : bug.y - badgeHeight >= widget.y + 31);
+    assert.ok(widget.y >= area.y && widget.y + widget.height <= area.y + area.height);
+  }
+});
+
 test('restore clamps a removed monitor placement without losing the window', () => {
   const area = { x: 0, y: 0, width: 1366, height: 728 };
   assert.deepEqual(clampBounds({ x: -1600, y: 1400, width: 520, height: 144 }, area), {
@@ -79,11 +135,13 @@ test('team blades stay visible at every anchor, size and monitor origin', () => 
   for (const scale of [0.65, 1, 1.8]) {
     for (const anchor of ANCHORS) {
       const orientation = ['middle-left', 'middle-right'].includes(anchor) ? 'vertical' : 'horizontal';
+      const contentAlignment = contentAlignmentForAnchor(anchor);
       const widget = anchorBounds(anchor, widgetSize(scale, orientation), area);
       for (const side of ['home', 'away']) {
-        const { bounds: panel, presentation } = detailsPlacement(widget, area, { side, orientation });
+        const { bounds: panel, presentation } = detailsPlacement(widget, area, { side, orientation, contentAlignment });
         assert.equal(panel.width, DETAILS_SIZE.width);
-        assert.equal(panel.height, DETAILS_SIZE.height);
+        if (presentation.neckHeight) assert.ok(panel.height >= DETAILS_SIZE.height);
+        else assert.equal(panel.height, DETAILS_SIZE.height);
         assert.ok(panel.x >= area.x && panel.y >= area.y, `${anchor} ${scale}`);
         assert.ok(panel.x + panel.width <= area.x + area.width, anchor);
         assert.ok(panel.y + panel.height <= area.y + area.height, anchor);
@@ -91,6 +149,11 @@ test('team blades stay visible at every anchor, size and monitor origin', () => 
         assert.equal(presentation.orientation, orientation);
         assert.equal(presentation.width, panel.width);
         assert.equal(presentation.height, panel.height);
+        const team = teamPanelBounds(widget, orientation, side, contentAlignment);
+        assert.equal(presentation.gradientX, team.x - panel.x);
+        assert.equal(presentation.gradientY, team.y - panel.y);
+        assert.equal(presentation.gradientWidth, team.width);
+        assert.equal(presentation.gradientHeight, team.height);
         if (anchor === 'middle-left') assert.equal(presentation.direction, 'right');
         if (anchor === 'middle-right') assert.equal(presentation.direction, 'left');
         if (anchor === 'center') assert.equal(presentation.direction, side === 'home' ? 'right' : 'left');
@@ -130,14 +193,15 @@ test('horizontal corner blades attach above or below the selected team, never to
     ['bottom-left', 'away', 'up'], ['bottom-right', 'home', 'up']
   ]) {
     const widget = anchorBounds(anchor, widgetSize(), area);
-    const { bounds, presentation } = detailsPlacement(widget, area, { side });
-    const polygon = teamPanelPolygon(widget, 'horizontal', side);
+    const contentAlignment = contentAlignmentForAnchor(anchor);
+    const { bounds, presentation } = detailsPlacement(widget, area, { side, contentAlignment });
+    const polygon = teamPanelPolygon(widget, 'horizontal', side, contentAlignment);
     const edge = direction === 'up' ? [polygon[0], polygon[1]] : [polygon[3], polygon[2]];
     assert.equal(presentation.direction, direction);
     assert.equal(presentation.attachment, direction === 'up' ? 'bottom' : 'top');
     assert.ok(bounds.x + presentation.joinLeft >= edge[0][0] - 0.01);
     assert.ok(bounds.x + presentation.joinRight <= edge[1][0] + 0.01);
-    const bug = scorebugHitBounds(widget);
+    const bug = scorebugHitBounds(widget, 'horizontal', contentAlignment);
     const expectedY = direction === 'up' ? edge[0][1] + DETAILS_SEAM_OVERLAP : bug.y + 136 * bug.width / 600 - DETAILS_SEAM_OVERLAP;
     assert.ok(Math.abs(bounds.y + presentation.joinY - expectedY) <= 0.51);
   }
@@ -149,11 +213,12 @@ test('downward blades join below the full information strip and leave its clock/
       const size = widgetSize(scale, orientation);
       const area = { x: -800, y: 50, width: size.width + 32, height: size.height + 320 };
       const widget = anchorBounds('top-center', size, area);
-      const bug = scorebugHitBounds(widget, orientation);
+      const contentAlignment = 'top';
+      const bug = scorebugHitBounds(widget, orientation, contentAlignment);
       const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
       const stripBottom = bug.y + (orientation === 'vertical' ? 346 : 136) * factor;
       for (const side of ['home', 'away']) {
-        const { bounds, presentation } = detailsPlacement(widget, area, { side, orientation });
+        const { bounds, presentation } = detailsPlacement(widget, area, { side, orientation, contentAlignment });
         assert.equal(presentation.direction, 'down');
         assert.ok(bounds.y >= stripBottom - DETAILS_SEAM_OVERLAP - 0.51, 'only the narrow border overlap can enter the strip');
         assert.ok(Math.abs(bounds.y + presentation.joinY - stripBottom + DETAILS_SEAM_OVERLAP) <= 0.51);
@@ -163,6 +228,43 @@ test('downward blades join below the full information strip and leave its clock/
       }
     }
   }
+});
+
+test('top-corner downward blades leave room for a below-panel status badge at every size', () => {
+  const area = { x: -1280, y: 40, width: 1280, height: 900 };
+  for (const scale of [0.65, 1, 1.8]) {
+    for (const [anchor, side] of [['top-left', 'away'], ['top-right', 'home']]) {
+      const widget = anchorBounds(anchor, widgetSize(scale, 'horizontal', area), area);
+      const bug = scorebugHitBounds(widget, 'horizontal', 'top');
+      const factor = bug.width / 600;
+      const { bounds, presentation } = detailsPlacement(widget, area, { side, contentAlignment: 'top' });
+      assert.equal(presentation.direction, 'down');
+      assert.ok(presentation.neckHeight >= 26 * factor + 6);
+      assert.ok(bounds.x + presentation.joinLeft > bug.x + 224 * factor, 'the narrow connector clears the largest status flag');
+      assert.ok(presentation.joinRight - presentation.joinLeft >= 8, 'the connector remains visibly joined');
+      assert.ok(bounds.y + presentation.joinY + presentation.neckHeight > bug.y + 162 * factor + 3, 'the broad body begins below the complete badge');
+      assert.ok(bounds.y + presentation.joinY + presentation.neckHeight >= widget.y + widget.height + 3, 'the narrow connector continues past the toolbar');
+      const regions = detailsWindowShape(presentation);
+      assert.equal(regions.length, 2);
+      const body = regions[1];
+      assert.ok(body.height >= DETAILS_SIZE.height - 24, 'the enlarged frame retains the full stats body');
+      // The real horizontal toolbar is narrower than this 128px reserved band.
+      // Check both ends of the band, not only a single convenient button point.
+      for (const x of [widget.x + widget.width - 137, widget.x + widget.width - 10]) {
+        for (const y of [widget.y + widget.height - 28, widget.y + widget.height - 4]) {
+          assert.ok(!regions.some((region) => containsPoint(region, { x: x - bounds.x, y: y - bounds.y })), 'native input shape covers the controls');
+        }
+      }
+    }
+  }
+});
+
+test('other blade directions and ordinary downward blades restore the full native window region', () => {
+  assert.deepEqual(detailsWindowShape(null), []);
+  for (const direction of ['left', 'right', 'up']) {
+    assert.deepEqual(detailsWindowShape({ direction, width: 284, height: 260, neckHeight: 60 }), []);
+  }
+  assert.deepEqual(detailsWindowShape({ direction: 'down', width: 284, height: 216 }), []);
 });
 
 test('small work areas keep the complete blade window reachable and all seam values finite', () => {

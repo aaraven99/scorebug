@@ -39,7 +39,9 @@ function anchorBounds(anchor, size, workArea, margin = 16) {
     right: workArea.x + workArea.width - width - edgeX
   };
   const ys = {
-    top: workArea.y + edgeY,
+    // The top layout already has an 8px transparent inset. Keep the complete
+    // HWND on-screen and place its visible panels near the work-area edge.
+    top: workArea.y,
     middle: workArea.y + (workArea.height - height) / 2,
     bottom: workArea.y + workArea.height - height - edgeY
   };
@@ -69,12 +71,25 @@ function nearestAnchor(bounds, workArea, threshold = 56, margin = 16) {
   return distance <= threshold ? { anchor: 'center', bounds: target, distance } : null;
 }
 
-function widgetSize(scale = 1, orientation = 'horizontal') {
+function contentAlignmentForAnchor(anchor, previous = 'bottom') {
+  // A free drag must not move the artwork inside the window on release.
+  if (anchor === null) return previous === 'top' ? 'top' : 'bottom';
+  return typeof anchor === 'string' && anchor.startsWith('top-') ? 'top' : 'bottom';
+}
+
+function widgetSize(scale = 1, orientation = 'horizontal', workArea = null) {
   const vertical = orientation === 'vertical';
-  const width = Math.round((vertical ? 160 : 520) * scale);
+  let width = Math.round((vertical ? 160 : 520) * scale);
   // Controls and the transparent margins use CSS pixels, so they must not shrink
   // with the scorebug. Reserve the feed-status badge even while it is absent.
   const ratio = vertical ? 367 / 160 : 162 / 600;
+  if (workArea) {
+    // A short, high-DPI work area may not fit a large vertical scorebug. Reduce
+    // its width as well, instead of clipping a height whose SVG still uses the
+    // original width. Electron work areas and these dimensions are both DIPs.
+    const heightLimitedWidth = Math.max(17, Math.floor(16 + (workArea.height - 39) / ratio));
+    width = Math.max(1, Math.min(width, Math.floor(workArea.width), heightLimitedWidth));
+  }
   return { width, height: Math.ceil(Math.max(1, width - 16) * ratio) + 39 };
 }
 
@@ -110,22 +125,32 @@ function overlapArea(a, b) {
 const DETAILS_SIZE = Object.freeze({ width: 284, height: 216 });
 const DETAILS_SEAM_OVERLAP = 1.5;
 
-function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', size = DETAILS_SIZE } = {}) {
+function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', contentAlignment = 'bottom', size = DETAILS_SIZE } = {}) {
   side = side === 'away' ? 'away' : 'home';
   orientation = orientation === 'vertical' ? 'vertical' : 'horizontal';
   const width = Math.max(1, Math.min(Math.round(finite(size.width, DETAILS_SIZE.width)), workArea.width));
   const height = Math.max(1, Math.min(Math.round(finite(size.height, DETAILS_SIZE.height)), workArea.height));
-  const polygon = teamPanelPolygon(widgetBounds, orientation, side);
-  const team = teamPanelBounds(widgetBounds, orientation, side);
-  const bug = scorebugHitBounds(widgetBounds, orientation);
+  const polygon = teamPanelPolygon(widgetBounds, orientation, side, contentAlignment);
+  const team = teamPanelBounds(widgetBounds, orientation, side, contentAlignment);
+  const bug = scorebugHitBounds(widgetBounds, orientation, contentAlignment);
   const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
   // Downward blades join beneath the information strip so their neck never
   // covers the clock/down text. Match the visible path (not its 2px SVG margin).
   const stripBottom = bug.y + (orientation === 'vertical' ? 346 : 136) * factor;
   const stripLeft = bug.x + factor;
   const stripRight = bug.x + (orientation === 'vertical' ? 149 : 571) * factor;
-  const downEdge = [[Math.max(polygon[3][0], stripLeft), stripBottom], [Math.min(polygon[2][0], stripRight), stripBottom]];
+  const belowStatus = orientation === 'horizontal' && contentAlignment === 'top';
+  // The top layout reserves a below-panel status badge through SVG x224. Its
+  // downward blade uses a narrow strip segment to the right of that space.
+  // Keep the reservation while fresh as well, so a delayed feed cannot move it.
+  const downLeft = Math.max(polygon[3][0], stripLeft, belowStatus ? bug.x + 232 * factor : -Infinity);
+  const downRight = Math.min(polygon[2][0], stripRight, belowStatus && side === 'home' ? bug.x + 343 * factor : Infinity);
+  const downEdge = [[downLeft, stripBottom], [downRight, stripBottom]];
   const overlap = DETAILS_SEAM_OVERLAP;
+  // Carry a narrow connector past the below-board controls. Add the extra
+  // depth to this blade only, preserving the full existing stats-body space.
+  const downNeckHeight = belowStatus ? Math.max(26 * factor + 6, widgetBounds.y + widgetBounds.height + 3 - (stripBottom - overlap)) : 0;
+  const downHeight = Math.min(workArea.height, height + Math.max(0, Math.ceil(downNeckHeight + 1 - 24)));
   const limit = (value, low, high) => Math.max(low, Math.min(value, high));
   const desired = (direction) => {
     if (direction === 'left' || direction === 'right') {
@@ -139,7 +164,7 @@ function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation =
     const edge = direction === 'up' ? [polygon[0], polygon[1]] : downEdge;
     const y = edge[0][1] + (direction === 'up' ? overlap : -overlap) - (direction === 'up' ? height : 0);
     const x = limit((edge[0][0] + edge[1][0]) / 2 - width / 2, workArea.x, workArea.x + workArea.width - width);
-    return { direction, bounds: { x, y, width, height }, points: edge.map(([px, py]) => [px, py + (direction === 'up' ? overlap : -overlap)]) };
+    return { direction, bounds: { x, y, width, height: direction === 'down' ? downHeight : height }, points: edge.map(([px, py]) => [px, py + (direction === 'up' ? overlap : -overlap)]) };
   };
   const primary = side === 'away' ? 'left' : 'right';
   const upSpace = team.y - workArea.y;
@@ -165,8 +190,13 @@ function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation =
   const presentation = {
     side, direction, orientation,
     attachment: { left: 'right', right: 'left', up: 'bottom', down: 'top' }[direction],
-    width: bounds.width, height: bounds.height
+    width: bounds.width, height: bounds.height,
+    // Continue the selected team's original gradient in the blade's local
+    // coordinate space, including after screen-edge placement and fitting.
+    gradientX: team.x - bounds.x, gradientY: team.y - bounds.y,
+    gradientWidth: team.width, gradientHeight: team.height
   };
+  if (direction === 'down' && belowStatus) presentation.neckHeight = downNeckHeight;
   if (direction === 'left' || direction === 'right') {
     const [top, bottom] = selected.points;
     const edgeHeight = bottom[1] - top[1];
@@ -196,13 +226,35 @@ function detailsBounds(widgetBounds, workArea, options) {
   return detailsPlacement(widgetBounds, workArea, options).bounds;
 }
 
-function scorebugHitBounds(bounds, orientation = 'horizontal') {
+function detailsWindowShape(presentation) {
+  // Electron's transparent rectangles still intercept clicks. For the one
+  // layout whose neck passes the widget's toolbar, expose only that neck and
+  // the full body below it to native drawing/input. [] restores a normal window.
+  if (presentation?.direction !== 'down' || !Number.isFinite(presentation.neckHeight)) return [];
+  const width = Math.max(1, Math.round(finite(presentation.width, DETAILS_SIZE.width)));
+  const height = Math.max(1, Math.round(finite(presentation.height, DETAILS_SIZE.height)));
+  const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+  const joinY = clamp(finite(presentation.joinY, 1), .8, height - .8);
+  const shoulder = Math.min(height - 24, Math.max(24, joinY + 12, joinY + presentation.neckHeight));
+  // Include the 4px taper and outline around the shared SVG neck; the body
+  // rectangle begins a pixel early to avoid any seam at fractional-DIP scales.
+  const left = clamp(Math.floor(finite(presentation.joinLeft, width * .2) - 5), 0, width - 1);
+  const right = clamp(Math.ceil(finite(presentation.joinRight, width * .8) + 1), left + 1, width);
+  const bodyTop = clamp(Math.floor(shoulder) - 1, 0, height - 1);
+  return [
+    { x: left, y: 0, width: right - left, height: Math.min(height, Math.ceil(shoulder) + 1) },
+    { x: 0, y: bodyTop, width, height: height - bodyTop }
+  ];
+}
+
+function scorebugHitBounds(bounds, orientation = 'horizontal', contentAlignment = 'bottom') {
   const width = Math.max(1, bounds.width - 16);
-  // Match each SVG's aspect ratio instead of including the transparent space
-  // reserved above it for controls. A delayed-feed badge is not a hover target.
+  // Match the main SVG artwork, excluding controls and the optional badge.
+  // Top layouts put both below it; bottom layouts keep them above it. The
+  // artwork's origin is therefore stable when the feed-status badge changes.
   const aspect = orientation === 'vertical' ? 348 / 160 : 138 / 600;
   const height = Math.max(1, Math.min(bounds.height - 8, width * aspect));
-  return { x: bounds.x + 8, y: bounds.y + bounds.height - 8 - height, width, height };
+  return { x: bounds.x + 8, y: contentAlignment === 'top' ? bounds.y + 8 : bounds.y + bounds.height - 8 - height, width, height };
 }
 
 const TEAM_POLYGONS = Object.freeze({
@@ -216,17 +268,17 @@ const TEAM_POLYGONS = Object.freeze({
   }
 });
 
-function teamPanelPolygon(bounds, orientation = 'horizontal', side = 'home') {
+function teamPanelPolygon(bounds, orientation = 'horizontal', side = 'home', contentAlignment = 'bottom') {
   const vertical = orientation === 'vertical';
-  const bug = scorebugHitBounds(bounds, orientation);
+  const bug = scorebugHitBounds(bounds, orientation, contentAlignment);
   const factor = bug.width / (vertical ? 160 : 600);
   return TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'][side === 'away' ? 'away' : 'home']
     .map(([x, y]) => [bug.x + x * factor, bug.y + y * factor]);
 }
 
-function teamPanelBounds(bounds, orientation = 'horizontal', side = 'home') {
+function teamPanelBounds(bounds, orientation = 'horizontal', side = 'home', contentAlignment = 'bottom') {
   const vertical = orientation === 'vertical';
-  const bug = scorebugHitBounds(bounds, orientation);
+  const bug = scorebugHitBounds(bounds, orientation, contentAlignment);
   const factor = bug.width / (vertical ? 160 : 600);
   const polygon = TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'][side === 'away' ? 'away' : 'home'];
   const xs = polygon.map(([x]) => x), ys = polygon.map(([, y]) => y);
@@ -234,9 +286,9 @@ function teamPanelBounds(bounds, orientation = 'horizontal', side = 'home') {
     width: (Math.max(...xs) - Math.min(...xs)) * factor, height: (Math.max(...ys) - Math.min(...ys)) * factor };
 }
 
-function teamAtPoint(bounds, point, orientation = 'horizontal') {
+function teamAtPoint(bounds, point, orientation = 'horizontal', contentAlignment = 'bottom') {
   const vertical = orientation === 'vertical';
-  const bug = scorebugHitBounds(bounds, orientation);
+  const bug = scorebugHitBounds(bounds, orientation, contentAlignment);
   if (!containsPoint(bug, point)) return null;
   const factor = bug.width / (vertical ? 160 : 600);
   const x = (point.x - bug.x) / factor, y = (point.y - bug.y) / factor;
@@ -268,4 +320,4 @@ function hoverBridge(a, b) {
   return null;
 }
 
-module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsBounds, detailsPlacement, DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, teamAtPoint, hoverBridge };
+module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, containsPoint, detailsBounds, detailsPlacement, detailsWindowShape, DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, teamAtPoint, hoverBridge };

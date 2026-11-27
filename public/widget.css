@@ -50,5 +50,13 @@
 @keyframes score-shine{from{transform:translateX(-110%)}to{transform:translateX(110%)}}
 @media(prefers-reduced-motion:reduce){.score-animation,.score-animation:after,.score-animation-content,.details-popover{animation:none!important}.score-animation-player-photo{transition:none}}
 .widget-page[data-desktop] .widget-board{width:100%}
+/* Top docks put the artwork beside the work-area edge, with controls below.
+   The same alignment is retained when the user drags that window freely. */
+.widget-page[data-desktop][data-content-alignment=top] .widget-root{justify-content:flex-start;padding:8px 8px 31px}
+.widget-page[data-desktop][data-content-alignment=top] .widget-toolbar{top:auto;bottom:3px}
 /* A sample or delayed-feed badge adds space above the same team panels. */
 .score-animation-host[data-animation-orientation=horizontal]:has(.bug-status-flag) .score-animation{top:17.3%;height:51.9%}.score-animation-host[data-animation-orientation=vertical]:has(.bug-status-flag) .score-animation{top:5.7%;height:66.8%}
+/* Top-docked status badges sit below the artwork, so the announcement still
+   starts at the team panels and leaves the down/clock strip exposed. */
+.score-animation-host[data-animation-orientation=horizontal]:has(.scorebug[data-status-position=below] .bug-status-flag) .score-animation{top:2.47%;height:51.9%}
+.score-animation-host[data-animation-orientation=vertical]:has(.scorebug[data-status-position=below] .bug-status-flag) .score-animation{top:.55%;height:66.8%}

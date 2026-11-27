@@ -24,12 +24,20 @@ function teamAnchor(target, side) {
   const points = pathCorners(path), strip = pathCorners(svg?.querySelector('.bug-situation-panel'));
   const fill = /^url\(#([\w-]+)\)$/.exec(path.getAttribute('fill') || '');
   const color = fill && svg.querySelector(`[id="${fill[1]}"] stop[offset=".58"]`)?.getAttribute('stop-color');
-  return { team, points, lowerEdge:strip ? [strip[3],strip[2]] : [points[3],points[2]], orientation, teamColor: /^#[\da-f]{6}$/i.test(color || '') ? color : undefined };
+  const matrix = svg?.getScreenCTM();
+  const statusEnd = orientation === 'horizontal' && svg?.dataset.statusPosition === 'below' && matrix
+    ? new DOMPoint(232, 162).matrixTransform(matrix) : null;
+  // Reserve the full badge even while absent, so a delayed feed does not move
+  // an open blade. Its narrow neck passes to the right before widening below.
+  const belowStatus = statusEnd ? { clearX: statusEnd.x, homeRight: new DOMPoint(343, 136).matrixTransform(matrix).x, clearanceY: statusEnd.y + 6 } : null;
+  const toolbar = target.closest('.widget-root')?.querySelector('.widget-toolbar')?.getBoundingClientRect();
+  const controlsBottom = belowStatus && toolbar?.height ? toolbar.bottom : null;
+  return { team, points, lowerEdge:strip ? [strip[3],strip[2]] : [points[3],points[2]], belowStatus, controlsBottom, orientation, teamColor: /^#[\da-f]{6}$/i.test(color || '') ? color : undefined };
 }
 
-function placement(anchor, side) {
+export function placeDetailsBlade(anchor, side, viewport = { width: innerWidth, height: innerHeight }) {
   const [tl,tr,br,bl] = anchor.points, margin = 6;
-  const vw = innerWidth, vh = innerHeight;
+  const { width: vw, height: vh } = viewport;
   const [stripLeft,stripRight] = anchor.lowerEdge;
   const available = { left:tl.x-margin+1, right:vw-margin-br.x+1, up:tl.y-margin+1, down:vh-margin-stripLeft.y+1 };
   const preferred = side === 'away' ? 'left' : 'right';
@@ -48,13 +56,27 @@ function placement(anchor, side) {
     height = Math.max(64,Math.min(height,available[direction]));
     // A downward expansion starts beneath the full information strip, so its
     // connecting neck cannot cover the clock or down-and-distance text.
-    const a = direction === 'up' ? tl : {x:Math.max(bl.x,stripLeft.x),y:stripLeft.y};
-    const b = direction === 'up' ? tr : {x:Math.min(br.x,stripRight.x),y:stripRight.y};
+    const a = direction === 'up' ? tl : {x:Math.max(bl.x,stripLeft.x,side === 'away' ? anchor.belowStatus?.clearX ?? -Infinity : -Infinity),y:stripLeft.y};
+    const b = direction === 'up' ? tr : {x:Math.min(br.x,stripRight.x,side === 'home' ? anchor.belowStatus?.homeRight ?? Infinity : Infinity),y:stripRight.y};
     x = clamp((a.x+b.x-width)/2,margin,Math.max(margin,vw-width-margin));
     y = direction === 'up' ? a.y-height+1 : a.y-1;
     joins = {joinLeft:a.x-x,joinRight:b.x-x,joinY:a.y-y};
+    if (direction === 'down' && anchor.belowStatus) {
+      joins.neckHeight = Math.max(anchor.belowStatus.clearanceY, Number.isFinite(anchor.controlsBottom) ? anchor.controlsBottom + 3 : -Infinity) - a.y;
+      // Keep the original stats body when the neck must pass a badge/toolbar.
+      // A small viewport can still scroll its totals instead of going offscreen.
+      const extra = Math.max(0, Math.ceil(joins.neckHeight - 24));
+      height = Math.max(64, Math.min(BLADE_SIZE.height + extra, available.down));
+    }
   }
-  return {x,y,width,height,presentation:{side,direction,orientation:anchor.orientation,teamColor:anchor.teamColor,...joins}};
+  const xs = anchor.points.map((point) => point.x), ys = anchor.points.map((point) => point.y);
+  const gradient = {
+    gradientX: Math.min(...xs) - x,
+    gradientY: Math.min(...ys) - y,
+    gradientWidth: Math.max(...xs) - Math.min(...xs),
+    gradientHeight: Math.max(...ys) - Math.min(...ys),
+  };
+  return {x,y,width,height,presentation:{side,direction,orientation:anchor.orientation,teamColor:anchor.teamColor,...gradient,...joins}};
 }
 
 export function attachDetailsHover(target, { native = false, enabled = () => true, defaultSide = () => 'home' } = {}) {
@@ -75,7 +97,7 @@ export function attachDetailsHover(target, { native = false, enabled = () => tru
     if (!enabled()) { close(); return; }
     const anchor = teamAnchor(target,side);
     if (!anchor) { close(); return; }
-    const {x,y,width,height,presentation} = placement(anchor,side);
+    const {x,y,width,height,presentation} = placeDetailsBlade(anchor,side);
     panel.dataset.direction = presentation.direction;
     panel.dataset.phase = phase;
     panel.style.cssText = `position:fixed;z-index:1000;width:${width}px;height:${height}px;left:${x}px;top:${y}px;clip-path:${bladeOutline(width,height,presentation).clip};`;
