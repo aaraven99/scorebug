@@ -20,14 +20,15 @@ No PowerToys, Python, Node.js, or Vercel setup is needed. The app is unsigned.
 
 ## Use it
 
+- **Automatic** follows a game that is live now, including halftime and quarter breaks. It has no favorite team. Choose a game yourself to keep that matchup pinned.
 - **Drag near a side edge and release** for the vertical layout. Top and bottom positions stay horizontal.
-- **Hover a team’s colored panel** for its stats. Move into the stats card to keep it open.
+- **Hover a team’s colored panel** for its stats. Move into the expanded stats to keep them open.
 - **Click the gear** to choose a game or change the size.
 - **Right-click** for position, monitor, lock, and quit options.
 
 Scores and stats check for updates about every 2 seconds without reloading. The game clock shows the latest time reported by the feed; the provider can still lag behind the game or your TV. The computer needs to stay awake and online. Ordinary browser tabs may slow down in the background; the Windows app keeps checking.
 
-If a feed fails, Scorebug switches to a backup automatically. If every feed is down, it keeps the last received score visible with a **FEED DELAYED** label and keeps trying.
+If a feed fails, Scorebug switches between ESPN, theScore, and FOX automatically. Team stats can be marked delayed while backup play updates continue. If every feed is down, the last score stays visible with a **FEED DELAYED** label while Scorebug keeps trying.
 
 ## Put the web version on Vercel
 
@@ -44,6 +45,8 @@ Import [aaraven99/scorebug](https://github.com/aaraven99/scorebug) and use:
 | Environment variables | None |
 
 Use `main` as the production branch. On the site, pick a game and click **Float in browser**. The desktop app works independently of Vercel.
+
+Visitor counts are included. In your Vercel project, enable **Web Analytics**, then deploy to production. Open **Analytics** to see visits and page views. Only production website pages are counted.
 
 ## More details
 
