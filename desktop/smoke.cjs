@@ -283,8 +283,8 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
           assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).contentAlignment, 'top');
         }
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center", scale: 1 })');
-        await waitFor('Bottom content alignment is restored', () => evaluate('document.body.dataset.contentAlignment === "bottom"'), 3000);
         const bottomBounds = widget.getBounds();
+        await waitFor('Bottom layout and resized viewport are restored', () => evaluate(`document.body.dataset.contentAlignment === "bottom" && innerWidth === ${bottomBounds.width} && innerHeight === ${bottomBounds.height}`), 3000);
         const bottomLayout = await readScorebugLayout();
         assert.ok(Math.abs(bottomLayout.origin.y + bottomBounds.y - scorebugHitBounds(bottomBounds).y) < 0.51, 'Returning to bottom changed its existing artwork placement');
         check('Top panels stay near the screen edge at every size; fresh/delayed/sample badges, reachable controls, native hit targets and free-placement alignment stay consistent');
@@ -294,6 +294,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
             await evaluate(`window.scorebugDesktop.setPreferences({ anchor: "${anchor}", scale: ${scale} })`);
             await pause(160); // Let the native move guard finish before opening a hover blade.
             const actual = widget.getBounds();
+            await waitFor('Top-corner layout and resized viewport are ready', () => evaluate(`document.body.dataset.contentAlignment === "top" && innerWidth === ${actual.width} && innerHeight === ${actual.height}`), 3000);
             const layout = await readScorebugLayout({ stale: true });
             await evaluate(`window.scorebugDesktop.showDetails("${side}")`);
             await waitFor('Top-corner blade and its native region', async () => {
