@@ -24,9 +24,14 @@ The primary ESPN request starts first. Available backups join immediately if it 
 
 - ESPN's alternate site API.
 - The independent [theScore feed](https://api.thescore.com/nfl/events).
+- FOX's current-week scoreboard, using its public website data route. Routing metadata is cached for up to 60 seconds; game frames still use the one-second shared cache. Dated requests do not use FOX until that date route is verified.
 - ESPN's web CDN, for the current week only. Its scoreboard does not honor arbitrary dates, so dated requests never use that route.
 
-Game summaries separately fall back to ESPN's alternate site API and its CDN game package. These are alternate routes to ESPN, not independent providers. Each response is validated for shape and identity. A live CDN response older than 5 seconds triggers a fresh alternative; if every alternative fails, a validated response aged 6–45 seconds can still show the score with a delayed label. Older responses and explicit stale-cache warnings are rejected. A successful HTTP request cannot prove that a provider's underlying data is current.
+Game summaries separately fall back to ESPN's alternate site API, its CDN game package, and its core play feed. The core feed is the upstream used by [nfllivepy](https://github.com/jlkazan/nfllivepy/blob/main/nfllivepy/requester/pbp_requester.py); it remains ESPN data. This adapter requests only the selected game's plays and identity, with at most two fixed-host requests under the same timeout. It does not scan every game's play history.
+
+Core play updates keep cumulative team stats at their last known values with a **Stats delayed** label. `statsFetchedAt` records the original full-stat check, while `playsUpdatedAt` records a play modification. A cold play-only response leaves unavailable totals blank. It never promotes a historical play position into the current down or clock.
+
+Each response is validated for shape and identity. A live CDN response older than 5 seconds triggers a fresh alternative; if every alternative fails, a validated response aged 6–45 seconds can still show the score with a delayed label. Older frames and explicit stale-cache warnings are rejected. A successful HTTP request cannot prove that a provider's underlying data is current.
 
 Failed routes cool down for **4/8/16/30 seconds**, or longer when the provider sends `Retry-After`. A working backup is reused without racing every route on every check. A slow losing route is probed again after 10 seconds. The primary returns automatically when healthy. After an outage, client retries back off to **4/8/16/30 seconds** and return to the two-second cadence on success.
 
