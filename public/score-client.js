@@ -2,7 +2,10 @@ import { normalizePreferencePatch, normalizeFavorites, supportedGameId, gameLeag
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
 
 export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
-const KEY = 'scorebug.preferences.v1';
+// Older open tabs rewrite records using their older schema. Migrate their last
+// saved choice once, then keep the current schema out of that write-back loop.
+const KEY = 'scorebug.preferences.v2';
+const LEGACY_KEY = 'scorebug.preferences.v1';
 export const SCOREBOARD_CACHE_KEY = 'scorebug.scoreboards.v1';
 export const SCOREBOARD_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 24, MAX_CACHE_CHARS = 2000000, MAX_GAMES = 256;
@@ -108,14 +111,16 @@ export function writeCachedScoreboard(date, data, { storage = browserStorage(), 
   } catch { return false; }
 }
 try {
-  const stored = JSON.parse(localStorage.getItem(KEY) || '{}');
+  const current = localStorage.getItem(KEY);
+  const stored = JSON.parse((current === null ? localStorage.getItem(LEGACY_KEY) : current) || '{}');
   const saved = normalizePreferencePatch(stored);
   // Versions before 2.0.1 saved the chosen style without an automatic-style
   // flag. Preserve that choice; only a new profile starts in automatic mode.
   if (saved.styleId && !Object.hasOwn(stored, 'styleAuto')) saved.styleAuto = false;
   preferences = { ...preferences, ...saved };
+  if (current === null) persistPreferences();
 } catch { /* private browsing or corrupt storage */ }
-try { if (typeof window !== 'undefined') channel = new BroadcastChannel('scorebug.preferences.v1'); } catch { /* optional */ }
+try { if (typeof window !== 'undefined') channel = new BroadcastChannel(KEY); } catch { /* optional */ }
 
 export function getPreferences() { return { ...preferences, favorites: normalizeFavorites(preferences.favorites) }; }
 function syncPreferenceURL() {
@@ -131,15 +136,36 @@ function syncPreferenceURL() {
     if (url.href !== before) globalThis.history.replaceState(null, '', url.href);
   } catch { /* Sandboxed or opaque windows still receive shared preferences. */ }
 }
-function acceptPreferences(next) {
-  preferences = { ...preferences, ...normalizePreferencePatch(next) };
-  try { localStorage.setItem(KEY, JSON.stringify(preferences)); } catch { /* storage is optional */ }
-  syncPreferenceURL();
-  preferencesEvents.dispatchEvent(new CustomEvent('change', { detail: getPreferences() }));
+function persistPreferences() {
+  try {
+    const value = JSON.stringify(preferences);
+    if (localStorage.getItem(KEY) !== value) localStorage.setItem(KEY, value);
+  } catch { /* storage is optional */ }
 }
-if (channel) channel.onmessage = (event) => { if (event.data && typeof event.data === 'object') acceptPreferences(event.data); };
+function acceptPreferences(next, { persist = true } = {}) {
+  const updated = { ...preferences, ...normalizePreferencePatch(next) };
+  const changed = JSON.stringify(updated) !== JSON.stringify(preferences);
+  preferences = updated;
+  if (persist) persistPreferences();
+  syncPreferenceURL();
+  if (changed) preferencesEvents.dispatchEvent(new CustomEvent('change', { detail: getPreferences() }));
+}
+if (channel) channel.onmessage = (event) => {
+  if (!event.data || typeof event.data !== 'object') return;
+  try {
+    const current = localStorage.getItem(KEY);
+    // A later user choice may already be committed while an older channel
+    // message waits in another tab's queue. Only that latest record can win.
+    if (current !== null && JSON.stringify(normalizePreferencePatch(JSON.parse(current))) !== JSON.stringify(normalizePreferencePatch(event.data))) return;
+  } catch { /* BroadcastChannel still works when storage is unavailable. */ }
+  acceptPreferences(event.data, { persist: false });
+};
 globalThis.addEventListener?.('storage', (event) => {
-  if (event.key === KEY && event.newValue) { try { acceptPreferences(JSON.parse(event.newValue)); } catch { /* ignore invalid data */ } }
+  if (event.key !== KEY || !event.newValue) return;
+  try {
+    if (localStorage.getItem(KEY) !== event.newValue) return;
+    acceptPreferences(JSON.parse(event.newValue), { persist: false });
+  } catch { /* Ignore invalid or superseded records. */ }
 });
 
 export async function initializePreferences() {
