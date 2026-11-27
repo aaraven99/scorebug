@@ -20,11 +20,13 @@ No PowerToys, Python, Node.js, or Vercel setup is needed. The app is unsigned.
 
 ## Use it
 
-- **Automatic** follows a game that is live now, including halftime and quarter breaks. It has no favorite team. Choose a game yourself to keep that matchup pinned.
-- **Drag near a side edge and release** for the vertical layout. Top and bottom positions stay horizontal.
-- **Hover a team’s colored panel** for its stats. Move into the expanded stats to keep them open.
-- **Click the gear** to choose a game or change the size.
-- **Right-click** for position, monitor, lock, and quit options.
+Choose a game yourself, or leave **Automatic** on to follow a game that is live now. It has no favorite team.
+
+1. **For the full game:** click **Open game center** on the website or in app settings. The score, field, stats, and plays are together in one window.
+2. **For a smaller side view:** drag the Windows scorebug to a side edge and release. On the website, choose **Normal** or **Side** under Floating window. Top and bottom desktop positions stay horizontal.
+3. **For quick stats:** hover a team logo or its timeout marks. Hover the clock to compare the teams. Move into the expanded stats to keep them open.
+
+Click the gear to choose a game or change the size. Right-click the desktop scorebug for position, monitor, lock, and quit options.
 
 Scores and stats check for updates about every 2 seconds without reloading. The game clock shows the latest time reported by the feed; the provider can still lag behind the game or your TV. The computer needs to stay awake and online. Ordinary browser tabs may slow down in the background; the Windows app keeps checking.
 

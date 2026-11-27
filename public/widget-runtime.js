@@ -1,8 +1,9 @@
 import { renderScorebug } from './scorebug.js';
-import { initializePreferences, onPreferences, selectGame, ScoreboardPoller, feedIsStale } from './score-client.js';
+import { initializePreferences, onPreferences, updatePreferences, isSupportedGameId, selectGame, ScoreboardPoller, feedIsStale } from './score-client.js';
 import { attachDetailsHover } from './details-hover.js';
 import { createGameActivity } from './game-activity.js';
 import { createScoreAnimations } from './score-animation.js';
+import { widgetPopupSize } from './widget-layout.js';
 
 const desktop = Boolean(window.scorebugDesktop);
 if (desktop) document.body.dataset.desktop = 'true';
@@ -14,8 +15,29 @@ const toolbar = document.createElement('nav'); toolbar.className = 'widget-toolb
 const refresh = document.createElement('button'); refresh.type = 'button'; refresh.title = 'Refresh now'; refresh.setAttribute('aria-label', 'Refresh now'); refresh.textContent = '↻';
 const settings = document.createElement('button'); settings.type = 'button'; settings.title = 'Settings'; settings.setAttribute('aria-label', 'Open scorebug settings'); settings.textContent = '⚙';
 const close = document.createElement('button'); close.type = 'button'; close.title = desktop ? 'Quit Scorebug' : 'Close window'; close.setAttribute('aria-label', close.title); close.textContent = '×';
-const detailsButton = document.createElement('button'); detailsButton.type = 'button'; detailsButton.title = 'Stats for the team with the ball'; detailsButton.setAttribute('aria-label', 'Show team stats'); detailsButton.textContent = 'Stats';
-toolbar.append(refresh, detailsButton, settings, close);
+const detailsButton = document.createElement('button'); detailsButton.type = 'button'; detailsButton.title = 'Stats for the team with the ball'; detailsButton.setAttribute('aria-label', 'Show team stats'); detailsButton.className = 'widget-stats-button';
+detailsButton.innerHTML = '<span class="widget-stats-label">Stats</span><svg class="widget-stats-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 12V8m5 4V3m5 9V6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const gameCenter = document.createElement('button'); gameCenter.type = 'button'; gameCenter.title = 'Full-screen game view'; gameCenter.setAttribute('aria-label', 'Open full-screen game view');
+gameCenter.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+toolbar.append(refresh, detailsButton, gameCenter, settings, close);
+const layoutControls = document.createElement('div'); layoutControls.className = 'widget-layout-controls'; layoutControls.setAttribute('role', 'group'); layoutControls.setAttribute('aria-label', 'Scorebug layout');
+const layoutButtons = ['horizontal', 'vertical'].map((orientation) => {
+  const button = document.createElement('button'); button.type = 'button'; button.textContent = orientation === 'horizontal' ? 'Normal' : 'Side';
+  button.setAttribute('aria-label', `${orientation === 'horizontal' ? 'Normal' : 'Side'} view`);
+  button.addEventListener('click', () => {
+    if (preferences.orientation === orientation) return;
+    // Browser-created pop-outs may resize in this user gesture. A regular tab
+    // may ignore it; the selected layout remains usable in its current viewport.
+    if (!document.body.hasAttribute('data-pip') && window.opener) {
+      const size = widgetPopupSize({ ...preferences, orientation });
+      try { window.resizeTo(size.width + Math.max(0, outerWidth - innerWidth), size.height + Math.max(0, outerHeight - innerHeight)); } catch {}
+    }
+    detailsHover.close({ immediate: true });
+    updatePreferences({ orientation }).catch(() => {});
+  });
+  layoutControls.append(button); return button;
+});
+if (!desktop) toolbar.prepend(layoutControls);
 const board = document.createElement('div'); board.className = 'widget-board';
 const hint = document.createElement('span'); hint.className = 'widget-hint'; hint.textContent = 'SCOREBUG / LIVE NFL';
 root.append(toolbar, hint, board);
@@ -25,14 +47,24 @@ const animations = createScoreAnimations(board);
 const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear() });
 function updateActivity() { activity.setGame(selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt, { sourceId: snapshot.data?.sourceId, stale: snapshot.data?.stale, error: Boolean(snapshot.error) }); }
 let nativeDetailsSide = null;
+let nativeDetailsGameId;
 detailsButton.addEventListener('click', () => detailsHover.open());
 
 function render() {
   document.body.dataset.locked = String(Boolean(preferences.locked));
   document.body.dataset.orientation = preferences.orientation === 'vertical' ? 'vertical' : 'horizontal';
+  document.body.style.setProperty('--widget-side-width', `${widgetPopupSize({ ...preferences, orientation: 'vertical' }).width - 16}px`);
+  layoutButtons.forEach((button, index) => button.setAttribute('aria-pressed', String((preferences.orientation === 'vertical') === Boolean(index))));
   const topAligned = desktop && preferences.contentAlignment === 'top';
   document.body.dataset.contentAlignment = topAligned ? 'top' : 'bottom';
   const game = selectGame(snapshot.data?.games, preferences);
+  const gameId = isSupportedGameId(game?.id) ? game.id : null;
+  if (desktop && gameId !== nativeDetailsGameId) {
+    nativeDetailsGameId = gameId;
+    window.scorebugDesktop.setDetailsGameId?.(gameId).catch(() => {
+      if (nativeDetailsGameId === gameId) nativeDetailsGameId = undefined;
+    });
+  }
   if (game) {
     const html = renderScorebug(game, { idPrefix: 'floating', orientation: preferences.orientation, statusPosition: topAligned ? 'below' : 'above', stale: feedIsStale(snapshot.data, Boolean(snapshot.error)) });
     if (rendered !== html) { board.innerHTML = html; rendered = html; }
@@ -55,6 +87,11 @@ settings.addEventListener('click', () => {
   if (desktop) window.scorebugDesktop.openSettings();
   else if (window.opener && !window.opener.closed) window.opener.focus();
   else window.open(new URL('/', document.baseURI).href, '_blank', 'noopener,noreferrer');
+});
+gameCenter.addEventListener('click', () => {
+  detailsHover.close({ immediate: true });
+  if (desktop) window.scorebugDesktop.openGameCenter();
+  else window.open(new URL('/game.html', document.baseURI).href, '_blank', 'noopener,noreferrer');
 });
 close.addEventListener('click', () => { if (desktop) window.scorebugDesktop.closeWidget(); else window.close(); });
 function checkAge() { if (snapshot.data && feedIsStale(snapshot.data, Boolean(snapshot.error))) render(); }

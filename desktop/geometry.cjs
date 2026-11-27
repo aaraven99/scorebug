@@ -82,7 +82,7 @@ function widgetSize(scale = 1, orientation = 'horizontal', workArea = null) {
   let width = Math.round((vertical ? 160 : 520) * scale);
   // Controls and the transparent margins use CSS pixels, so they must not shrink
   // with the scorebug. Reserve the feed-status badge even while it is absent.
-  const ratio = vertical ? 367 / 160 : 162 / 600;
+  const ratio = vertical ? 309 / 160 : 162 / 600;
   if (workArea) {
     // A short, high-DPI work area may not fit a large vertical scorebug. Reduce
     // its width as well, instead of clipping a height whose SVG still uses the
@@ -122,29 +122,40 @@ function overlapArea(a, b) {
     Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
 }
 
-const DETAILS_SIZE = Object.freeze({ width: 284, height: 216 });
+const DETAILS_SIZE = Object.freeze({ width: 320, height: 344 });
+const COMPARISON_DETAILS_SIZE = Object.freeze({ width: 408, height: 450 });
 const DETAILS_SEAM_OVERLAP = 1.5;
 
-function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', contentAlignment = 'bottom', size = DETAILS_SIZE } = {}) {
-  side = side === 'away' ? 'away' : 'home';
+function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', contentAlignment = 'bottom', size } = {}) {
+  side = ['away', 'home', 'comparison'].includes(side) ? side : 'home';
+  const comparison = side === 'comparison';
+  size ||= comparison ? COMPARISON_DETAILS_SIZE : DETAILS_SIZE;
   orientation = orientation === 'vertical' ? 'vertical' : 'horizontal';
   const width = Math.max(1, Math.min(Math.round(finite(size.width, DETAILS_SIZE.width)), workArea.width));
   const height = Math.max(1, Math.min(Math.round(finite(size.height, DETAILS_SIZE.height)), workArea.height));
-  const polygon = teamPanelPolygon(widgetBounds, orientation, side, contentAlignment);
-  const team = teamPanelBounds(widgetBounds, orientation, side, contentAlignment);
+  const strip = situationPanelPolygon(widgetBounds, orientation, contentAlignment);
+  const polygon = comparison ? strip : teamPanelPolygon(widgetBounds, orientation, side, contentAlignment);
+  const team = polygonBounds(polygon);
   const bug = scorebugHitBounds(widgetBounds, orientation, contentAlignment);
   const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
   // Downward blades join beneath the information strip so their neck never
   // covers the clock/down text. Match the visible path (not its 2px SVG margin).
-  const stripBottom = bug.y + (orientation === 'vertical' ? 346 : 136) * factor;
-  const stripLeft = bug.x + factor;
-  const stripRight = bug.x + (orientation === 'vertical' ? 149 : 571) * factor;
+  const stripBottom = strip[3][1];
+  const stripLeft = strip[3][0];
+  const stripRight = strip[2][0];
   const belowStatus = orientation === 'horizontal' && contentAlignment === 'top';
   // The top layout reserves a below-panel status badge through SVG x224. Its
   // downward blade uses a narrow strip segment to the right of that space.
   // Keep the reservation while fresh as well, so a delayed feed cannot move it.
-  const downLeft = Math.max(polygon[3][0], stripLeft, belowStatus ? bug.x + 232 * factor : -Infinity);
-  const downRight = Math.min(polygon[2][0], stripRight, belowStatus && side === 'home' ? bug.x + 343 * factor : Infinity);
+  const clockSpan = orientation === 'vertical' ? [22, 135] : [228, 358];
+  const comparisonSpan = clockSpan.map((x) => bug.x + x * factor);
+  const downLeft = Math.max(comparison ? comparisonSpan[0] : polygon[3][0], stripLeft, belowStatus ? bug.x + 232 * factor : -Infinity);
+  const downRight = Math.min(comparison ? comparisonSpan[1] : polygon[2][0], stripRight, belowStatus && side !== 'away' ? bug.x + 343 * factor : Infinity);
+  // A clock expansion above a bottom-docked scoreboard clears both teams. Its
+  // stem stays centered on the clock without placing a frame over the scores.
+  const upEdge = comparison
+    ? comparisonSpan.map((x) => [x, bug.y + (orientation === 'vertical' ? 2 : 4) * factor])
+    : [polygon[0], polygon[1]];
   const downEdge = [[downLeft, stripBottom], [downRight, stripBottom]];
   const overlap = DETAILS_SEAM_OVERLAP;
   // Carry a narrow connector past the below-board controls. Add the extra
@@ -152,38 +163,67 @@ function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation =
   const downNeckHeight = belowStatus ? Math.max(26 * factor + 6, widgetBounds.y + widgetBounds.height + 3 - (stripBottom - overlap)) : 0;
   const downHeight = Math.min(workArea.height, height + Math.max(0, Math.ceil(downNeckHeight + 1 - 24)));
   const limit = (value, low, high) => Math.max(low, Math.min(value, high));
+  const lateralPolygon = comparison && orientation === 'horizontal'
+    ? [teamPanelPolygon(widgetBounds, orientation, 'away', contentAlignment)[0], teamPanelPolygon(widgetBounds, orientation, 'home', contentAlignment)[1], strip[2], strip[3]]
+    : polygon;
   const desired = (direction) => {
     if (direction === 'left' || direction === 'right') {
-      const edge = direction === 'left' ? [polygon[0], polygon[3]] : [polygon[1], polygon[2]];
+      const edge = direction === 'left' ? [lateralPolygon[0], lateralPolygon[3]] : [lateralPolygon[1], lateralPolygon[2]];
       const inward = direction === 'left' ? overlap : -overlap;
       const points = edge.map(([x, y]) => [x + inward, y]);
       const x = direction === 'left' ? Math.max(points[0][0], points[1][0]) - width : Math.min(points[0][0], points[1][0]);
       const y = limit(team.y + (team.height - height) / 2, workArea.y, workArea.y + workArea.height - height);
       return { direction, bounds: { x, y, width, height }, points };
     }
-    const edge = direction === 'up' ? [polygon[0], polygon[1]] : downEdge;
+    const edge = direction === 'up' ? upEdge : downEdge;
     const y = edge[0][1] + (direction === 'up' ? overlap : -overlap) - (direction === 'up' ? height : 0);
     const x = limit((edge[0][0] + edge[1][0]) / 2 - width / 2, workArea.x, workArea.x + workArea.width - width);
     return { direction, bounds: { x, y, width, height: direction === 'down' ? downHeight : height }, points: edge.map(([px, py]) => [px, py + (direction === 'up' ? overlap : -overlap)]) };
   };
-  const primary = side === 'away' ? 'left' : 'right';
-  const upSpace = team.y - workArea.y;
+  const primary = comparison
+    ? (team.x - workArea.x > workArea.x + workArea.width - team.x - team.width ? 'left' : 'right')
+    : side === 'away' ? 'left' : 'right';
+  const upSpace = upEdge[0][1] - workArea.y;
   const downSpace = workArea.y + workArea.height - stripBottom;
   const verticalDirections = upSpace >= downSpace ? ['up', 'down'] : ['down', 'up'];
   // Horizontal teams have different outer edges. If the selected team's edge
   // is against the screen, attach above/below that team rather than the rival.
   const directions = orientation === 'vertical'
     ? [primary, primary === 'left' ? 'right' : 'left', ...verticalDirections]
-    : [primary, ...verticalDirections];
+    : comparison ? [...verticalDirections, primary, primary === 'left' ? 'right' : 'left'] : [primary, ...verticalDirections];
   const candidates = directions.map(desired);
   const fits = ({ bounds }) => bounds.x >= workArea.x && bounds.y >= workArea.y &&
     bounds.x + bounds.width <= workArea.x + workArea.width && bounds.y + bounds.height <= workArea.y + workArea.height;
   let selected = candidates.find(fits);
   if (!selected) {
+    // A central widget can leave useful space above/below without fitting the
+    // full stats body. Scroll that body before covering the live scoreboard.
+    const minWidth = comparison ? 340 : 240, minBodyHeight = comparison ? 260 : 180;
+    selected = candidates.map((candidate) => {
+      const bounds = { ...candidate.bounds }, direction = candidate.direction;
+      if (direction === 'left') {
+        const right = bounds.x + bounds.width;
+        bounds.width = Math.max(1, Math.min(bounds.width, Math.floor(right - workArea.x)));
+        bounds.x = right - bounds.width;
+      } else if (direction === 'right') {
+        bounds.width = Math.max(1, Math.min(bounds.width, Math.floor(workArea.x + workArea.width - bounds.x)));
+      } else if (direction === 'up') {
+        const bottom = bounds.y + bounds.height;
+        bounds.height = Math.max(1, Math.min(bounds.height, Math.floor(bottom - workArea.y)));
+        bounds.y = bottom - bounds.height;
+      } else {
+        bounds.height = Math.max(1, Math.min(bounds.height, Math.floor(workArea.y + workArea.height - bounds.y)));
+      }
+      const readable = ['left', 'right'].includes(direction) ? bounds.width >= minWidth
+        : bounds.height >= minBodyHeight + (direction === 'down' ? downNeckHeight : 0);
+      return { ...candidate, bounds, readable };
+    }).find((candidate) => candidate.readable && fits(candidate));
+  }
+  if (!selected) {
     // On unusually small displays keep the whole window reachable and choose
     // the placement that covers the least of the selected team.
     selected = candidates.map((candidate) => ({ ...candidate, bounds: clampBounds(candidate.bounds, workArea) }))
-      .reduce((best, candidate) => overlapArea(candidate.bounds, team) < overlapArea(best.bounds, team) ? candidate : best);
+      .reduce((best, candidate) => overlapArea(candidate.bounds, comparison ? bug : team) < overlapArea(best.bounds, comparison ? bug : team) ? candidate : best);
   }
   const bounds = clampBounds(selected.bounds, workArea);
   const direction = selected.direction;
@@ -252,53 +292,81 @@ function scorebugHitBounds(bounds, orientation = 'horizontal', contentAlignment 
   // Match the main SVG artwork, excluding controls and the optional badge.
   // Top layouts put both below it; bottom layouts keep them above it. The
   // artwork's origin is therefore stable when the feed-status badge changes.
-  const aspect = orientation === 'vertical' ? 348 / 160 : 138 / 600;
+  const aspect = orientation === 'vertical' ? 290 / 160 : 138 / 600;
   const height = Math.max(1, Math.min(bounds.height - 8, width * aspect));
   return { x: bounds.x + 8, y: contentAlignment === 'top' ? bounds.y + 8 : bounds.y + bounds.height - 8 - height, width, height };
 }
 
+// These vertices and narrow hover regions mirror public/scorebug.js. The
+// geometry tests compare them with the actual renderer to catch future drift.
 const TEAM_POLYGONS = Object.freeze({
   horizontal: {
-    away: [[24, 4], [303, 4], [285, 88], [6, 88]],
+    away: [[30, 4], [303, 4], [285, 88], [12, 88]],
     home: [[308, 4], [595, 4], [577, 88], [290, 88]]
   },
   vertical: {
-    away: [[10, 2], [159, 2], [149, 121], [1, 121]],
-    home: [[10, 128], [159, 128], [149, 247], [1, 247]]
+    away: [[17, 2], [159, 2], [151, 98], [9, 98]],
+    home: [[17, 105], [159, 105], [151, 201], [9, 201]]
+  }
+});
+const SITUATION_POLYGONS = Object.freeze({
+  horizontal: [[30 - 89 * 3 / 14, 93], [595 - 89 * 3 / 14, 93], [595 - 132 * 3 / 14, 136], [30 - 132 * 3 / 14, 136]],
+  vertical: [[17 - 101 / 12, 206], [159 - 101 / 12, 206], [159 - 183 / 12, 288], [17 - 183 / 12, 288]]
+});
+const DETAILS_TARGETS = Object.freeze({
+  horizontal: {
+    away: [[[30, 4], [171, 4], [171, 88], [12, 88]]],
+    home: [[[435, 4], [595, 4], [577, 88], [435, 88]]],
+    comparison: [[[228, 94], [358, 94], [358, 135], [228, 135]]]
+  },
+  vertical: {
+    away: [[[28, 4], [145, 4], [145, 40], [28, 40]], [[17, 2], [29, 2], [21, 98], [9, 98]]],
+    home: [[[28, 107], [145, 107], [145, 143], [28, 143]], [[147, 105], [159, 105], [151, 201], [139, 201]]],
+    comparison: [[[22, 228], [135, 228], [135, 254], [22, 254]]]
   }
 });
 
-function teamPanelPolygon(bounds, orientation = 'horizontal', side = 'home', contentAlignment = 'bottom') {
-  const vertical = orientation === 'vertical';
+function transformPolygon(bounds, orientation, contentAlignment, polygon) {
   const bug = scorebugHitBounds(bounds, orientation, contentAlignment);
-  const factor = bug.width / (vertical ? 160 : 600);
-  return TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'][side === 'away' ? 'away' : 'home']
-    .map(([x, y]) => [bug.x + x * factor, bug.y + y * factor]);
+  const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
+  return polygon.map(([x, y]) => [bug.x + x * factor, bug.y + y * factor]);
+}
+
+function polygonBounds(polygon) {
+  const xs = polygon.map(([x]) => x), ys = polygon.map(([, y]) => y);
+  return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+}
+
+function teamPanelPolygon(bounds, orientation = 'horizontal', side = 'home', contentAlignment = 'bottom') {
+  return transformPolygon(bounds, orientation, contentAlignment, TEAM_POLYGONS[orientation === 'vertical' ? 'vertical' : 'horizontal'][side === 'away' ? 'away' : 'home']);
+}
+
+function situationPanelPolygon(bounds, orientation = 'horizontal', contentAlignment = 'bottom') {
+  return transformPolygon(bounds, orientation, contentAlignment, SITUATION_POLYGONS[orientation === 'vertical' ? 'vertical' : 'horizontal']);
 }
 
 function teamPanelBounds(bounds, orientation = 'horizontal', side = 'home', contentAlignment = 'bottom') {
-  const vertical = orientation === 'vertical';
-  const bug = scorebugHitBounds(bounds, orientation, contentAlignment);
-  const factor = bug.width / (vertical ? 160 : 600);
-  const polygon = TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'][side === 'away' ? 'away' : 'home'];
-  const xs = polygon.map(([x]) => x), ys = polygon.map(([, y]) => y);
-  return { x: bug.x + Math.min(...xs) * factor, y: bug.y + Math.min(...ys) * factor,
-    width: (Math.max(...xs) - Math.min(...xs)) * factor, height: (Math.max(...ys) - Math.min(...ys)) * factor };
+  return polygonBounds(teamPanelPolygon(bounds, orientation, side, contentAlignment));
+}
+
+function pointInPolygon(polygon, x, y) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i], [xj, yj] = polygon[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 function teamAtPoint(bounds, point, orientation = 'horizontal', contentAlignment = 'bottom') {
-  const vertical = orientation === 'vertical';
+  const layout = orientation === 'vertical' ? 'vertical' : 'horizontal';
   const bug = scorebugHitBounds(bounds, orientation, contentAlignment);
   if (!containsPoint(bug, point)) return null;
-  const factor = bug.width / (vertical ? 160 : 600);
+  const factor = bug.width / (layout === 'vertical' ? 160 : 600);
   const x = (point.x - bug.x) / factor, y = (point.y - bug.y) / factor;
-  for (const [side, polygon] of Object.entries(TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'])) {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const [xi, yi] = polygon[i], [xj, yj] = polygon[j];
-      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
-    }
-    if (inside) return side;
+  for (const [side, polygons] of Object.entries(DETAILS_TARGETS[layout])) {
+    const clip = side === 'comparison' ? SITUATION_POLYGONS[layout] : TEAM_POLYGONS[layout][side];
+    if (pointInPolygon(clip, x, y) && polygons.some((polygon) => pointInPolygon(polygon, x, y))) return side;
   }
   return null;
 }
@@ -320,4 +388,4 @@ function hoverBridge(a, b) {
   return null;
 }
 
-module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, containsPoint, detailsBounds, detailsPlacement, detailsWindowShape, DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, teamAtPoint, hoverBridge };
+module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, containsPoint, detailsBounds, detailsPlacement, detailsWindowShape, DETAILS_SIZE, COMPARISON_DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, situationPanelPolygon, teamAtPoint, hoverBridge };

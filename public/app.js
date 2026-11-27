@@ -7,6 +7,7 @@ import { createScoreAnimations } from './score-animation.js';
 import { selectDemoPlayer } from './game-events.js';
 import { mountDesktopUpdates } from './desktop-updates.js';
 import { createLiveGameList } from './live-games.js';
+import { widgetPopupSize } from './widget-layout.js';
 import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, activeGames, ScoreboardPoller, feedIsStale, checkedAgo } from './score-client.js';
 
 const $ = (id) => document.getElementById(id);
@@ -22,7 +23,11 @@ let renderedSvg = '';
 const animations = createScoreAnimations($('scorebug-preview'));
 const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear() });
 function updateActivity() { activity.setGame(reference ? null : selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt, { sourceId: snapshot.data?.sourceId, stale: snapshot.data?.stale, error: Boolean(snapshot.error) }); }
-function floatingSize() { return preferences.orientation === 'vertical' ? { width: Math.round(160 * preferences.scale), height: Math.round(370 * preferences.scale) } : { width: Math.round(520 * preferences.scale), height: Math.round(176 * preferences.scale) }; }
+function floatingSize() { return widgetPopupSize(preferences); }
+function resizeFloatingWindow() {
+  if (!pipWindow || pipWindow.closed) return;
+  try { const size = floatingSize(); pipWindow.resizeTo(size.width, size.height); } catch { /* The browser may constrain PiP size. */ }
+}
 
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6500); }
 function formatKickoff(value) { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date) : ''; }
@@ -104,7 +109,7 @@ function renderPreview() {
     $('phase-badge').textContent = snapshot.error ? 'OFFLINE' : snapshot.loading ? 'CONNECTING' : 'NO GAME';
     $('phase-badge').className = `status-pill${snapshot.error ? ' error' : ''}`;
   }
-  $('preview-caption').textContent = sample ? 'Sample matchup · preview only' : 'Hover a team for its stats';
+  $('preview-caption').textContent = sample ? 'Sample matchup · preview only' : 'Hover a logo or timeout marks for team stats; hover the clock to compare.';
   $('reference-note').hidden = !sample;
   $('reference-toggle').setAttribute('aria-pressed', String(sample));
   $('reference-toggle').textContent = sample ? 'Back to live game' : 'Sample matchup';
@@ -154,6 +159,7 @@ function renderPreferences() {
   const scale = Number(preferences.scale) || 1;
   $('size-range').value = String(scale); $('size-value').textContent = `${Math.round(scale * 100)}%`;
   const vertical = preferences.orientation === 'vertical';
+  for (const button of $('browser-layout-controls').querySelectorAll('button[data-orientation]')) button.setAttribute('aria-pressed', String(button.dataset.orientation === (vertical ? 'vertical' : 'horizontal')));
   $('scorebug-preview').style.width = `${(vertical ? 144 : 520) * scale}px`;
   $('preview-stage').dataset.orientation = vertical ? 'vertical' : 'horizontal';
   $('date-input').value = preferences.date ? `${preferences.date.slice(0, 4)}-${preferences.date.slice(4, 6)}-${preferences.date.slice(6, 8)}` : '';
@@ -173,6 +179,7 @@ const datedPoller = new ScoreboardPoller({ date: preferences.date, onUpdate: (st
 } });
 onPreferences((next) => {
   const oldDate = preferences.date;
+  const sizeChanged = preferences.orientation !== next.orientation || preferences.scale !== next.scale;
   if (oldDate !== next.date || preferences.gameId !== next.gameId || preferences.team !== next.team) { demoReference = false; animations.clearDemo(); }
   preferences = next;
   if (oldDate !== next.date) {
@@ -183,6 +190,7 @@ onPreferences((next) => {
     $('other-games').open = Boolean(next.date);
   }
   renderPreferences(); renderPreview(); renderGames(); renderLiveGames(); updateActivity();
+  if (sizeChanged) resizeFloatingWindow();
 });
 
 $('follow-live').addEventListener('click', () => changeSelection({gameId:null,date:null}));
@@ -192,9 +200,12 @@ $('week-button').addEventListener('click', () => changeSelection({ date: null, g
 $('size-range').addEventListener('input', (event) => {
   const scale = Number(event.target.value);
   updatePreferences({ scale });
-  if (pipWindow && !pipWindow.closed) {
-    try { const size = floatingSize(); pipWindow.resizeTo(size.width, size.height); } catch { /* Browser may constrain PiP size. */ }
-  }
+});
+$('browser-layout-controls').addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-orientation]');
+  if (desktop || !button) return;
+  previewDetails.close();
+  updatePreferences({ orientation: button.dataset.orientation === 'vertical' ? 'vertical' : 'horizontal' });
 });
 const previewDetails = attachDetailsHover($('scorebug-preview'), { enabled: () => !reference && !demoReference });
 $('reference-toggle').addEventListener('click', () => {
@@ -238,6 +249,19 @@ $('clean-button').addEventListener('click', () => {
   if (desktop) { updatePreferences({ anchor: preferences.anchor || 'bottom-center' }); toast('The desktop scorebug is ready. Drag it to any edge to snap.'); }
   else window.open(url.href, '_blank', 'noopener,noreferrer');
 });
+$('game-center-button').addEventListener('click', async () => {
+  previewDetails.close();
+  if (desktop) {
+    try { await window.scorebugDesktop.openGameCenter(); }
+    catch { toast('The game center could not open. Try again from the scorebug’s right-click menu.'); }
+    return;
+  }
+  const url = new URL('/game.html', location.href);
+  if (preferences.gameId) url.searchParams.set('game', preferences.gameId);
+  if (preferences.date) url.searchParams.set('date', preferences.date);
+  if (!preferences.gameId && preferences.team) url.searchParams.set('team', preferences.team);
+  window.open(url.href, '_blank', 'noopener,noreferrer');
+});
 
 async function floatWidget() {
   if (desktop) { await updatePreferences({ anchor: 'bottom-center' }); toast('Scorebug snapped to the bottom center.'); return; }
@@ -269,8 +293,9 @@ if (desktop) {
   document.body.dataset.mode = 'desktop';
   if ($('page-title')) $('page-title').textContent = 'Scorebug settings';
   $('desktop-controls').hidden = false; $('desktop-banner').hidden = true;
+  $('browser-layout-controls').hidden = true;
   $('mode-label').textContent = 'Windows app'; $('float-button-label').textContent = 'Snap to bottom center';
-  $('floating-copy').textContent = 'Transparent and always on top. Drop at a side to turn vertical; top and bottom stay horizontal. Hover either team for its stats.';
+  $('floating-copy').textContent = 'Transparent and always on top. Drop at a side to turn vertical; top and bottom stay horizontal.';
   $('floating-hint').textContent = 'Hover the scorebug for controls, or right-click it for the full menu. Close this settings window to keep watching.';
   $('clean-button').hidden = true;
 } else if (!window.documentPictureInPicture?.requestWindow) {

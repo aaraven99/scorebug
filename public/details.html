@@ -1,12 +1,16 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Scorebug — Team stats</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/details.css"><script type="module" src="/details-runtime.js"></script></head>
-<body class="details-page" data-phase="closed" data-direction="right"><main class="team-details" aria-label="Current team statistics">
-<div class="blade-reveal">
-  <svg class="blade-frame" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" preserveAspectRatio="none"><defs><linearGradient id="blade-fill" x1="0" y1="0" x2=".12" y2="1"><stop offset="0"/><stop offset=".37"/><stop offset=".58"/><stop offset="1"/></linearGradient><linearGradient id="blade-bevel" x1="0" y1="0" x2=".1" y2="1"><stop offset="0" stop-color="#e5e6dc"/><stop offset=".45" stop-color="#9ca29a"/><stop offset="1" stop-color="#555f58"/></linearGradient><linearGradient id="blade-connector-fill" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1="0" y2="24"><stop offset="0" stop-color="#08140f" stop-opacity="1"/><stop offset="1" stop-color="#08140f" stop-opacity="0"/></linearGradient></defs><path id="blade-outline" fill="url(#blade-fill)"/><path id="blade-connector" fill="url(#blade-connector-fill)"/><path id="blade-border" fill="none" stroke="url(#blade-bevel)" stroke-width="1.6" stroke-linejoin="miter"/></svg>
-  <div class="blade-content">
-  <header class="details-header"><img id="details-logo" alt="" width="29" height="29" hidden><div><span id="details-name">TEAM STATS</span><h1 id="details-match">Connecting…</h1></div><button id="details-close" type="button" aria-label="Close team stats" title="Close stats">×</button></header>
-  <div class="stats-scroll"><table role="table" aria-label="Team game totals"><tbody id="stats-body" role="rowgroup"></tbody></table></div>
-  <div class="field-line"><strong id="field-position">Waiting for the feed</strong><span id="field-down"></span></div>
-  <p id="details-play">Waiting for a reported play.</p>
-  <footer class="details-footer"><span id="stats-status" role="status">Loading…</span><span id="details-source"></span></footer>
-</div></div></main></body></html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Scorebug — Game stats</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/details.css"><script type="module" src="/details-runtime.js"></script></head>
+<body class="details-page" data-phase="closed" data-direction="right"><main class="team-details" aria-label="Current game statistics">
+  <div class="blade-reveal">
+    <svg class="blade-frame" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" preserveAspectRatio="none"><path id="blade-outline" fill="#33483b"/><path id="blade-border" fill="none" stroke="#233128" stroke-width="2" stroke-linejoin="miter"/></svg>
+    <div class="blade-content">
+      <header class="details-header"><img id="details-logo" alt="" width="29" height="29" hidden><div><span id="details-name">TEAM STATS</span><h1 id="details-match">Connecting…</h1></div><button id="details-close" type="button" aria-label="Close stats" title="Close stats">×</button></header>
+      <div id="team-stats" class="stats-scroll"><table aria-label="Team game totals"><tbody id="stats-body"></tbody></table></div>
+      <div id="comparison-stats" hidden></div>
+      <div class="field-block"><div id="details-field"></div><div class="field-line"><strong id="field-position">Waiting for the feed</strong><span id="field-down"></span></div></div>
+      <p id="details-play">Waiting for a reported play.</p>
+      <div id="details-insights" hidden></div>
+      <footer class="details-footer"><span id="stats-status" role="status">Loading…</span><span id="details-source"></span></footer>
+    </div>
+  </div>
+</main></body></html>

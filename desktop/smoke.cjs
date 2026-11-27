@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
-const { scorebugHitBounds, teamPanelBounds, teamAtPoint, detailsWindowShape, containsPoint } = require('./geometry.cjs');
+const { scorebugHitBounds, teamPanelBounds, teamAtPoint, detailsWindowShape, DETAILS_SIZE, COMPARISON_DETAILS_SIZE, containsPoint } = require('./geometry.cjs');
 const execFileAsync = promisify(execFile);
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -106,7 +106,7 @@ $hit = [ScorebugWindowHit]::WindowFromPoint($point)
   return stdout.trim();
 }
 
-async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, preferencesPath }) {
+async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, getGameCenter, preferencesPath }) {
   const evidenceDir = path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
   const summary = { passed: false, platform: process.platform, electron: process.versions.electron, feedRequired: false, checks: [] };
@@ -146,12 +146,13 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
     if (!existing) {
       // Keep this check independent of whether ESPN has returned a game yet.
       probe = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      probe.innerHTML = '<g class="bug-team" role="button"><path d="M0 0h20v20H0Z"/></g>';
+      probe.innerHTML = '<g class="bug-team"><g class="bug-details-target" data-details-side="away" role="button"><path d="M0 0h20v20H0Z"/></g></g>';
       document.querySelector('.widget-board').append(probe);
     }
     const region = (element) => getComputedStyle(element).getPropertyValue('app-region') || getComputedStyle(element).getPropertyValue('-webkit-app-region');
     const result = {
       team: region(existing || probe.firstElementChild),
+      target: region((existing || probe.firstElementChild).querySelector('[data-details-side]')),
       toolbar: region(document.querySelector('.widget-toolbar button'))
     };
     probe?.remove();
@@ -204,7 +205,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
           assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).anchor, 'bottom-center');
           check('Passive Windows move notifications preserve the startup anchor');
         }
-        assert.deepEqual(await readDragRegions(), { team: 'drag', toolbar: 'no-drag' });
+        assert.deepEqual(await readDragRegions(), { team: 'drag', target: 'drag', toolbar: 'no-drag' });
         check('Colored team panels remain native drag targets while toolbar buttons stay clickable');
 
         assert.equal(widget.isAlwaysOnTop(), true);
@@ -307,7 +308,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
             const regions = detailsWindowShape(presentation);
             assert.equal(regions.length, 2);
             assert.ok(panelBounds.y + regions[1].y > actual.y + layout.toolbar.bottom, 'Blade body covers the controls');
-            assert.ok(regions[1].height >= 192, 'Toolbar clearance reduced the stats body');
+            assert.ok(regions[1].height >= DETAILS_SIZE.height - 24, 'Toolbar clearance reduced the stats body');
             for (const x of [layout.toolbar.x + 1, layout.toolbar.right - 1]) {
               for (const y of [layout.toolbar.y + 1, layout.toolbar.bottom - 1]) {
                 const point = { x: actual.x + x - panelBounds.x, y: actual.y + y - panelBounds.y };
@@ -350,7 +351,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         await evaluate('window.scorebugDesktop.setPreferences({ locked: true })');
         await waitFor('Locked state in the renderer', () => evaluate(`document.body.dataset.locked === 'true' && document.documentElement.dataset.desktopLocked === 'true'`), 3000);
         assert.equal((await evaluate('window.scorebugDesktop.getState()')).locked, true);
-        assert.deepEqual(await readDragRegions(), { team: 'no-drag', toolbar: 'no-drag' });
+        assert.deepEqual(await readDragRegions(), { team: 'no-drag', target: 'no-drag', toolbar: 'no-drag' });
         if (process.platform === 'win32' || process.platform === 'darwin') assert.equal(widget.isMovable(), false);
         assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).locked, true);
         await evaluate('window.scorebugDesktop.setPreferences({ locked: false, anchor: "bottom-center" })');
@@ -389,8 +390,8 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         const panelBounds = panel.getBounds();
         const panelArea = screen.getDisplayMatching(panelBounds).workArea;
         assert.ok(panelBounds.x >= beforeDetails.x + beforeDetails.width - 24, 'Left-side details should join the slanted colored edge inward');
-        assert.equal(panelBounds.width, Math.min(284, panelArea.width));
-        assert.equal(panelBounds.height, Math.min(216, panelArea.height));
+        assert.equal(panelBounds.width, Math.min(DETAILS_SIZE.width, panelArea.width));
+        assert.equal(panelBounds.height, Math.min(DETAILS_SIZE.height, panelArea.height));
         assert.ok(panelBounds.x >= panelArea.x && panelBounds.y >= panelArea.y);
         assert.ok(panelBounds.x + panelBounds.width <= panelArea.x + panelArea.width);
         assert.ok(panelBounds.y + panelBounds.height <= panelArea.y + panelArea.height);
@@ -398,7 +399,16 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(detailState.preferences.orientation, 'vertical');
         assert.equal(detailState.detailsVisible, true);
         assert.equal(detailState.detailsSide, 'away');
+        const sourceGameId = detailState.detailsGameId;
+        await assert.rejects(() => panel.webContents.executeJavaScript('window.scorebugDesktop.setDetailsGameId("401000001")'), /Request denied/);
+        await assert.rejects(() => evaluate('window.scorebugDesktop.setDetailsGameId("fox-../123")'), /Invalid game ID/);
+        await evaluate('window.scorebugDesktop.setDetailsGameId("fox-11284")');
+        assert.equal((await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()')).gameId, 'fox-11284');
+        assert.equal((await evaluate('window.scorebugDesktop.getState()')).preferences.gameId, null, 'Hover context must not turn Automatic into a fixed selection');
+        assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).gameId, null);
+        await evaluate(`window.scorebugDesktop.setDetailsGameId(${JSON.stringify(sourceGameId)})`);
         const presentation = await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()');
+        assert.equal(presentation.gameId, sourceGameId);
         assert.equal(presentation.direction, 'right');
         assert.equal(presentation.orientation, 'vertical');
         assert.ok(presentation.joinTop >= 0 && presentation.joinBottom > presentation.joinTop);
@@ -423,11 +433,18 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Switching teams moved the scorebug');
         await waitFor('Expanded blade reaches the renderer', () => panel.webContents.executeJavaScript('document.body.dataset.phase === "open"'), 3000);
         fs.writeFileSync(path.join(evidenceDir, 'native-details.png'), (await panel.webContents.capturePage()).toPNG());
+        await evaluate('window.scorebugDesktop.showDetails("comparison")');
+        await waitFor('Clock comparison reaches the same details renderer', () => panel.webContents.executeJavaScript('window.__observedDetailsSide === "comparison"'), 3000);
+        const comparisonBounds = panel.getBounds();
+        assert.equal(comparisonBounds.width, Math.min(COMPARISON_DETAILS_SIZE.width, panelArea.width));
+        assert.equal(comparisonBounds.height, Math.min(COMPARISON_DETAILS_SIZE.height, panelArea.height));
+        assert.equal((await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()')).side, 'comparison');
+        assert.deepEqual(widget.getBounds(), beforeDetails, 'Comparing teams changed the compact scoreboard');
         await evaluate('window.scorebugDesktop.hideDetails()');
         assert.equal(getDetails(), panel, 'Dismissal destroyed the blade before it could retract');
         await waitFor('Native blade begins retracting', async () => (await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()'))?.phase === 'closing', 1000);
         await waitFor('Blade closing phase reaches the renderer', () => panel.webContents.executeJavaScript('document.body.dataset.phase === "closing"'), 1000);
-        await evaluate('window.scorebugDesktop.showDetails("home")');
+        await evaluate('window.scorebugDesktop.showDetails("comparison")');
         assert.equal(getDetails(), panel, 'Quick reopening replaced the retracting window');
         await waitFor('Quick reopening reverses the blade animation', () => panel.webContents.executeJavaScript('document.body.dataset.phase === "open"'), 3000);
         await pause(100);
@@ -437,9 +454,53 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Closing details moved or resized the scorebug');
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center" })');
         check('Joined blade extends inward, switches teams without reloading, retracts before dismissal, and safely reverses on quick reopening');
+        const compactBounds = widget.getBounds();
+        const compactPreferences = (await evaluate('window.scorebugDesktop.getState()')).preferences;
+        await assert.rejects(() => evaluate('window.scorebugDesktop.setGameCenterFullscreen(true)'), /Request denied/);
+        await assert.rejects(() => evaluate('window.scorebugDesktop.closeGameCenter()'), /Request denied/);
+        await evaluate('window.__gameCenterState = null; window.scorebugDesktop.onGameCenterState(state => { window.__gameCenterState = state; }); void 0;');
+        await evaluate('window.scorebugDesktop.openGameCenter()');
+        await waitFor('Full-screen Game Center opens', async () => {
+          const center = getGameCenter();
+          return center && !center.isDestroyed() && center.isVisible() && center.isFullScreen() && await center.webContents.executeJavaScript('Boolean(window.scorebugDesktop?.setGameCenterFullscreen && document.body?.childElementCount)');
+        }, 8000);
+        const center = getGameCenter();
+        const centerEvaluate = (code) => center.webContents.executeJavaScript(code, true);
+        assert.equal(new URL(center.webContents.getURL()).pathname, '/game.html');
+        assert.equal(await centerEvaluate('typeof window.require'), 'undefined');
+        assert.equal(await centerEvaluate('typeof window.process'), 'undefined');
+        await waitFor('Visible Game Center exit controls', () => centerEvaluate(`
+          document.querySelector('#center-fullscreen')?.textContent === 'Exit full screen' &&
+          Boolean(document.querySelector('#center-fullscreen')?.getBoundingClientRect().height) &&
+          Boolean(document.querySelector('#center-close')?.getBoundingClientRect().height)
+        `), 3000);
+        assert.equal(center.isAlwaysOnTop(), false, 'The dashboard should behave as a normal app window');
+        assert.equal(widget.isVisible(), false, 'The floating scorebug should not obscure the full-screen game');
+        assert.deepEqual((await centerEvaluate('window.scorebugDesktop.getState()')).preferences, compactPreferences);
+        await waitFor('Fullscreen state reaches the compact window', () => evaluate('window.__gameCenterState?.open === true && window.__gameCenterState?.fullscreen === true'), 3000);
+        await evaluate('window.scorebugDesktop.openGameCenter()');
+        assert.equal(getGameCenter(), center, 'Opening the game again should reuse its window');
+        await assert.rejects(() => centerEvaluate('window.scorebugDesktop.setGameCenterFullscreen("yes")'), /Fullscreen must be true or false/);
+        center.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+        center.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+        await waitFor('Escape exits fullscreen and restores the floating scorebug', () => !center.isFullScreen() && widget.isVisible(), 3000);
+        assert.deepEqual(widget.getBounds(), compactBounds, 'Exiting fullscreen moved the floating scorebug');
+        await centerEvaluate('document.querySelector("#center-fullscreen").click(); void 0;');
+        await waitFor('Visible fullscreen control can enter fullscreen again', () => center.isFullScreen() && !widget.isVisible(), 3000);
+        center.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'F11' });
+        center.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'F11' });
+        await waitFor('F11 in Game Center exits fullscreen', () => !center.isFullScreen() && widget.isVisible(), 3000);
+        await centerEvaluate('window.scorebugDesktop.setGameCenterFullscreen(true)');
+        await waitFor('Game Center is fullscreen before closing', () => center.isFullScreen() && !widget.isVisible(), 3000);
+        await centerEvaluate('document.querySelector("#center-close").click(); void 0;');
+        await waitFor('Closing Game Center restores the floating scorebug', () => !getGameCenter() && widget.isVisible(), 3000);
+        assert.deepEqual(widget.getBounds(), compactBounds);
+        assert.deepEqual((await evaluate('window.scorebugDesktop.getState()')).preferences, compactPreferences);
+        await waitFor('Close state reaches the compact window', () => evaluate('window.__gameCenterState?.open === false && window.__gameCenterState?.fullscreen === false'), 3000);
+        check('Game Center reuses a secure fullscreen window, exits with Escape/F11, restricts its IPC controls and restores the compact scoreboard');
         summary.passed = true;
       })(),
-      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 35 seconds')), 35000); })
+      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 45 seconds')), 45000); })
     ]);
   } catch (error) {
     summary.error = error.stack || String(error);

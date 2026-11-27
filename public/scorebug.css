@@ -5,11 +5,12 @@
 .scorebug{display:block;width:100%;height:auto;overflow:visible;user-select:none;-webkit-user-select:none;isolation:isolate;shape-rendering:geometricPrecision}
 .scorebug text{fill:#fffdf0;font-family:"Scorebug Tomorrow",Arial,sans-serif;font-style:italic;font-weight:700;font-variant-numeric:tabular-nums;text-rendering:geometricPrecision}
 .scorebug .bug-team{outline:none;cursor:default}
-.scorebug .bug-team-panel{stroke-width:1.7;stroke-linejoin:round;transition:filter .15s ease}
-.scorebug .bug-panel-highlight{fill:none;stroke:#fffef1;stroke-opacity:.27;stroke-width:.8;pointer-events:none}
+.scorebug .bug-team-panel{stroke-width:3;stroke-linejoin:miter}
 .scorebug .bug-team-contents{pointer-events:none}
-.scorebug .bug-team:focus-visible .bug-team-panel{stroke:#fff5cd;stroke-width:3}
-.scorebug .bug-situation-panel{stroke:#849184;stroke-opacity:.65;stroke-width:1;stroke-linejoin:round}
+.scorebug .bug-details-target{outline:none;cursor:help}
+.scorebug .bug-hover-region{fill:transparent;stroke:none;pointer-events:all}
+.scorebug .bug-details-target:focus-visible .bug-hover-region{stroke:#fff5cd;stroke-width:2;stroke-dasharray:4 3}
+.scorebug .bug-situation-panel{stroke:#050b08;stroke-width:3;stroke-linejoin:miter}
 .scorebug .bug-score{font-size:65px;font-weight:800;letter-spacing:-1.6px;paint-order:stroke fill;stroke:#0002;stroke-width:.6}
 .scorebug .bug-score--long{font-size:44px;letter-spacing:-2px}
 .scorebug .bug-abbreviation{font-size:36px;letter-spacing:-1.2px}
@@ -32,12 +33,12 @@
 /* Preserve the original colors. Only these few same-color marks need a thin
    light contour to separate them from their own team-colored panel. */
 .scorebug .bug-team-logo--contrast{filter:drop-shadow(.65px 0 .2px #fffe) drop-shadow(-.65px 0 .2px #fffe) drop-shadow(0 .65px .2px #fffe) drop-shadow(0 -.65px .2px #fffe) drop-shadow(0 1px 1px #0006)}
-.scorebug .bug-vertical-score{font-size:48px;letter-spacing:-1.9px}
-.scorebug .bug-vertical-score--long{font-size:48px;letter-spacing:-1.9px}
+.scorebug .bug-vertical-score{font-size:40px;letter-spacing:-1.6px}
+.scorebug .bug-vertical-score--long{font-size:40px;letter-spacing:-1.6px}
 .scorebug .bug-vertical-abbreviation{font-size:25px;letter-spacing:-1px}
-.scorebug .bug-vertical-quarter{font-size:14px;letter-spacing:.4px}
-.scorebug .bug-vertical-clock{font-size:29px;font-weight:800;letter-spacing:-1px}
-.scorebug .bug-vertical-down{font-size:17px;letter-spacing:-.6px}
+.scorebug .bug-vertical-quarter{font-size:13px;letter-spacing:.4px}
+.scorebug .bug-vertical-clock{font-size:28px;font-weight:800;letter-spacing:-1px}
+.scorebug .bug-vertical-down{font-size:16px;letter-spacing:-.6px}
 .scorebug .bug-vertical-down--long{font-size:12px;letter-spacing:-.45px}
 .scorebug .bug-vertical-down--unavailable{font-size:13px;letter-spacing:.2px;fill:#c9d2c3}
 .scorebug .bug-vertical-field{font-size:11px;letter-spacing:-.25px}

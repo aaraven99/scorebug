@@ -28,14 +28,41 @@ export function responseRetryMs(response, body, now = Date.now()) {
   return Math.max(hint, retryAfterMs(response.headers?.get?.('retry-after'), now));
 }
 
+function retainedHistory(next, previous) {
+  const plays = new Map();
+  for (const data of [previous, next]) {
+    const history = Array.isArray(data.playByPlay) ? data.playByPlay : data.eventPlays;
+    for (const play of [...(Array.isArray(history) ? history : []), ...(Array.isArray(data.scoringPlays) ? data.scoringPlays : [])]) {
+      if (!play || typeof play !== 'object') continue;
+      const key = play.id || `${play.sequenceNumber}:${play.period}:${play.clock}:${play.text}`;
+      // A new version of the same play replaces its older version, including
+      // a provider correction which takes a score away or marks a no-play.
+      plays.set(key, play);
+    }
+  }
+  const ordered = [...plays.values()].sort((a, b) => playOrder(b, a));
+  return {
+    playByPlay: ordered.slice(0, 250),
+    scoringPlays: ordered.filter((play) => play.scoringPlay && !play.isNoPlay).slice(0, 250),
+  };
+}
+
 /** Play-only backups cannot turn retained cumulative totals into fresh stats. */
 export function retainKnownStats(next, previous) {
   if (next?.dataScope !== 'plays' || !previous || next.gameId !== previous.gameId
     || next.away?.id !== previous.away?.id || next.home?.id !== previous.home?.id || !next.away?.id || !next.home?.id) return next;
+  const history = retainedHistory(next, previous);
   const oldTime = previous.statsFetchedAt || (previous.dataScope !== 'plays' ? previous.fetchedAt : null);
   const previousStamp = time(oldTime), nextStamp = time(next.statsFetchedAt);
-  if (!Number.isFinite(previousStamp) || (Number.isFinite(nextStamp) && nextStamp >= previousStamp)) return next;
-  return { ...next, teamStats: previous.teamStats, leaders: previous.leaders, statsStale: true, statsFetchedAt: oldTime };
+  if (!Number.isFinite(previousStamp) || (Number.isFinite(nextStamp) && nextStamp >= previousStamp)) return { ...next, ...history };
+  const retained = {};
+  for (const key of ['teamStats', 'leaders', 'allTeamStats', 'quarterScores', 'playerStats', 'gameInfo']) {
+    if (previous[key] !== undefined) retained[key] = previous[key];
+  }
+  // Retained drives are history. The live situation and active drive remain
+  // unknown when the backup only reports plays.
+  if (Array.isArray(previous.drives)) retained.drives = previous.drives.map((drive) => ({ ...drive, isActive: false }));
+  return { ...next, ...retained, ...history, statsStale: true, statsFetchedAt: oldTime };
 }
 
 /** Keep a two-second start-to-start cadence without overlapping requests. */

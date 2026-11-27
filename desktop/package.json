@@ -1,6 +1,6 @@
 {
   "name": "scorebug-desktop",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "private": true,
   "description": "A live NFL scorebug that floats above your desktop.",
   "productName": "Scorebug",

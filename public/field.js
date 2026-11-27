@@ -28,7 +28,12 @@ export function fieldSituation(game) {
 
 export function renderField(game) {
   const situation = fieldSituation(game);
-  if (!situation) return `<div class="field-unavailable"><span>${game?.phase === 'halftime' ? 'HALFTIME' : 'FIELD POSITION'}</span><p>${game?.phase === 'halftime' ? 'Field position returns when play resumes.' : 'Waiting for a reported ball position.'}</p></div>`;
+  if (!situation) {
+    const phase = game?.phase;
+    const label = phase === 'final' ? 'FINAL' : phase === 'halftime' ? 'HALFTIME' : phase === 'scheduled' ? 'BEFORE KICKOFF' : 'FIELD POSITION';
+    const message = phase === 'final' ? 'The game is over. No live field position.' : phase === 'halftime' ? 'Field position returns when play resumes.' : phase === 'scheduled' ? 'The field updates once play begins.' : 'Waiting for a reported ball position.';
+    return `<div class="field-unavailable"><span>${label}</span><p>${message}</p></div>`;
+  }
   const { offense, defense, progress, firstDown, label } = situation;
   const x = (yards) => 33 + 3.3 * yards;
   const lines = Array.from({ length: 9 }, (_, index) => {

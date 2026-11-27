@@ -2,7 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ANCHORS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, detailsBounds, detailsPlacement, detailsWindowShape, DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, teamAtPoint, hoverBridge, containsPoint } = require('./geometry.cjs');
+const { ANCHORS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, detailsBounds, detailsPlacement, detailsWindowShape, DETAILS_SIZE, COMPARISON_DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, situationPanelPolygon, teamAtPoint, hoverBridge, containsPoint } = require('./geometry.cjs');
 
 test('all nine anchors stay inside a negative-coordinate monitor work area', () => {
   const area = { x: -1920, y: 80, width: 1920, height: 1000 };
@@ -42,10 +42,10 @@ test('normal edge drags snap without aiming at the exact side midpoint', () => {
 
 test('all sizes reserve unscaled toolbar room and the complete status badge', () => {
   assert.deepEqual(widgetSize(1), { width: 520, height: 176 });
-  assert.deepEqual(widgetSize(1, 'vertical'), { width: 160, height: 370 });
+  assert.deepEqual(widgetSize(1, 'vertical'), { width: 160, height: 318 });
   assert.deepEqual(widgetSize(0.65), { width: 338, height: 126 });
-  assert.deepEqual(widgetSize(0.65, 'vertical'), { width: 104, height: 241 });
-  assert.deepEqual(widgetSize(1.8, 'vertical'), { width: 288, height: 663 });
+  assert.deepEqual(widgetSize(0.65, 'vertical'), { width: 104, height: 209 });
+  assert.deepEqual(widgetSize(1.8, 'vertical'), { width: 288, height: 565 });
 });
 
 test('top docks put visible team panels close to the work area with controls and badges below', () => {
@@ -90,14 +90,14 @@ test('free dragging preserves content alignment while new anchors choose their o
 test('short high-DPI work areas fit the complete vertical SVG proportionally', () => {
   const area = { x: -960, y: 36, width: 960, height: 550 };
   const size = widgetSize(1.8, 'vertical', area);
-  assert.deepEqual(size, { width: 238, height: 549 });
+  assert.deepEqual(size, { width: 280, height: 549 });
   for (const anchor of ['middle-left', 'middle-right', 'bottom-center', 'top-center']) {
     const widget = anchorBounds(anchor, size, area);
     assert.equal(widget.width, size.width);
     assert.equal(widget.height, size.height, 'anchoring must not clip the fitted height');
     const alignment = contentAlignmentForAnchor(anchor);
     const bug = scorebugHitBounds(widget, 'vertical', alignment);
-    assert.ok(Math.abs(bug.height - bug.width * 348 / 160) < 0.000001);
+    assert.ok(Math.abs(bug.height - bug.width * 290 / 160) < 0.000001);
     const badgeHeight = bug.width * 19 / 160;
     assert.ok(alignment === 'top' ? bug.y + bug.height + badgeHeight <= widget.y + widget.height - 31 : bug.y - badgeHeight >= widget.y + 31);
     assert.ok(widget.y >= area.y && widget.y + widget.height <= area.y + area.height);
@@ -211,12 +211,12 @@ test('downward blades join below the full information strip and leave its clock/
   for (const orientation of ['horizontal', 'vertical']) {
     for (const scale of [0.65, 1, 1.8]) {
       const size = widgetSize(scale, orientation);
-      const area = { x: -800, y: 50, width: size.width + 32, height: size.height + 320 };
+      const area = { x: -800, y: 50, width: size.width + 32, height: size.height + 450 };
       const widget = anchorBounds('top-center', size, area);
       const contentAlignment = 'top';
       const bug = scorebugHitBounds(widget, orientation, contentAlignment);
       const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
-      const stripBottom = bug.y + (orientation === 'vertical' ? 346 : 136) * factor;
+      const stripBottom = bug.y + (orientation === 'vertical' ? 288 : 136) * factor;
       for (const side of ['home', 'away']) {
         const { bounds, presentation } = detailsPlacement(widget, area, { side, orientation, contentAlignment });
         assert.equal(presentation.direction, 'down');
@@ -248,9 +248,9 @@ test('top-corner downward blades leave room for a below-panel status badge at ev
       assert.equal(regions.length, 2);
       const body = regions[1];
       assert.ok(body.height >= DETAILS_SIZE.height - 24, 'the enlarged frame retains the full stats body');
-      // The real horizontal toolbar is narrower than this 128px reserved band.
+      // Reserve the full five-icon toolbar, including its padding.
       // Check both ends of the band, not only a single convenient button point.
-      for (const x of [widget.x + widget.width - 137, widget.x + widget.width - 10]) {
+      for (const x of [widget.x + widget.width - 143, widget.x + widget.width - 10]) {
         for (const y of [widget.y + widget.height - 28, widget.y + widget.height - 4]) {
           assert.ok(!regions.some((region) => containsPoint(region, { x: x - bounds.x, y: y - bounds.y })), 'native input shape covers the controls');
         }
@@ -293,16 +293,107 @@ test('hover geometry excludes empty widget margins and bridges only the gap', ()
   assert.equal(containsPoint(enlarged, { x: 220, y: 600 }), true, 'enlarged top team remains a hover target');
 });
 
-test('native pointer targets identify each colored team and exclude clocks and margins', () => {
+test('only logos, timeout rails and the clock open details in both layouts', () => {
+  const probes = {
+    horizontal: [
+      [100, 46, 'away'], [22, 64, 'away'], [510, 46, 'home'], [585, 40, 'home'],
+      [293, 114, 'comparison'],
+      [230, 46, null], [365, 46, null], [180, 46, null], [420, 46, null],
+      [80, 114, null], [480, 114, null], [540, 127, null], [10, 5, null]
+    ],
+    vertical: [
+      [85, 22, 'away'], [20, 78, 'away'], [85, 125, 'home'], [148, 180, 'home'],
+      [76, 241, 'comparison'],
+      [81, 77, null], [81, 180, null], [84, 50, null], [84, 153, null],
+      [76, 216, null], [76, 267, null], [76, 282, null], [80, 102, null], [5, 5, null]
+    ]
+  };
   for (const orientation of ['horizontal', 'vertical']) {
     for (const scale of [0.65, 1, 1.8]) {
-      const widget = { x: -800, y: 200, ...widgetSize(scale, orientation) };
-      for (const side of ['home', 'away']) {
-        const team = teamPanelBounds(widget, orientation, side);
-        assert.equal(teamAtPoint(widget, { x: team.x + team.width / 2, y: team.y + team.height / 2 }, orientation), side);
+      for (const alignment of ['top', 'bottom']) {
+        const widget = { x: -800, y: 200, ...widgetSize(scale, orientation) };
+        const bug = scorebugHitBounds(widget, orientation, alignment);
+        const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
+        for (const [x, y, expected] of probes[orientation]) {
+          assert.equal(teamAtPoint(widget, { x: bug.x + x * factor, y: bug.y + y * factor }, orientation, alignment), expected, `${orientation} ${alignment} ${scale} at ${x},${y}`);
+        }
+        assert.equal(teamAtPoint(widget, { x: widget.x + 4, y: widget.y + 4 }, orientation, alignment), null);
       }
-      assert.equal(teamAtPoint(widget, { x: widget.x + widget.width / 2, y: widget.y + 10 }, orientation), null);
-      assert.equal(teamAtPoint(widget, { x: widget.x + widget.width / 2, y: widget.y + widget.height - 15 }, orientation), null);
     }
   }
+});
+
+test('comparison expands from the center without covering the horizontal score panels', () => {
+  const area = { x: -1920, y: 70, width: 1920, height: 1000 };
+  for (const scale of [.65, 1, 1.8]) {
+    for (const anchor of ANCHORS) {
+      const orientation = anchor.startsWith('middle-') ? 'vertical' : 'horizontal';
+      const contentAlignment = contentAlignmentForAnchor(anchor);
+      const widget = anchorBounds(anchor, widgetSize(scale, orientation, area), area);
+      const { bounds, presentation } = detailsPlacement(widget, area, { orientation, contentAlignment, side: 'comparison' });
+      assert.equal(bounds.width, COMPARISON_DETAILS_SIZE.width);
+      assert.ok(bounds.height >= COMPARISON_DETAILS_SIZE.height);
+      assert.equal(presentation.side, 'comparison');
+      assert.ok(bounds.x >= area.x && bounds.y >= area.y);
+      assert.ok(bounds.x + bounds.width <= area.x + area.width && bounds.y + bounds.height <= area.y + area.height);
+      if (orientation === 'vertical') {
+        assert.equal(presentation.direction, anchor === 'middle-left' ? 'right' : 'left');
+      } else if (presentation.direction === 'left' || presentation.direction === 'right') {
+        // Large central scorebugs can leave more side room than vertical room.
+        // Their comparison seam follows the board's complete outside slope.
+        const left = presentation.direction === 'left';
+        const edge = teamPanelPolygon(widget, orientation, left ? 'away' : 'home', contentAlignment)[left ? 0 : 1];
+        const strip = situationPanelPolygon(widget, orientation, contentAlignment)[left ? 3 : 2];
+        const inward = left ? DETAILS_SEAM_OVERLAP : -DETAILS_SEAM_OVERLAP;
+        assert.ok(Math.abs(bounds.x + presentation.joinTopX - edge[0] - inward) <= .51);
+        assert.ok(Math.abs(bounds.x + presentation.joinBottomX - strip[0] - inward) <= .51);
+      } else {
+        for (const side of ['away', 'home']) {
+          const panel = teamPanelBounds(widget, orientation, side, contentAlignment);
+          assert.ok(bounds.y + bounds.height <= panel.y + DETAILS_SEAM_OVERLAP + .51 || bounds.y >= panel.y + panel.height, `${anchor}: comparison obscures the ${side} score`);
+        }
+      }
+    }
+  }
+});
+
+test('native dimensions, panel slants and strip continuation match the rendered SVG', async () => {
+  const { renderScorebug, SCOREBUG_DIMENSIONS } = await import('../public/scorebug.js');
+  const { BLADE_SIZE, COMPARISON_BLADE_SIZE } = await import('../public/details-blade.js');
+  const { referenceGame } = await import('../public/fixtures.js');
+  assert.deepEqual(DETAILS_SIZE, BLADE_SIZE);
+  assert.deepEqual(COMPARISON_DETAILS_SIZE, COMPARISON_BLADE_SIZE);
+  const corners = (path) => {
+    const values = /^M([\d.-]+)\s+([\d.-]+)H([\d.-]+)L([\d.-]+)\s+([\d.-]+)H([\d.-]+)Z$/.exec(path);
+    assert.ok(values, 'renderer provides four explicit shared corners');
+    const [, x1, y1, x2, x3, y3, x4] = values.map(Number);
+    return [[x1, y1], [x2, y1], [x3, y3], [x4, y3]];
+  };
+  for (const orientation of ['horizontal', 'vertical']) {
+    const size = SCOREBUG_DIMENSIONS[orientation];
+    const widget = { x: -8, y: -8, width: size.width + 16, height: size.height + 39 };
+    const bug = scorebugHitBounds(widget, orientation, 'top');
+    assert.equal(bug.height, size.height);
+    const markup = renderScorebug(referenceGame, { orientation });
+    const paths = [...markup.matchAll(/class="bug-team-panel" d="([^"]+)"/g)].map((match) => corners(match[1]));
+    const strip = corners(/class="bug-situation-panel" d="([^"]+)"/.exec(markup)[1]);
+    for (const [index, side] of ['away', 'home'].entries()) {
+      assert.deepEqual(teamPanelPolygon(widget, orientation, side, 'top'), paths[index]);
+    }
+    situationPanelPolygon(widget, orientation, 'top').forEach((point, index) => point.forEach((value, axis) => assert.ok(Math.abs(value - strip[index][axis]) < .00001)));
+    const outer = paths[1];
+    const slope = (outer[1][0] - outer[2][0]) / (outer[2][1] - outer[1][1]);
+    assert.ok(Math.abs(slope - (strip[1][0] - strip[2][0]) / (strip[2][1] - strip[1][1])) < .00001);
+  }
+});
+
+test('a crowded central comparison uses a shorter scrollable body before overlapping the scores', () => {
+  const area = { x: 0, y: 0, width: 1280, height: 900 };
+  const widget = anchorBounds('center', widgetSize(616 / 520), area);
+  const { bounds, presentation } = detailsPlacement(widget, area, { side: 'comparison' });
+  assert.equal(presentation.direction, 'up');
+  assert.ok(bounds.height >= 260 && bounds.height < COMPARISON_DETAILS_SIZE.height);
+  assert.equal(bounds.width, COMPARISON_DETAILS_SIZE.width);
+  const team = teamPanelBounds(widget, 'horizontal', 'away');
+  assert.ok(bounds.y + bounds.height <= team.y + DETAILS_SEAM_OVERLAP + .51);
 });

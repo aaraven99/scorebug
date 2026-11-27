@@ -2,6 +2,10 @@
 .widget-page[data-orientation=vertical] .widget-board{max-width:160px}.widget-page[data-orientation=vertical] .widget-root{padding-top:30px}.widget-page[data-orientation=vertical] .widget-toolbar{right:6px;gap:1px;padding:2px}.widget-page[data-orientation=vertical] .widget-toolbar button{min-width:20px;padding:0 4px}.widget-page[data-orientation=vertical] .empty-scorebug{min-width:0;padding:18px 8px;font-size:11px}.widget-page .widget-toolbar{border:0}.details-popover{border:0;background:transparent;border-radius:0;overflow:visible;-webkit-app-region:no-drag;app-region:no-drag}
 .widget-page[data-desktop][data-orientation=vertical] .widget-board{max-width:none}
 .widget-page[data-orientation=vertical] .widget-toolbar{right:4px}.widget-page[data-orientation=vertical] .widget-toolbar button{min-width:18px;padding:0 2px;font-size:10px}
+.widget-stats-icon{display:none!important}.widget-page[data-orientation=vertical] .widget-stats-label{display:none}.widget-page[data-orientation=vertical] .widget-stats-icon{display:block!important}
+.widget-page[data-desktop] .widget-stats-label{display:none}.widget-page[data-desktop] .widget-stats-icon{display:block!important}.widget-page[data-desktop]:not([data-orientation=vertical]) .widget-toolbar button{width:22px;padding:0}
+.widget-page:not([data-desktop]) .widget-root{padding:31px 8px 8px}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-board{max-width:var(--widget-side-width,144px)}
+.widget-layout-controls{display:flex;align-items:center;gap:1px;margin-right:3px;padding-right:4px;border-right:1px solid #465047}.widget-layout-controls button[aria-pressed=true]{background:#344139;color:#fff}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-toolbar{right:2px;height:auto;flex-wrap:wrap;max-width:calc(100% - 4px)}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-layout-controls{width:100%;justify-content:center;margin:0;padding:0 0 2px;border:0;border-bottom:1px solid #465047}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-root{padding-top:56px}.widget-page:not([data-desktop])[data-orientation=vertical] .widget-hint{display:none}
 /* The iframe reveals the joined blade from its exact score-panel seam. */
 .details-popover{border-radius:0;animation:none}
 /* Announcements occupy only the team panels. Their timers live in the owner window. */
@@ -31,18 +35,18 @@
 .score-animation.is-exiting{animation:score-exit .26s cubic-bezier(.4,.02,.72,.7) both}
 .score-animation.is-exiting .score-animation-content{animation:score-content-exit .22s ease-in both}
 .score-animation.is-exiting:after{animation:score-shine .26s ease-in both}
-.score-animation-host[data-animation-orientation=vertical] .score-animation{--event-frame:polygon(6% 0,100% 0,94% 100%,0 100%);top:1%;left:1%;right:1%;height:69%}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-content{flex-direction:column;gap:6px;padding:10px 14px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-art{align-self:center;flex:0 1 110px;width:110px;min-height:68px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-logo{width:65px;height:65px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-logo,.score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-crest-fallback{width:25px;height:25px;right:3px;bottom:2px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-copy{max-width:100%;flex:none;align-items:center;gap:5px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation{--event-frame:polygon(6% 0,100% 0,94% 100%,0 100%);top:.69%;left:1%;right:1%;height:68.62%}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-content{flex-direction:column;gap:clamp(3px,3.8cqw,6px);padding:clamp(4px,6cqw,10px) clamp(6px,8cqw,14px)}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-art{align-self:center;flex:0 1 clamp(40px,62cqw,96px);width:clamp(40px,62cqw,96px);min-height:clamp(30px,35cqw,56px)}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-logo{width:clamp(28px,40cqw,60px);height:clamp(28px,40cqw,60px)}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-logo,.score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-crest-fallback{width:clamp(12px,15.6cqw,25px);height:clamp(12px,15.6cqw,25px);right:3px;bottom:2px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-copy{max-width:100%;flex:none;align-items:center;gap:clamp(2px,3cqw,5px)}
 .score-animation-host[data-animation-orientation=vertical] .score-animation-meta{justify-content:center;gap:5px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-detail{font-size:9px;letter-spacing:.5px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-title{font-size:17px;line-height:1.08;text-align:center;overflow-wrap:normal;letter-spacing:-.65px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-title--long{font-size:15px}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-player-name,.score-animation-host[data-animation-orientation=vertical] .score-animation-team-name{font-size:12px;line-height:1.15;white-space:normal;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
-.score-animation-host[data-animation-orientation=vertical] .score-animation-demo-label{font-size:7px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-detail{font-size:clamp(6px,5.8cqw,9px);letter-spacing:.5px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-title{font-size:clamp(10px,10.6cqw,17px);line-height:1.08;text-align:center;overflow-wrap:normal;letter-spacing:-.65px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-title--long{font-size:clamp(9px,9.4cqw,15px)}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-player-name,.score-animation-host[data-animation-orientation=vertical] .score-animation-team-name{font-size:clamp(8px,7.5cqw,12px);line-height:1.15;white-space:normal;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-demo-label{font-size:clamp(5px,4.4cqw,7px)}
 @container scorebug-animation (max-width:380px){.score-animation-host[data-animation-orientation=horizontal] .score-animation-content{padding-top:2px;padding-bottom:2px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-copy{gap:1px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-meta{gap:4px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-demo-label{padding:1px 3px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-detail{letter-spacing:.5px}}
 @keyframes score-enter{from{opacity:0;transform:translateX(-7%);clip-path:polygon(0 0,0 0,0 100%,0 100%)}to{opacity:1;transform:translateX(0);clip-path:var(--event-frame)}}
 @keyframes score-exit{from{opacity:var(--event-exit-opacity,1);transform:var(--event-exit-transform,translateX(0));clip-path:var(--event-exit-clip,var(--event-frame))}to{opacity:0;transform:translateX(5%);clip-path:polygon(100% 0,100% 0,100% 100%,100% 100%)}}
@@ -55,8 +59,8 @@
 .widget-page[data-desktop][data-content-alignment=top] .widget-root{justify-content:flex-start;padding:8px 8px 31px}
 .widget-page[data-desktop][data-content-alignment=top] .widget-toolbar{top:auto;bottom:3px}
 /* A sample or delayed-feed badge adds space above the same team panels. */
-.score-animation-host[data-animation-orientation=horizontal]:has(.bug-status-flag) .score-animation{top:17.3%;height:51.9%}.score-animation-host[data-animation-orientation=vertical]:has(.bug-status-flag) .score-animation{top:5.7%;height:66.8%}
+.score-animation-host[data-animation-orientation=horizontal]:has(.bug-status-flag) .score-animation{top:17.3%;height:51.9%}.score-animation-host[data-animation-orientation=vertical]:has(.bug-status-flag) .score-animation{top:6.8%;height:64.4%}
 /* Top-docked status badges sit below the artwork, so the announcement still
    starts at the team panels and leaves the down/clock strip exposed. */
 .score-animation-host[data-animation-orientation=horizontal]:has(.scorebug[data-status-position=below] .bug-status-flag) .score-animation{top:2.47%;height:51.9%}
-.score-animation-host[data-animation-orientation=vertical]:has(.scorebug[data-status-position=below] .bug-status-flag) .score-animation{top:.55%;height:66.8%}
+.score-animation-host[data-animation-orientation=vertical]:has(.scorebug[data-status-position=below] .bug-status-flag) .score-animation{top:.65%;height:64.4%}
