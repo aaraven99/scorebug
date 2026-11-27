@@ -695,7 +695,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
           if (new URL(standbyWindow.webContents.getURL()).pathname !== '/standby.html') return false;
           return standbyEvaluate('(async () => Boolean(document.querySelector(".slot-details:not([hidden])") && (await window.scorebugDesktop.getPreferences()).leagueId))()');
         }, 8000);
-        const standbySaved = await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")');
+        let standbySaved = await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")');
         assert.deepEqual((await standbyEvaluate('window.scorebugDesktop.getState()')).preferences, compactPreferences, 'Opening Standby changed the native selection');
         await standbyEvaluate('document.querySelector(".slot-details").click(); void 0;');
         await waitFor('Standby stats reach the real fullscreen Game Center', async () => {
@@ -705,12 +705,37 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         const standbyCenter = getGameCenter();
         const context = new URL(standbyCenter.webContents.getURL());
         for (const [key, value] of Object.entries({ league: 'nba', game: 'nba:native-smoke', style: 'nfl-blades', date: '20261125', rows: '22' })) assert.equal(context.searchParams.get(key), value, `Standby lost ${key}`);
+        const selectedNative = await standbyCenter.webContents.executeJavaScript('window.scorebugDesktop.getPreferences()');
+        for (const [key, value] of Object.entries({ leagueId: 'nba', gameId: 'nba:native-smoke', styleId: 'nfl-blades', styleAuto: false, date: '20261125', racingRows: 22, team: null })) assert.equal(selectedNative[key], value, `Native selection did not receive ${key}`);
+        for (const key of ['anchor', 'scale', 'snapEnabled', 'locked', 'favorites', 'favoriteStyleIds']) assert.deepEqual(selectedNative[key], compactPreferences[key], `Opening game stats changed ${key}`);
         assert.equal(new URL(standbyWindow.webContents.getURL()).pathname, '/standby.html', 'Stats replaced the saved Standby board');
         assert.equal(await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")'), standbySaved);
+        const selectedCenterEvaluate = code => standbyCenter.webContents.executeJavaScript(code, true);
+        await selectedCenterEvaluate('document.querySelector("#center-standby").click(); void 0;');
+        await waitFor('Game Center can show its Standby board', () => selectedCenterEvaluate('Boolean(document.querySelector(".slot-details:not([hidden])"))'), 8000);
+        await selectedCenterEvaluate(`document.querySelector('.slot-configure').click();
+          document.querySelector('#slot-style').value = 'nfl-cbs-eyebar';
+          document.querySelector('#slot-style').dispatchEvent(new Event('change', { bubbles: true }));
+          document.querySelector('#slot-done').click(); void 0;`);
+        assert.equal((await selectedCenterEvaluate('window.scorebugDesktop.getPreferences()')).styleId, 'nfl-blades', 'Changing a Standby card changed the main selection before opening its stats');
+        standbySaved = await selectedCenterEvaluate('localStorage.getItem("scorebug.standby.v1")');
+        await selectedCenterEvaluate('document.querySelector(".slot-details").click(); void 0;');
+        await waitFor('Same-window Standby stats synchronize the native selection', async () => {
+          if (new URL(standbyCenter.webContents.getURL()).pathname !== '/game.html') return false;
+          return selectedCenterEvaluate('(async () => document.querySelector("#center-style-select")?.value === "nfl-cbs-eyebar" && (await window.scorebugDesktop.getPreferences()).styleId === "nfl-cbs-eyebar")()');
+        }, 8000, 400);
+        assert.equal(getGameCenter(), standbyCenter, 'Returning from Standby opened a duplicate dashboard');
         await standbyCenter.webContents.executeJavaScript('document.querySelector("#center-close").click(); void 0;', true);
         await waitFor('Closing Standby stats restores the floating window', () => !getGameCenter() && widget.isVisible(), 8000);
         await standbyEvaluate('document.querySelector(".standby-brand").click(); void 0;');
         await waitFor('Standby returns to Settings', () => standbyEvaluate('Boolean(document.querySelector("#game-select") && document.querySelector("#standby-button"))'), 8000);
+        await standbyEvaluate('document.querySelector("#standby-button").click(); void 0;');
+        await waitFor('The saved Standby board reopens', () => standbyEvaluate('Boolean(document.querySelector("#standby-grid"))'), 8000);
+        await evaluate('window.scorebugDesktop.openSettings()');
+        await waitFor('The native Settings action returns from Standby to Settings', () => standbyEvaluate('Boolean(document.querySelector("#game-select") && document.querySelector("#standby-button"))'), 8000);
+        assert.equal(getSettings(), standbyWindow, 'The Settings action should reuse its existing window');
+        assert.equal(await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")'), standbySaved, 'Returning to Settings changed the saved board');
+        await evaluate(`window.scorebugDesktop.setPreferences(${JSON.stringify(compactPreferences)})`);
         standbyWindow.close();
         check('Standby preserves its independent board, opens the selected game in the real dashboard and returns safely to Settings');
         summary.passed = true;

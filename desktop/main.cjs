@@ -74,7 +74,7 @@ let quitting = false;
 let quitCleanupDone = false;
 let updates = null;
 let smokeExitCode = 0;
-let scorebugDimensions, getLeague;
+let scorebugDimensions, getLeague, normalizePreferencePatch, leagueOfId, isScorebugStyle;
 
 app.setName('Scorebug');
 if (SMOKE_TEST) {
@@ -552,6 +552,7 @@ function secureWindow(win) {
       event.preventDefault();
       openGameCenter(event.url);
     }
+    else if (new URL(event.url).pathname === '/game.html') applyGameCenterContext(gameCenterURL(event.url));
   });
   win.webContents.on('will-redirect', (event) => {
     if (!isLocalPage(event.url)) event.preventDefault();
@@ -718,9 +719,30 @@ function gameCenterURL(candidate) {
   return result.href;
 }
 
+function applyGameCenterContext(destination) {
+  const params = new URL(destination).searchParams, raw = {};
+  for (const [key, parameter] of [['leagueId', 'league'], ['gameId', 'game'], ['styleId', 'style'], ['date', 'date']]) {
+    if (params.has(parameter)) raw[key] = params.get(parameter);
+  }
+  if (/^\d{1,2}$/.test(params.get('rows') || '')) raw.racingRows = Number(params.get('rows'));
+  const patch = normalizePreferencePatch(raw);
+  if (patch.styleId && !isScorebugStyle(patch.styleId)) delete patch.styleId;
+  if (patch.styleId) patch.styleAuto = false;
+  if (patch.gameId) {
+    patch.leagueId ||= leagueOfId(patch.gameId);
+    if (leagueOfId(patch.gameId) !== patch.leagueId) patch.gameId = null;
+  }
+  if (patch.leagueId && patch.leagueId !== preferences.leagueId && !Object.hasOwn(patch, 'gameId')) patch.gameId = null;
+  if (['leagueId', 'gameId', 'date'].some(key => Object.hasOwn(patch, key))) patch.team = null;
+  // The renderer and native window geometry must share one selection. Applying
+  // only URL preferences in the renderer could be undone by a later native event.
+  if (Object.keys(patch).length) setPreferences(patch);
+}
+
 function openGameCenter(contextURL) {
   if (!origin || quitting) return getGameCenterState();
   const destination = gameCenterURL(contextURL);
+  applyGameCenterContext(destination);
   closeDetails({ immediate: true });
   if (gameCenter && !gameCenter.isDestroyed()) {
     if (contextURL || new URL(gameCenter.webContents.getURL() || origin).pathname !== '/game.html') {
@@ -808,6 +830,9 @@ function openGameCenter(contextURL) {
 function openSettings() {
   if (!origin) return;
   if (settings && !settings.isDestroyed()) {
+    if (!['/', '/index.html'].includes(new URL(settings.webContents.getURL() || origin).pathname)) {
+      settings.loadURL(`${origin}/?desktop=1`).catch(showStartupError);
+    }
     if (settings.isMinimized()) settings.restore();
     settings.show();
     settings.focus();
@@ -991,7 +1016,9 @@ function showStartupError(error) {
 
 async function start() {
   const appRoot = app.isPackaged ? path.join(process.resourcesPath, 'scorebug') : path.resolve(__dirname, '..');
-  const { SCOREBUG_STYLES } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-styles.js')).href);
+  const { SCOREBUG_STYLES, isScorebugStyle: knownStyle } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-styles.js')).href);
+  isScorebugStyle = knownStyle;
+  ({ normalizePreferencePatch, leagueOfId } = await import(pathToFileURL(path.join(appRoot, 'public', 'preferences-model.js')).href));
   setFavoriteStyleCatalog(SCOREBUG_STYLES);
   readPreferences();
   updates = new UpdateController({
