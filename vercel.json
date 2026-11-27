@@ -10,6 +10,9 @@
     },
     "api/game.js": {
       "maxDuration": 20
+    },
+    "api/teams.js": {
+      "maxDuration": 20
     }
   },
   "headers": [
@@ -26,7 +29,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://a.espncdn.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://a.espncdn.com https://media.formula1.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';"
         }
       ]
     }

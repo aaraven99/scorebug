@@ -4,10 +4,11 @@ import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import scoreboardHandler from './api/scoreboard.js';
 import gameHandler from './api/game.js';
+import teamsHandler from './api/teams.js';
 
 const root = fileURLToPath(new URL('./', import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json' };
-export const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://a.espncdn.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';";
+export const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://a.espncdn.com https://media.formula1.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';";
 
 export function createScorebugServer({ publicDir = resolve(root, 'public') } = {}) {
   return createServer(async (req, res) => {
@@ -18,6 +19,7 @@ export function createScorebugServer({ publicDir = resolve(root, 'public') } = {
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname === '/api/scoreboard') return await scoreboardHandler(req, res);
       if (url.pathname === '/api/game') return await gameHandler(req, res);
+      if (url.pathname === '/api/teams') return await teamsHandler(req, res);
       if (!['GET', 'HEAD'].includes(req.method)) {
         res.writeHead(405, { Allow: 'GET, HEAD' });
         return res.end('Method not allowed');
