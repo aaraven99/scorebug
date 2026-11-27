@@ -107,6 +107,9 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       # Ad-hoc signing uses no certificate or secret, including on PR builds.
       CSC_FOR_PULL_REQUEST: 'true'
+      # Intel hosted VMs cannot initialize Chromium's hardware compositor.
+      # This is used only by smoke mode; normal packaged launches keep the GPU.
+      SCOREBUG_SMOKE_SOFTWARE_RENDERING: ${{ matrix.arch == 'x64' && '1' || '0' }}
     steps:
       - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
