@@ -1,5 +1,6 @@
 /** Joined team blades. Windows uses the same renderer in a transparent surface. */
-import { bladeOutline, BLADE_SIZE, BLADE_OPEN_MS, BLADE_CLOSE_MS } from './details-blade.js';
+import { bladeOutline, BLADE_SIZE, COMPARISON_BLADE_SIZE, BLADE_OPEN_MS, BLADE_CLOSE_MS } from './details-blade.js';
+import { isSupportedGameId } from './score-client.js';
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 let nextPanel = 0;
@@ -17,13 +18,12 @@ function pathCorners(path) {
 }
 
 function teamAnchor(target, side) {
+  const comparison = side === 'comparison';
   const team = target.querySelector(`[data-team-side="${side}"]`);
-  const path = team?.querySelector('.bug-team-panel');
+  const path = comparison ? target.querySelector('.bug-situation-panel') : team?.querySelector('.bug-team-panel');
   if (!path) return null;
   const svg = path.closest('svg'), orientation = svg?.dataset.orientation === 'vertical' ? 'vertical' : 'horizontal';
   const points = pathCorners(path), strip = pathCorners(svg?.querySelector('.bug-situation-panel'));
-  const fill = /^url\(#([\w-]+)\)$/.exec(path.getAttribute('fill') || '');
-  const color = fill && svg.querySelector(`[id="${fill[1]}"] stop[offset=".58"]`)?.getAttribute('stop-color');
   const matrix = svg?.getScreenCTM();
   const statusEnd = orientation === 'horizontal' && svg?.dataset.statusPosition === 'below' && matrix
     ? new DOMPoint(232, 162).matrixTransform(matrix) : null;
@@ -32,63 +32,125 @@ function teamAnchor(target, side) {
   const belowStatus = statusEnd ? { clearX: statusEnd.x, homeRight: new DOMPoint(343, 136).matrixTransform(matrix).x, clearanceY: statusEnd.y + 6 } : null;
   const toolbar = target.closest('.widget-root')?.querySelector('.widget-toolbar')?.getBoundingClientRect();
   const controlsBottom = belowStatus && toolbar?.height ? toolbar.bottom : null;
-  return { team, points, lowerEdge:strip ? [strip[3],strip[2]] : [points[3],points[2]], belowStatus, controlsBottom, orientation, teamColor: /^#[\da-f]{6}$/i.test(color || '') ? color : undefined };
-}
-
-export function placeDetailsBlade(anchor, side, viewport = { width: innerWidth, height: innerHeight }) {
-  const [tl,tr,br,bl] = anchor.points, margin = 6;
-  const { width: vw, height: vh } = viewport;
-  const [stripLeft,stripRight] = anchor.lowerEdge;
-  const available = { left:tl.x-margin+1, right:vw-margin-br.x+1, up:tl.y-margin+1, down:vh-margin-stripLeft.y+1 };
-  const preferred = side === 'away' ? 'left' : 'right';
-  const lateral = anchor.orientation === 'vertical' ? [preferred, preferred === 'left' ? 'right' : 'left'] : [preferred];
-  let direction = lateral.find(value => available[value] >= 236);
-  if (!direction) direction = available.up >= 174 ? 'up' : available.down >= 174 ? 'down' : null;
-  if (!direction) direction = lateral.find(value => available[value] >= 190);
-  if (!direction) direction = available.up > available.down ? 'up' : 'down';
-  let width = Math.min(BLADE_SIZE.width,vw-margin*2), height = Math.min(BLADE_SIZE.height,vh-margin*2), x,y,joins;
-  if (direction === 'left' || direction === 'right') {
-    width = Math.max(128,Math.min(width,available[direction]));
-    y = clamp((tl.y+bl.y-height)/2,margin,Math.max(margin,vh-height-margin));
-    if (direction === 'left') { x=tl.x-width+1; joins={joinTop:tl.y-y,joinBottom:bl.y-y,joinTopX:tl.x-x,joinBottomX:bl.x-x}; }
-    else { x=br.x-1; joins={joinTop:tr.y-y,joinBottom:br.y-y,joinTopX:tr.x-x,joinBottomX:br.x-x}; }
-  } else {
-    height = Math.max(64,Math.min(height,available[direction]));
-    // A downward expansion starts beneath the full information strip, so its
-    // connecting neck cannot cover the clock or down-and-distance text.
-    const a = direction === 'up' ? tl : {x:Math.max(bl.x,stripLeft.x,side === 'away' ? anchor.belowStatus?.clearX ?? -Infinity : -Infinity),y:stripLeft.y};
-    const b = direction === 'up' ? tr : {x:Math.min(br.x,stripRight.x,side === 'home' ? anchor.belowStatus?.homeRight ?? Infinity : Infinity),y:stripRight.y};
-    x = clamp((a.x+b.x-width)/2,margin,Math.max(margin,vw-width-margin));
-    y = direction === 'up' ? a.y-height+1 : a.y-1;
-    joins = {joinLeft:a.x-x,joinRight:b.x-x,joinY:a.y-y};
-    if (direction === 'down' && anchor.belowStatus) {
-      joins.neckHeight = Math.max(anchor.belowStatus.clearanceY, Number.isFinite(anchor.controlsBottom) ? anchor.controlsBottom + 3 : -Infinity) - a.y;
-      // Keep the original stats body when the neck must pass a badge/toolbar.
-      // A small viewport can still scroll its totals instead of going offscreen.
-      const extra = Math.max(0, Math.ceil(joins.neckHeight - 24));
-      height = Math.max(64, Math.min(BLADE_SIZE.height + extra, available.down));
+  const solid = (value) => /^#[\da-f]{6}$/i.test(value || '') ? value : undefined;
+  const result = {
+    team, points, lowerEdge: strip ? [strip[3], strip[2]] : [points[3], points[2]],
+    belowStatus, controlsBottom, orientation,
+    gameId: isSupportedGameId(svg?.dataset.gameId) ? svg.dataset.gameId : null,
+    teamFill: solid(team?.dataset.teamFill || path.getAttribute('fill')),
+    teamBorder: solid(team?.dataset.teamBorder || path.getAttribute('stroke')),
+    teamInk: solid(team?.dataset.teamInk)
+  };
+  if (comparison && matrix) {
+    const span = orientation === 'vertical' ? [22, 135] : [228, 358];
+    const y = orientation === 'vertical' ? 2 : 4;
+    result.upEdge = span.map((x) => new DOMPoint(x, y).matrixTransform(matrix));
+    result.downSpan = result.upEdge.map((point) => point.x);
+    if (orientation === 'horizontal') {
+      const away = pathCorners(svg.querySelector('[data-team-side="away"] .bug-team-panel'));
+      const home = pathCorners(svg.querySelector('[data-team-side="home"] .bug-team-panel'));
+      if (away && home) result.lateralPoints = [away[0], home[1], strip[2], strip[3]];
     }
   }
-  const xs = anchor.points.map((point) => point.x), ys = anchor.points.map((point) => point.y);
-  const gradient = {
-    gradientX: Math.min(...xs) - x,
-    gradientY: Math.min(...ys) - y,
-    gradientWidth: Math.max(...xs) - Math.min(...xs),
-    gradientHeight: Math.max(...ys) - Math.min(...ys),
+  return result;
+}
+
+/** Use the same source edges and direction order as the native child window. */
+export function placeDetailsBlade(anchor, side, viewport = { width: innerWidth, height: innerHeight }) {
+  const comparison = side === 'comparison';
+  const size = comparison ? COMPARISON_BLADE_SIZE : BLADE_SIZE;
+  const [tl, tr, br, bl] = anchor.points, margin = 6, overlap = 1.5;
+  const { width: vw, height: vh } = viewport;
+  const area = { x: margin, y: margin, width: Math.max(1, vw - margin * 2), height: Math.max(1, vh - margin * 2) };
+  const width = Math.min(size.width, area.width), height = Math.min(size.height, area.height);
+  const [stripLeft, stripRight] = anchor.lowerEdge;
+  const upEdge = anchor.upEdge || [tl, tr];
+  const downEdge = [
+    { x: Math.max(comparison ? anchor.downSpan?.[0] ?? bl.x : bl.x, stripLeft.x, anchor.belowStatus?.clearX ?? -Infinity), y: stripLeft.y },
+    { x: Math.min(comparison ? anchor.downSpan?.[1] ?? br.x : br.x, stripRight.x, side !== 'away' ? anchor.belowStatus?.homeRight ?? Infinity : Infinity), y: stripRight.y }
+  ];
+  const neckHeight = anchor.belowStatus
+    ? Math.max(anchor.belowStatus.clearanceY, Number.isFinite(anchor.controlsBottom) ? anchor.controlsBottom + 3 : -Infinity) - (stripLeft.y - overlap) : 0;
+  const downHeight = Math.min(area.height, height + Math.max(0, Math.ceil(neckHeight + 1 - 24)));
+  const sourceXs = anchor.points.map(({ x }) => x), sourceYs = anchor.points.map(({ y }) => y);
+  const source = { x: Math.min(...sourceXs), y: Math.min(...sourceYs), width: Math.max(...sourceXs) - Math.min(...sourceXs), height: Math.max(...sourceYs) - Math.min(...sourceYs) };
+  const lateral = anchor.lateralPoints || anchor.points;
+  const desired = (direction) => {
+    if (direction === 'left' || direction === 'right') {
+      const edge = direction === 'left' ? [lateral[0], lateral[3]] : [lateral[1], lateral[2]];
+      const points = edge.map(({ x, y }) => ({ x: x + (direction === 'left' ? overlap : -overlap), y }));
+      const x = direction === 'left' ? Math.max(...points.map((point) => point.x)) - width : Math.min(...points.map((point) => point.x));
+      const y = clamp(source.y + (source.height - height) / 2, area.y, area.y + area.height - height);
+      return { direction, x, y, width, height, points };
+    }
+    const edge = direction === 'up' ? upEdge : downEdge;
+    const points = edge.map(({ x, y }) => ({ x, y: y + (direction === 'up' ? overlap : -overlap) }));
+    return {
+      direction, x: clamp((edge[0].x + edge[1].x - width) / 2, area.x, area.x + area.width - width),
+      y: points[0].y - (direction === 'up' ? height : 0), width, height: direction === 'down' ? downHeight : height, points
+    };
   };
-  return {x,y,width,height,presentation:{side,direction,orientation:anchor.orientation,teamColor:anchor.teamColor,...gradient,...joins}};
+  const preferred = comparison
+    ? (source.x - area.x > area.x + area.width - source.x - source.width ? 'left' : 'right')
+    : side === 'away' ? 'left' : 'right';
+  const verticalDirections = upEdge[0].y - area.y >= area.y + area.height - stripLeft.y ? ['up', 'down'] : ['down', 'up'];
+  const directions = anchor.orientation === 'vertical'
+    ? [preferred, preferred === 'left' ? 'right' : 'left', ...verticalDirections]
+    : comparison ? [...verticalDirections, preferred, preferred === 'left' ? 'right' : 'left'] : [preferred, ...verticalDirections];
+  const candidates = directions.map(desired);
+  const fit = (candidate) => ({ ...candidate, x: clamp(candidate.x, area.x, area.x + area.width - candidate.width), y: clamp(candidate.y, area.y, area.y + area.height - candidate.height) });
+  const fits = ({ x, y, width: w, height: h }) => x >= area.x && y >= area.y && x + w <= area.x + area.width && y + h <= area.y + area.height;
+  const overlapArea = (candidate) => Math.max(0, Math.min(candidate.x + candidate.width, source.x + source.width) - Math.max(candidate.x, source.x)) * Math.max(0, Math.min(candidate.y + candidate.height, source.y + source.height) - Math.max(candidate.y, source.y));
+  const minWidth = comparison ? 340 : 240, minBodyHeight = comparison ? 260 : 180;
+  const constrained = candidates.map((candidate) => {
+    const next = { ...candidate };
+    if (next.direction === 'left') {
+      const right = next.x + next.width;
+      next.width = Math.max(1, Math.min(next.width, Math.floor(right - area.x))); next.x = right - next.width;
+    } else if (next.direction === 'right') {
+      next.width = Math.max(1, Math.min(next.width, Math.floor(area.x + area.width - next.x)));
+    } else if (next.direction === 'up') {
+      const bottom = next.y + next.height;
+      next.height = Math.max(1, Math.min(next.height, Math.floor(bottom - area.y))); next.y = bottom - next.height;
+    } else next.height = Math.max(1, Math.min(next.height, Math.floor(area.y + area.height - next.y)));
+    next.readable = ['left', 'right'].includes(next.direction) ? next.width >= minWidth
+      : next.height >= minBodyHeight + (next.direction === 'down' ? neckHeight : 0);
+    return next;
+  });
+  const chosen = candidates.find(fits) || constrained.find((candidate) => candidate.readable && fits(candidate))
+    || candidates.map(fit).reduce((best, candidate) => overlapArea(candidate) < overlapArea(best) ? candidate : best);
+  const { x, y, width: actualWidth, height: actualHeight, direction, points } = fit(chosen);
+  const presentation = {
+    side, direction, orientation: anchor.orientation,
+    gameId: isSupportedGameId(anchor.gameId) ? anchor.gameId : null,
+    teamFill: anchor.teamFill, teamBorder: anchor.teamBorder, teamInk: anchor.teamInk,
+    gradientX: source.x - x, gradientY: source.y - y, gradientWidth: source.width, gradientHeight: source.height
+  };
+  if (direction === 'left' || direction === 'right') {
+    const [top, bottom] = points, edgeHeight = bottom.y - top.y;
+    const topY = clamp(top.y, y, y + actualHeight), bottomY = clamp(bottom.y, y, y + actualHeight);
+    const edgeX = (value) => edgeHeight ? top.x + (bottom.x - top.x) * (value - top.y) / edgeHeight : top.x;
+    Object.assign(presentation, { joinTop: topY - y, joinBottom: bottomY - y, joinTopX: clamp(edgeX(topY) - x, 0, actualWidth), joinBottomX: clamp(edgeX(bottomY) - x, 0, actualWidth) });
+  } else {
+    Object.assign(presentation, { joinLeft: clamp(points[0].x - x, 0, actualWidth), joinRight: clamp(points[1].x - x, 0, actualWidth), joinY: clamp(points[0].y - y, 0, actualHeight) });
+    if (direction === 'down' && anchor.belowStatus) presentation.neckHeight = neckHeight;
+  }
+  return { x, y, width: actualWidth, height: actualHeight, presentation };
 }
 
 export function attachDetailsHover(target, { native = false, enabled = () => true, defaultSide = () => 'home' } = {}) {
   let panel = null, frame = null, side = null, pendingSide = null, queuedSide = null, phase = 'closed';
   let opening, closing, retiring, entering, positioning, loaded = false, focusStay = false, dismissedSide = null;
+  let nativeOpen = false, nativeSide = null;
   const origin = new URL(document.baseURI).origin;
   const panelId = `scorebug-team-blade-${++nextPanel}`;
-  const teamElement = (value) => target.querySelector(`[data-team-side="${value}"]`);
+  const teamElement = (value) => target.querySelector(`[data-details-side="${value}"]`);
   function syncAccessibility() {
-    for (const team of target.querySelectorAll('[data-team-side]')) {
-      team.setAttribute('aria-expanded',String(Boolean(panel && team.dataset.teamSide === side && phase !== 'closing')));
-      team.setAttribute('aria-controls',panelId);
+    for (const team of target.querySelectorAll('[data-details-side]')) {
+      const expanded = native ? nativeOpen && team.dataset.detailsSide === nativeSide : panel && team.dataset.detailsSide === side && phase !== 'closing';
+      team.setAttribute('aria-expanded',String(Boolean(expanded)));
+      team.setAttribute('aria-haspopup','dialog');
+      if (!native) team.setAttribute('aria-controls',panelId);
     }
   }
   function position() {
@@ -134,7 +196,7 @@ export function attachDetailsHover(target, { native = false, enabled = () => tru
       const next=queuedSide;
       if(next && enabled()){
         phase='closed';side=next;queuedSide=null;
-        frame.title=`${side==='away'?'Away':'Home'} team stats`;
+        frame.title=side==='comparison'?'Game comparison':`${side==='away'?'Away':'Home'} team stats`;
         position();requestAnimationFrame(reveal);
       }else remove({restoreFocus});
     },BLADE_CLOSE_MS+30);
@@ -142,14 +204,14 @@ export function attachDetailsHover(target, { native = false, enabled = () => tru
   function open(value=defaultSide(),{focus=false}={}) {
     clearTimeout(opening);clearTimeout(closing);pendingSide=null;
     if(!enabled())return;
-    value=value==='away'?'away':'home';
+    value=['away','home','comparison'].includes(value)?value:'home';
     if(native){window.scorebugDesktop?.showDetails?.(value);return;}
     dismissedSide=null;focusStay=focusStay||focus;
     if(panel && side!==value){close({switchTo:value});return;}
     if(panel){queuedSide=null;if(phase==='closing')reveal();else position();return;}
     side=value;phase='closed';loaded=false;
     panel=document.createElement('div');panel.className='details-popover';panel.id=panelId;
-    frame=document.createElement('iframe');frame.title=`${side==='away'?'Away':'Home'} team stats`;
+    frame=document.createElement('iframe');frame.title=side==='comparison'?'Game comparison':`${side==='away'?'Away':'Home'} team stats`;
     const url=new URL('/details.html',document.baseURI);url.searchParams.set('embedded','1');url.searchParams.set('side',side);
     frame.src=url.href;frame.style.cssText='width:100%;height:100%;display:block;border:0;background:transparent;color-scheme:dark;';
     const created=panel;
@@ -173,19 +235,19 @@ export function attachDetailsHover(target, { native = false, enabled = () => tru
   }
   target.addEventListener('keydown',event=>{
     if(event.key!=='Enter'&&event.key!==' ')return;
-    const team=event.target.closest?.('[data-team-side]');
-    if(team){event.preventDefault();open(team.dataset.teamSide,{focus:true});}
+    const team=event.target.closest?.('[data-details-side]');
+    if(team){event.preventDefault();open(team.dataset.detailsSide,{focus:true});}
   });
   if(!native){
     target.addEventListener('pointermove',event=>{
       if(event.pointerType==='touch')return;
-      const team=event.target.closest?.('[data-team-side]');
-      if(team&&target.contains(team))schedule(team.dataset.teamSide);else delayedClose();
+      const team=event.target.closest?.('[data-details-side]');
+      if(team&&target.contains(team))schedule(team.dataset.detailsSide);else delayedClose();
     });
     target.addEventListener('pointerleave',()=>{dismissedSide=null;delayedClose();});
-    target.addEventListener('focusin',event=>{const team=event.target.closest?.('[data-team-side]');if(team){focusStay=true;schedule(team.dataset.teamSide);}});
+    target.addEventListener('focusin',event=>{const team=event.target.closest?.('[data-details-side]');if(team){focusStay=true;schedule(team.dataset.detailsSide);}});
     target.addEventListener('focusout',event=>{if(!target.contains(event.relatedTarget)&&event.relatedTarget!==frame){focusStay=false;delayedClose();}});
-    target.addEventListener('click',event=>{const team=event.target.closest?.('[data-team-side]');if(team)open(team.dataset.teamSide,{focus:event.detail===0||event.pointerType==='touch'});});
+    target.addEventListener('click',event=>{const team=event.target.closest?.('[data-details-side]');if(team)open(team.dataset.detailsSide,{focus:event.detail===0||event.pointerType==='touch'});});
     window.addEventListener('resize',schedulePosition);
     window.addEventListener('scroll',schedulePosition,{passive:true});
     window.addEventListener('message',event=>{if(event.origin===origin&&event.source===frame?.contentWindow&&event.data?.type==='scorebug:close-details')close({restoreFocus:true});});
@@ -195,8 +257,18 @@ export function attachDetailsHover(target, { native = false, enabled = () => tru
     new ResizeObserver(schedulePosition).observe(target);
     // Live score renders replace SVG nodes. Reattach semantics and the seam,
     // without changing the current animation phase or reloading team data.
-    new MutationObserver(()=>{syncAccessibility();schedulePosition();}).observe(target,{childList:true,subtree:true});
-    syncAccessibility();
+  } else {
+    const applyNativePresentation = (presentation) => {
+      nativeSide = presentation?.side ?? null;
+      nativeOpen = Boolean(presentation && presentation.phase !== 'closed' && presentation.phase !== 'closing');
+      syncAccessibility();
+    };
+    window.scorebugDesktop?.getDetailsPresentation?.().then(applyNativePresentation).catch(()=>{});
+    window.scorebugDesktop?.onDetailsPresentationChanged?.(applyNativePresentation);
+    window.scorebugDesktop?.onDetailsVisibilityChanged?.((visible)=>{if(!visible){nativeOpen=false;syncAccessibility();}});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&nativeOpen){event.preventDefault();close();}});
   }
+  new MutationObserver(()=>{syncAccessibility();if(!native)schedulePosition();}).observe(target,{childList:true,subtree:true});
+  syncAccessibility();
   return {open,close};
 }

@@ -3,6 +3,11 @@ import { localTeamLogo, teamLogoPresentation } from './team-assets.js';
 
 let nextId = 0;
 
+export const SCOREBUG_DIMENSIONS = Object.freeze({
+  horizontal: Object.freeze({ width: 600, height: 138, statusHeight: 24 }),
+  vertical: Object.freeze({ width: 160, height: 290, statusHeight: 19 }),
+});
+
 const escape = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
@@ -24,7 +29,26 @@ export function teamColor(team, side) {
   return String(team.abbreviation).toUpperCase() === 'SF' ? '#b3995d' : color(team.color, side === 'home' ? '#c51636' : '#24394a');
 }
 
-/** Shared by the score panels and their connected stats blades. */
+function luminance(hex) {
+  const channels = hex.slice(1).match(/.{2}/g).map((part) => {
+    const channel = parseInt(part, 16) / 255;
+    return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+  });
+  return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+}
+
+/** One solid team paint shared by the score panel and its expanded stats. */
+export function teamPalette(team, side) {
+  const fill = teamColor(team, side), light = '#fffef5', dark = '#080c08';
+  const background = luminance(fill);
+  const contrast = (ink) => {
+    const value = luminance(ink);
+    return (Math.max(background, value) + .05) / (Math.min(background, value) + .05);
+  };
+  return { fill, border: mix(fill, 0, .32), ink: contrast(light) >= contrast(dark) ? light : dark };
+}
+
+// Retained for older consumers; the current panels use teamPalette's solid fill.
 export function teamGradientStops(team, side) {
   const base = teamColor(team, side);
   return [
@@ -61,7 +85,7 @@ function teamLogo(team, side) {
 function scoreNumber(value, centerX, baseline, vertical = false) {
   const className = `bug-score${vertical ? ' bug-vertical-score' : ''}${value.length > 2 ? (vertical ? ' bug-vertical-score--long' : ' bug-score--long') : ''}`;
   // The compressed italic glyphs need a different shear for each panel angle:
-  // about 12 degrees across the bottom, and 4.6 degrees in the side layout.
+  // about 12 degrees across the bottom, and 4.8 degrees in the side layout.
   const shear = vertical ? 3.2 : -4.4;
   return `<text class="${className}" x="0" y="0" text-anchor="middle" transform="translate(${centerX} ${baseline}) skewX(${shear}) scale(.78 1)">${value}</text>`;
 }
@@ -117,22 +141,21 @@ function timeoutCount(team) {
 function timeouts(team, { side, id, vertical = false, top = 0 }) {
   const remaining = timeoutCount(team);
   const label = `${team.name || team.abbreviation || 'Team'}: ${remaining === null ? 'timeouts unavailable' : `${remaining} ${remaining === 1 ? 'timeout' : 'timeouts'} remaining`}`;
-  // Follow the existing outer panel edges; native hit regions and viewBoxes
-  // stay unchanged. The central possession lane stays clear of these marks.
+  // Both timeout rails follow the same slope as their panel's outside edge.
   const width = vertical ? 3.4 : 4.5;
   const inset = vertical ? 3 : 3.4;
-  const edgeStart = vertical ? (side === 'away' ? 10 : 159) : (side === 'away' ? 24 : 595);
-  const edgeSlope = vertical ? (side === 'away' ? 9 : 10) / 119 : 18 / 84;
+  const edgeStart = vertical ? (side === 'away' ? 17 : 159) : (side === 'away' ? 30 : 595);
+  const edgeSlope = vertical ? 1 / 12 : 3 / 14;
   const edgeTop = vertical ? 2 : 4;
   const railX = (y) => edgeStart - (y - edgeTop) * edgeSlope + (side === 'away' ? inset : -inset - width);
   const rounded = (value) => Number(value.toFixed(3));
-  const firstY = vertical ? 28 : 13, step = 25, height = vertical ? 17 : 18;
+  const firstY = vertical ? 18 : 13, step = vertical ? 23 : 25, height = vertical ? 14 : 18;
   const segment = (index) => {
     const y = firstY + index * step, bottom = y + height;
     const x1 = railX(y), x2 = railX(bottom);
     return `M${rounded(x1)} ${top + y}H${rounded(x1 + width)}L${rounded(x2 + width)} ${top + bottom}H${rounded(x2)}Z`;
   };
-  const unknownY = vertical ? 61.5 : 47;
+  const unknownY = vertical ? 49.5 : 47;
   const unknownX = railX(unknownY) + width / 2 + (side === 'away' ? 1.7 : -1.7);
   return `<g class="bug-timeouts bug-timeouts--${side}${remaining === null ? ' bug-timeouts--unknown' : ''}" role="img" aria-label="${escape(label)}" data-timeouts="${remaining === null ? 'unknown' : remaining}"><title>${escape(label)}</title>
     ${remaining === null
@@ -141,31 +164,37 @@ function timeouts(team, { side, id, vertical = false, top = 0 }) {
   </g>`;
 }
 
-function gradients(id, away, home) {
-  return [ ['away', away], ['home', home] ].map(([side, team]) => {
-    const stops = teamGradientStops(team, side).map(({ offset, color }) => `<stop offset="${offset}" stop-color="${color}"/>`).join('');
-    return `<linearGradient id="${id}-${side}" x1="0" y1="0" x2=".12" y2="1">${stops}</linearGradient>`;
-  }).join('') + `<linearGradient id="${id}-bevel" x1="0" y1="0" x2=".1" y2="1"><stop offset="0" stop-color="#e5e6dc"/><stop offset=".45" stop-color="#9ca29a"/><stop offset="1" stop-color="#555f58"/></linearGradient><linearGradient id="${id}-strip" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#182b23"/><stop offset="1" stop-color="#08140f"/></linearGradient><linearGradient id="${id}-timeout" x1="0" y1="0" x2="1" y2=".12"><stop offset="0" stop-color="#b8c1b4"/><stop offset=".22" stop-color="#fffef5"/><stop offset=".68" stop-color="#fffef5"/><stop offset="1" stop-color="#a4afa3"/></linearGradient>`;
+function timeoutPaint(id) {
+  return `<linearGradient id="${id}-timeout" x1="0" y1="0" x2="1" y2=".12"><stop offset="0" stop-color="#b8c1b4"/><stop offset=".22" stop-color="#fffef5"/><stop offset=".68" stop-color="#fffef5"/><stop offset="1" stop-color="#a4afa3"/></linearGradient>`;
 }
 
 function teamGroupStart(team, side) {
+  const { fill, border, ink } = teamPalette(team, side);
+  return `<g class="bug-team bug-team--${side}" data-team-side="${side}" data-team-id="${escape(team.id ?? '')}" data-team-fill="${fill}" data-team-border="${border}" data-team-ink="${ink}">`;
+}
+
+function teamTarget(team, side, paths, clipId) {
   const label = `${team.name || team.abbreviation || (side === 'away' ? 'Away team' : 'Home team')} team stats`;
   const count = timeoutCount(team);
   const description = `${score(team.score)} points. ${count === null ? 'Timeouts unavailable.' : `${count} ${count === 1 ? 'timeout' : 'timeouts'} remaining.`}`;
-  return `<g class="bug-team bug-team--${side}" data-team-side="${side}" data-team-id="${escape(team.id ?? '')}" role="button" aria-label="${escape(label)}" aria-description="${escape(description)}" tabindex="0">`;
+  return `<g class="bug-details-target bug-details-target--team" data-details-side="${side}" role="button" tabindex="0" aria-label="${escape(label)}" aria-description="${escape(description)}" aria-haspopup="dialog" aria-expanded="false" clip-path="url(#${clipId})"><title>${escape(label)}</title>${paths.map((path) => `<path class="bug-hover-region" d="${path}"/>`).join('')}</g>`;
+}
+
+function comparisonTarget(path, clipId) {
+  return `<g class="bug-details-target bug-details-target--comparison" data-details-side="comparison" role="button" tabindex="0" aria-label="Compare team statistics and win estimate" aria-haspopup="dialog" aria-expanded="false" clip-path="url(#${clipId})"><title>Compare team statistics</title><path class="bug-hover-region" d="${path}"/></g>`;
 }
 
 /**
  * Render one self-contained SVG. Team groups expose data-team-side and
  * data-team-id for team-specific details. The feed clock stays centered;
  * neither a simulated game clock nor an unreliable play clock is shown.
- * Normal viewBoxes: horizontal 600×138; vertical 160×348. Status flags add
+ * Normal viewBoxes: horizontal 600×138; vertical 160×290. Status flags add
  * 24 or 19 units respectively above the same, unmoved panel coordinates.
  * Top-docked widgets can place that badge space below with statusPosition.
  */
 export function renderScorebug(game, options = {}) {
   if (options.orientation === 'vertical') return renderVerticalScorebug(game, options);
-  const { stale = false, demo = false, showTimeouts = true } = options;
+  const { stale = false, demo = false, showTimeouts = true, interactive = true } = options;
   const id = String(options.idPrefix || `scorebug-${++nextId}`).replace(/[^a-zA-Z0-9_-]/g, '') || `scorebug-${++nextId}`;
   const away = game?.away || {}, home = game?.home || {};
   const awayScore = score(away.score), homeScore = score(home.score);
@@ -178,60 +207,68 @@ export function renderScorebug(game, options = {}) {
     stale ? 'Score updates are delayed. Showing the last received data.' : '',
     demo ? 'Design preview. These are sample scores, not a live game.' : '',
   ].filter(Boolean).join(' ');
-  const awayPath = 'M24 4H303L285 88H6Z';
+  const awayPath = 'M30 4H303L285 88H12Z';
   const homePath = 'M308 4H595L577 88H290Z';
+  // Continue both outside edges through the 5-unit gap. All four edges use
+  // the upper panels' 3/14 slope instead of giving the footer its own angle.
+  const stripPath = 'M10.928571 93H575.928571L566.714286 136H1.714286Z';
+  const awayPaint = teamPalette(away, 'away'), homePaint = teamPalette(home, 'home');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug${stale ? ' scorebug--stale' : ''}" data-orientation="horizontal"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-24' : '0'} 600 ${badge ? '162' : '138'}" role="group" aria-labelledby="${id}-title ${id}-description">
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-orientation="horizontal"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-24' : '0'} 600 ${badge ? '162' : '138'}" role="group" aria-labelledby="${id}-title ${id}-description">
   <title id="${id}-title">${escape(title)}</title>
   <desc id="${id}-description">Classic football scorebug. Away team on the left, home team on the right. ${bottom.banner ? 'Game status appears beneath the scores.' : 'Quarter and ball position at left, game clock in the center, and down and distance at right.'} A football marks possession. Three marks along each team's outer edge show timeouts: bright means remaining, dim means used, and a question mark means unavailable.</desc>
-  <defs>${gradients(id, away, home)}<clipPath id="${id}-away-clip"><path d="${awayPath}"/></clipPath><clipPath id="${id}-home-clip"><path d="${homePath}"/></clipPath></defs>
+  <defs>${timeoutPaint(id)}<clipPath id="${id}-away-clip"><path d="${awayPath}"/></clipPath><clipPath id="${id}-home-clip"><path d="${homePath}"/></clipPath><clipPath id="${id}-strip-clip"><path d="${stripPath}"/></clipPath></defs>
   ${badge ? `<g class="bug-status-flag"${badgeBelow ? ' transform="translate(0 162)"' : ''}><path d="M25-22H${stale ? '202' : '224'}L${stale ? '198' : '220'}-4H21Z" fill="${stale ? '#b95518' : '#283739'}"/><text x="34" y="-8">${badge}</text></g>` : ''}
   ${teamGroupStart(away, 'away')}
-    <path class="bug-team-panel" d="${awayPath}" fill="url(#${id}-away)" stroke="url(#${id}-bevel)"/>
-    <path class="bug-panel-highlight" d="M25 6H301"/>
+    <path class="bug-team-panel" d="${awayPath}" fill="${awayPaint.fill}" stroke="${awayPaint.border}"/>
     <g class="bug-team-contents" clip-path="url(#${id}-away-clip)">${teamLogo(away, 'away')}${scoreNumber(awayScore, 241, 70)}${hasPossession(game, away) ? possession(185, 46, .8) : ''}${showTimeouts ? timeouts(away, { side: 'away', id }) : ''}</g>
+    ${interactive ? teamTarget(away, 'away', ['M30 4H171V88H12Z'], `${id}-away-clip`) : ''}
   </g>
   ${teamGroupStart(home, 'home')}
-    <path class="bug-team-panel" d="${homePath}" fill="url(#${id}-home)" stroke="url(#${id}-bevel)"/>
-    <path class="bug-panel-highlight" d="M309 6H593"/>
+    <path class="bug-team-panel" d="${homePath}" fill="${homePaint.fill}" stroke="${homePaint.border}"/>
     <g class="bug-team-contents" clip-path="url(#${id}-home-clip)">${teamLogo(home, 'home')}${scoreNumber(homeScore, 349, 70)}${hasPossession(game, home) ? possession(413, 46, .8) : ''}${showTimeouts ? timeouts(home, { side: 'home', id }) : ''}</g>
+    ${interactive ? teamTarget(home, 'home', ['M435 4H595L577 88H435Z'], `${id}-home-clip`) : ''}
   </g>
-  <path class="bug-situation-panel" d="M6 93H580L571 136H1Z" fill="url(#${id}-strip)"/>
+  <path class="bug-situation-panel" d="${stripPath}" fill="#101b16"/>
   ${bottom.banner
     ? `<text class="bug-banner" x="293" y="123" text-anchor="middle">${escape(bottom.banner)}</text>`
     : `<text class="bug-quarter" x="34" y="123">${escape(bottom.period)}</text>
        <g class="bug-field-position" aria-label="${escape(bottom.fieldPosition ? `Ball at ${bottom.fieldPosition}` : 'Ball position unavailable')}"><text class="bug-field-label" x="167" y="105" text-anchor="middle">BALL</text><text class="bug-field-value${bottom.fieldPosition.length > 8 ? ' bug-field-value--long' : ''}" x="167" y="125" text-anchor="middle">${escape(bottom.fieldPosition || '—')}</text></g>
        <text class="bug-clock" x="292" y="124" text-anchor="middle">${escape(bottom.clock)}</text>
        <text class="bug-down${bottom.down.length > 12 ? ' bug-down--long' : ''}${bottom.down ? '' : ' bug-down--unavailable'}" x="551" y="123" text-anchor="end" aria-label="${escape(bottom.down ? `Down and distance: ${bottom.down}` : 'Down and distance unavailable')}">${escape(bottom.down || 'DOWN —')}</text>`}
+  ${interactive ? comparisonTarget('M228 94H358V135H228Z', `${id}-strip-clip`) : ''}
   </svg>`;
 }
 
 function renderVerticalScorebug(game, options) {
-  const { stale = false, demo = false, showTimeouts = true } = options;
+  const { stale = false, demo = false, showTimeouts = true, interactive = true } = options;
   const id = String(options.idPrefix || `vertical-${++nextId}`).replace(/[^a-zA-Z0-9_-]/g, '') || `vertical-${++nextId}`;
   const away = game?.away || {}, home = game?.home || {};
   const bottom = game ? strip(game) : { banner: 'SELECT GAME' };
   const badge = stale ? 'FEED DELAYED' : demo ? 'DESIGN PREVIEW' : '';
   const badgeBelow = options.statusPosition === 'below';
   const title = `${away.name || 'Away'} ${score(away.score)}, ${home.name || 'Home'} ${score(home.score)}. ${bottom.banner || `${bottom.period}, ${bottom.clock}, ${bottom.down}${bottom.fieldPosition ? `, ball at ${bottom.fieldPosition}` : ''}`}.${stale ? ' Feed delayed; last received data.' : ''}${demo ? ' Design preview, not live.' : ''}`;
-  const panelPath = (top) => `M10 ${top + 2}H159L149 ${top + 121}H1Z`;
+  const panelPath = (top) => `M17 ${top + 2}H159L151 ${top + 98}H9Z`;
+  const stripPath = 'M8.583333 206H150.583333L143.75 288H1.75Z';
   const panels = [away, home].map((team, index) => {
-    const top = index * 126, side = index ? 'home' : 'away';
+    const top = index * 103, side = index ? 'home' : 'away';
     // Three separate cells follow the panel's slanted centerline. The logo's
-    // visible artwork ends at 48, the football has its own lane at 63, and every
+    // visible artwork ends at 37, the football has its own lane at 50, and every
     // score (including 100+) shares the same size and baseline below that lane.
-    const logo = logoImage(team, 82, top + 29, 104, 38), value = score(team.score);
-    return `${teamGroupStart(team, side)}<path class="bug-team-panel" d="${panelPath(top)}" fill="url(#${id}-${side})" stroke="url(#${id}-bevel)"/><path class="bug-panel-highlight" d="M11 ${top + 4}H157"/>
+    const logo = logoImage(team, 86, top + 22, 104, 30), value = score(team.score), paint = teamPalette(team, side);
+    const targets = [`M28 ${top + 4}H145V${top + 40}H28Z`, side === 'away' ? 'M17 2H29L21 98H9Z' : 'M147 105H159L151 201H139Z'];
+    return `${teamGroupStart(team, side)}<path class="bug-team-panel" d="${panelPath(top)}" fill="${paint.fill}" stroke="${paint.border}"/>
       <g class="bug-team-contents" clip-path="url(#${id}-${side}-clip)">
-      ${logo || `<text class="bug-vertical-abbreviation" x="82" y="${top + 39}" text-anchor="middle">${escape(team.abbreviation || 'NFL')}</text>`}
-      ${scoreNumber(value, 75, top + 114, true)}
-      ${hasPossession(game, team) ? possession(80, top + 63, .65) : ''}${showTimeouts ? timeouts(team, { side, id, vertical: true, top }) : ''}</g></g>`;
+      ${logo || `<text class="bug-vertical-abbreviation" x="86" y="${top + 31}" text-anchor="middle">${escape(team.abbreviation || 'NFL')}</text>`}
+      ${scoreNumber(value, 80, top + 93, true)}
+      ${hasPossession(game, team) ? possession(84, top + 50, .55) : ''}${showTimeouts ? timeouts(team, { side, id, vertical: true, top }) : ''}</g>${interactive ? teamTarget(team, side, targets, `${id}-${side}-clip`) : ''}</g>`;
   }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--vertical${stale ? ' scorebug--stale' : ''}" data-orientation="vertical"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-19' : '0'} 160 ${badge ? '367' : '348'}" role="group" aria-labelledby="${id}-title ${id}-description">
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--vertical${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-orientation="vertical"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-19' : '0'} 160 ${badge ? '309' : '290'}" role="group" aria-labelledby="${id}-title ${id}-description">
     <title id="${id}-title">${escape(title)}</title><desc id="${id}-description">Away team above home team. A football marks possession. Timeout marks follow the away team's left edge and the home team's right edge: bright means remaining, dim means used, and a question mark means unavailable. The centered game clock, down and distance, and ball position appear below.</desc>
-    <defs>${gradients(id, away, home)}<clipPath id="${id}-away-clip"><path d="${panelPath(0)}"/></clipPath><clipPath id="${id}-home-clip"><path d="${panelPath(126)}"/></clipPath></defs>
-    ${badge ? `<g class="bug-status-flag"${badgeBelow ? ' transform="translate(0 367)"' : ''}><path d="M10-17H159L157-2H8Z" fill="${stale ? '#b95518' : '#283739'}"/><text x="80" y="-6" text-anchor="middle" style="font-size:9px;letter-spacing:.6px">${badge}</text></g>` : ''}
-    ${panels}<path class="bug-situation-panel" d="M8 252H157L149 346H1Z" fill="url(#${id}-strip)"/>
-    ${bottom.banner ? `<text class="bug-vertical-banner${bottom.banner.length > 14 ? ' bug-vertical-banner--long' : ''}" x="79" y="302" text-anchor="middle">${escape(bottom.banner)}</text>` : `<text class="bug-vertical-quarter" x="79" y="272" text-anchor="middle">${escape(bottom.period)}</text><text class="bug-vertical-clock" x="79" y="300" text-anchor="middle">${escape(bottom.clock)}</text><text class="bug-vertical-down${bottom.down.length > 12 ? ' bug-vertical-down--long' : ''}${bottom.down ? '' : ' bug-vertical-down--unavailable'}" x="79" y="324" text-anchor="middle" aria-label="${escape(bottom.down ? `Down and distance: ${bottom.down}` : 'Down and distance unavailable')}">${escape(bottom.down || 'DOWN —')}</text><text class="bug-vertical-field" x="79" y="341" text-anchor="middle" aria-label="${escape(bottom.fieldPosition ? `Ball at ${bottom.fieldPosition}` : 'Ball position unavailable')}">BALL ${escape(bottom.fieldPosition || '—')}</text>`}
+    <defs>${timeoutPaint(id)}<clipPath id="${id}-away-clip"><path d="${panelPath(0)}"/></clipPath><clipPath id="${id}-home-clip"><path d="${panelPath(103)}"/></clipPath><clipPath id="${id}-strip-clip"><path d="${stripPath}"/></clipPath></defs>
+    ${badge ? `<g class="bug-status-flag"${badgeBelow ? ' transform="translate(0 309)"' : ''}><path d="M10-17H159L157-2H8Z" fill="${stale ? '#b95518' : '#283739'}"/><text x="80" y="-6" text-anchor="middle" style="font-size:9px;letter-spacing:.6px">${badge}</text></g>` : ''}
+    ${panels}<path class="bug-situation-panel" d="${stripPath}" fill="#101b16"/>
+    ${bottom.banner ? `<text class="bug-vertical-banner${bottom.banner.length > 14 ? ' bug-vertical-banner--long' : ''}" x="76" y="250" text-anchor="middle">${escape(bottom.banner)}</text>` : `<text class="bug-vertical-quarter" x="76" y="224" text-anchor="middle">${escape(bottom.period)}</text><text class="bug-vertical-clock" x="76" y="249" text-anchor="middle">${escape(bottom.clock)}</text><text class="bug-vertical-down${bottom.down.length > 12 ? ' bug-vertical-down--long' : ''}${bottom.down ? '' : ' bug-vertical-down--unavailable'}" x="76" y="270" text-anchor="middle" aria-label="${escape(bottom.down ? `Down and distance: ${bottom.down}` : 'Down and distance unavailable')}">${escape(bottom.down || 'DOWN —')}</text><text class="bug-vertical-field" x="76" y="284" text-anchor="middle" aria-label="${escape(bottom.fieldPosition ? `Ball at ${bottom.fieldPosition}` : 'Ball position unavailable')}">BALL ${escape(bottom.fieldPosition || '—')}</text>`}
+    ${interactive ? comparisonTarget('M22 228H135V254H22Z', `${id}-strip-clip`) : ''}
   </svg>`;
 }

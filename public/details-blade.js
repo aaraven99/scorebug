@@ -1,7 +1,8 @@
 /** Shared browser/native blade outline. All coordinates are local CSS pixels. */
 export const BLADE_OPEN_MS = 240;
 export const BLADE_CLOSE_MS = 220;
-export const BLADE_SIZE = Object.freeze({ width: 284, height: 216 });
+export const BLADE_SIZE = Object.freeze({ width: 320, height: 344 });
+export const COMPARISON_BLADE_SIZE = Object.freeze({ width: 408, height: 450 });
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const finite = (value, fallback) => Number.isFinite(value) ? value : fallback;
 const round = (value) => Math.round(value * 100) / 100;
@@ -20,7 +21,7 @@ export function bladeGradientSpace(width, height, presentation = {}) {
 }
 
 export function bladeOutline(width, height, presentation = {}) {
-  const w = Math.max(64, finite(width, 284)), h = Math.max(64, finite(height, 216));
+  const w = Math.max(64, finite(width, BLADE_SIZE.width)), h = Math.max(64, finite(height, BLADE_SIZE.height));
   const direction = ['left', 'right', 'up', 'down'].includes(presentation.direction) ? presentation.direction : 'right';
   const s = Math.min(14, w * .065, h * .08), edge = .8;
   let points, inset, connector = null;
@@ -50,20 +51,16 @@ export function bladeOutline(width, height, presentation = {}) {
       const shoulder = Math.min(h-24,Math.max(24,jy+12,jy+finite(presentation.neckHeight,0)));
       points = [[jl,jy],[jr,jy],[Math.max(s,jr-4),shoulder],[w-edge,shoulder],[w-s,h-edge],[edge,h-edge],[s,shoulder],[Math.max(s,jl-4),shoulder]];
       inset = { top:shoulder+9, right:s+10, bottom:9, left:s+12 };
-      // Downward blades touch the dark situation strip, not the team panel.
-      // Fade its exact bottom color through the neck into the continued fill.
-      connector = { start: jy, end: shoulder, color: '#08140f' };
+      // The neck and body share one solid fill.
+      connector = { start: jy, end: shoulder };
     }
   }
   const pairs = points.map(([x,y])=>[round(x),round(y)]);
-  // The fill is closed, but its shared seam is not a second metal border.
-  // Trace the remaining perimeter from one end of that join to the other.
-  const borderStart = direction === 'up' ? 5 : direction === 'down' ? 1 : 0;
-  const border = [...pairs.slice(borderStart), ...pairs.slice(0, borderStart)];
+  // Outline the complete expanding shape, including its narrow join.
   return {
     direction, width:w, height:h, inset, connector,
     path:`M${pairs.map(([x,y])=>`${x} ${y}`).join('L')}Z`,
-    borderPath:`M${border.map(([x,y])=>`${x} ${y}`).join('L')}`,
+    borderPath:`M${pairs.map(([x,y])=>`${x} ${y}`).join('L')}Z`,
     clip:`polygon(${pairs.map(([x,y])=>`${x}px ${y}px`).join(',')})`,
   };
 }
