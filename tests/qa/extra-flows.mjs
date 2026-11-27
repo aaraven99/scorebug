@@ -54,6 +54,14 @@ export async function verifyFavoriteRemovalDuringLogoFailure({page,net,pass,engi
       measure('after-domcontentloaded');
     },logo.href);
     const remove=page.getByRole('button',{name:`Remove ${bears.name} from favorites`,exact:true});
+    // A decorative logo cannot postpone load (and reload scroll restoration)
+    // until its response arrives during the user's pointer gesture.
+    await page.waitForFunction(url=>{
+      const image=[...document.querySelectorAll('#favorite-chips img')].find(image=>image.src===url);
+      return document.readyState==='complete'&&image&&!image.complete;
+    },logo.href);
+    const loadedWhilePending=await page.evaluate(()=>window.__qaFavoriteGestureMeasure('complete-with-image-pending'));
+    truth(loadedWhilePending.readyState==='complete','The page completes loading while the favorite-logo request is still held');
     await remove.scrollIntoViewIfNeeded();
     const pending=await remove.locator('..').locator('img').evaluate(image=>!image.complete);
     truth(pending&&requests>0,'The actual favorite-logo request is still pending before pointerdown');
@@ -83,7 +91,7 @@ export async function verifyFavoriteRemovalDuringLogoFailure({page,net,pass,engi
     equal(restored.favorites,[],'Both removals persist after reload');
     equal([restored.leagueId,restored.styleId],['nfl','nfl-blades'],'The requested sport and style persist with the removals');
     equal(await page.locator('#favorite-chips button').count(),0);
-    return {before,after,requests,remainingFavorites:restored.favorites.length,beforeReload,gestureTrace};
+    return {before,after,requests,remainingFavorites:restored.favorites.length,beforeReload,loadedWhilePending,gestureTrace};
   }finally{
     releaseImage();if(pointerDown)await page.mouse.up();
     await page.evaluate(()=>window.__qaStopFavoriteGestureTrace?.());
