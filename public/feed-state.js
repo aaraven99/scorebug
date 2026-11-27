@@ -2,6 +2,18 @@ export const LIVE_POLL_INTERVAL_MS = 2000;
 export const FEED_REQUEST_TIMEOUT_MS = 10000;
 const MAX_TIMER_MS = 2147483647;
 const time = (value) => typeof value === 'string' ? Date.parse(value) : NaN;
+const ADMIN_PLAY_TYPES = new Set(['2', '21', '65', '66', '70', '74', '75']);
+
+function playOrder(left, right) {
+  if (!left || !right) return 0;
+  if (Number.isFinite(left.sequenceNumber) && Number.isFinite(right.sequenceNumber)) return Math.sign(left.sequenceNumber - right.sequenceNumber);
+  if (/^\d{1,24}$/.test(left.id || '') && /^\d{1,24}$/.test(right.id || '')) return BigInt(left.id) < BigInt(right.id) ? -1 : BigInt(left.id) > BigInt(right.id) ? 1 : 0;
+  return 0;
+}
+function latestAction(data) {
+  const plays = [data?.lastPlay, ...(Array.isArray(data?.eventPlays) ? data.eventPlays : []), ...(Array.isArray(data?.recentPlays) ? data.recentPlays : [])];
+  return plays.filter((play) => play && !ADMIN_PLAY_TYPES.has(play.typeId)).reduce((latest, play) => !latest || playOrder(play, latest) > 0 ? play : latest, null);
+}
 
 /** HTTP Retry-After allows either whole seconds or an HTTP date. */
 export function retryAfterMs(value, now = Date.now()) {
@@ -14,6 +26,16 @@ export function retryAfterMs(value, now = Date.now()) {
 export function responseRetryMs(response, body, now = Date.now()) {
   const hint = Number.isFinite(body?.retryAfterMs) ? Math.min(MAX_TIMER_MS, Math.max(0, body.retryAfterMs)) : 0;
   return Math.max(hint, retryAfterMs(response.headers?.get?.('retry-after'), now));
+}
+
+/** Play-only backups cannot turn retained cumulative totals into fresh stats. */
+export function retainKnownStats(next, previous) {
+  if (next?.dataScope !== 'plays' || !previous || next.gameId !== previous.gameId
+    || next.away?.id !== previous.away?.id || next.home?.id !== previous.home?.id || !next.away?.id || !next.home?.id) return next;
+  const oldTime = previous.statsFetchedAt || (previous.dataScope !== 'plays' ? previous.fetchedAt : null);
+  const previousStamp = time(oldTime), nextStamp = time(next.statsFetchedAt);
+  if (!Number.isFinite(previousStamp) || (Number.isFinite(nextStamp) && nextStamp >= previousStamp)) return next;
+  return { ...next, teamStats: previous.teamStats, leaders: previous.leaders, statsStale: true, statsFetchedAt: oldTime };
 }
 
 /** Keep a two-second start-to-start cadence without overlapping requests. */
@@ -58,8 +80,13 @@ function gameRegresses(next, previous) {
 /** Reject known older snapshots, while allowing a healthy source's corrections. */
 export function snapshotIsOlder(next, previous, now = Date.now()) {
   if (!next || !previous) return false;
+  // Full summaries and the core play feed can reach different server workers.
+  // Their known play order is comparable even without a current game period.
+  const coreOrder = next.gameId && next.gameId === previous.gameId && (next.dataScope === 'plays' || previous.dataScope === 'plays')
+    ? playOrder(latestAction(next), latestAction(previous)) : 0;
+  if (coreOrder < 0) return true;
   const nextFetch = time(next.fetchedAt), previousFetch = time(previous.fetchedAt);
-  const olderFetch = Number.isFinite(nextFetch) && Number.isFinite(previousFetch) && nextFetch < previousFetch;
+  const olderFetch = coreOrder <= 0 && Number.isFinite(nextFetch) && Number.isFinite(previousFetch) && nextFetch < previousFetch;
   const nextStamp = time(next.sourceUpdatedAt), previousStamp = time(previous.sourceUpdatedAt);
   // A delayed HTTP response can still contain a newer provider frame than a
   // recently fetched, lagging route. Compare actual update times first.

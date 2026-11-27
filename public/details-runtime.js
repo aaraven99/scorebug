@@ -62,14 +62,30 @@ let summaryState = { data: null, error: null, loading: false };
 let currentGame = null, ageTimer;
 const STAT_ROWS = [['totalYards', 'Total yards'], ['netPassingYards', 'Passing yards'], ['rushingYards', 'Rushing yards'], ['thirdDownEff', 'Third downs'], ['turnovers', 'Turnovers'], ['possessionTime', 'Possession time']];
 
+function latestPlayText(game, summary) {
+  const primary = game?.lastPlayDetails, detail = summary?.lastPlay;
+  if (!game?.lastPlay) return detail?.text;
+  if (!detail?.text || !primary) return game.lastPlay;
+  // These normalized ESPN play IDs are ordered within the matched game.
+  // A newly fetched response alone is not evidence that its play is newer.
+  if (/^\d+$/.test(primary.id) && /^\d+$/.test(detail.id) && primary.id !== detail.id) return BigInt(detail.id) > BigInt(primary.id) ? detail.text : game.lastPlay;
+  if (Number.isFinite(primary.sequenceNumber) && Number.isFinite(detail.sequenceNumber) && primary.sequenceNumber !== detail.sequenceNumber) return detail.sequenceNumber > primary.sequenceNumber ? detail.text : game.lastPlay;
+  const primaryTime = Date.parse(primary.wallclock), detailTime = Date.parse(detail.wallclock);
+  return Number.isFinite(primaryTime) && Number.isFinite(detailTime) && detailTime > primaryTime ? detail.text : game.lastPlay;
+}
+
 function render() {
   currentGame = selectGame(snapshot.data?.games, preferences);
   const game = currentGame, team = game?.[side];
-  const summary = summaryState.data?.gameId === game?.id ? summaryState.data : null;
+  const detailsGameId = game?.detailsGameId === null ? null : game?.detailsGameId || game?.id;
+  const summary = detailsGameId && summaryState.data?.gameId === detailsGameId ? summaryState.data : null;
+  const statsDelayed = Boolean(summary?.statsStale);
   document.body.dataset.side = side;
   const color = presentation.teamColor || (team ? teamColor(team, side) : '#33483b');
   document.documentElement.style.setProperty('--team-color', color);
-  $('details-name').textContent = `${side === 'away' ? 'AWAY' : 'HOME'} · TEAM STATS`;
+  $('details-name').textContent = `${side === 'away' ? 'AWAY' : 'HOME'} · ${statsDelayed ? 'STATS DELAYED' : 'TEAM STATS'}`;
+  $('details-name').classList.toggle('delayed', statsDelayed);
+  $('details-name').title = statsDelayed ? 'Team totals are delayed. Recent plays can still update.' : '';
   $('details-match').textContent = team ? `${team.abbreviation} · ${team.score ?? '—'}` : snapshot.loading ? 'Connecting…' : 'No game';
   $('details-match').title = team?.name || '';
   document.title = team ? `${team.abbreviation} team stats — Scorebug` : 'Scorebug — Team stats';
@@ -87,12 +103,13 @@ function render() {
   $('stats-body').replaceChildren(fragment);
   $('field-position').textContent = game?.fieldPosition ? `Ball at ${game.fieldPosition}` : game?.phase === 'final' ? 'Final' : game?.phase === 'halftime' ? 'Halftime' : 'Position unavailable';
   $('field-down').textContent = game?.state === 'in' ? game.downDistance || '' : '';
-  const play = game?.lastPlay || summary?.lastPlay?.text || (game?.state === 'pre' ? 'Team totals appear after kickoff.' : 'Waiting for a reported play.');
+  const play = latestPlayText(game, summary) || (game?.state === 'pre' ? 'Team totals appear after kickoff.' : 'Waiting for a reported play.');
   $('details-play').textContent = play; $('details-play').title = play;
   const delayed = Boolean(summaryState.error || snapshot.error || (summary && feedIsStale(summary)) || (snapshot.data && feedIsStale(snapshot.data)));
   $('stats-status').textContent = game?.detailsGameId === null ? 'Team totals unavailable'
-    : delayed ? summary ? 'Last received · reconnecting' : 'Stats unavailable · retrying' : summary ? 'Game totals · auto-updating' : game ? 'Loading team stats…' : 'No game selected';
-  $('stats-status').className = delayed ? 'delayed' : '';
+    : delayed ? summary ? 'Last received · reconnecting' : 'Stats unavailable · retrying'
+      : statsDelayed ? 'Stats delayed · plays updating' : summary ? 'Game totals · auto-updating' : game ? 'Loading team stats…' : 'No game selected';
+  $('stats-status').className = delayed || statsDelayed ? 'delayed' : '';
   $('details-source').textContent = summary?.source || snapshot.data?.source || '';
 }
 const summaries = new GameDetailsPoller({ onUpdate: (next) => { summaryState = next; render(); } });

@@ -1,4 +1,4 @@
-import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
+import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder, retainKnownStats } from './feed-state.js';
 
 /** One abortable summary poll per selected game, including while the widget is idle. */
 export class GameDetailsPoller {
@@ -78,7 +78,7 @@ export class GameDetailsPoller {
       const older = snapshotIsOlder(data, this.state.data, this.now());
       const stamp = Date.parse(data.fetchedAt);
       const stale = older || data.stale || data.feedStatus === 'cached' || this.now() - stamp > 45000 || stamp - this.now() > 60000;
-      const next = older ? this.state.data : data;
+      const next = retainKnownStats(older ? this.state.data : data, this.state.data);
       this.failures = stale ? this.failures + 1 : 0;
       this.state = { gameId: id, data: stale ? { ...next, stale: true, feedStatus: 'cached' } : next, error: null, loading: false };
     } catch (error) {

@@ -6,12 +6,14 @@ import { createGameActivity } from './game-activity.js';
 import { createScoreAnimations } from './score-animation.js';
 import { selectDemoPlayer } from './game-events.js';
 import { mountDesktopUpdates } from './desktop-updates.js';
-import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, ScoreboardPoller, feedIsStale, checkedAgo } from './score-client.js';
+import { createLiveGameList } from './live-games.js';
+import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, activeGames, ScoreboardPoller, feedIsStale, checkedAgo } from './score-client.js';
 
 const $ = (id) => document.getElementById(id);
 const desktop = Boolean(window.scorebugDesktop);
 let preferences = await initializePreferences();
 let snapshot = { data: null, error: null, loading: true };
+let currentSnapshot = snapshot, datedSnapshot = snapshot;
 let reference = false;
 let demoReference = false, demoSequence = 0, previewContext = null;
 let pipWindow = null;
@@ -25,6 +27,40 @@ function floatingSize() { return preferences.orientation === 'vertical' ? { widt
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6500); }
 function formatKickoff(value) { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date) : ''; }
 function phaseLabel(game) { return game?.isLive ? 'LIVE' : ({ halftime: 'HALFTIME', intermission: 'BREAK', final: 'FINAL', scheduled: 'UPCOMING', delayed: 'DELAYED', postponed: 'POSTPONED', suspended: 'SUSPENDED', canceled: 'CANCELED' }[game?.phase] || 'NFL'); }
+function label(id, value) { if ($(id).textContent !== value) $(id).textContent = value; }
+function changeSelection(patch) {
+  reference = false; demoReference = false; animations.clearDemo();
+  const url = new URL(location.href);
+  if (Object.hasOwn(patch,'gameId')) { if (patch.gameId) url.searchParams.set('game',patch.gameId); else url.searchParams.delete('game'); }
+  if (Object.hasOwn(patch,'date')) { if (patch.date) url.searchParams.set('date',patch.date); else url.searchParams.delete('date'); }
+  url.searchParams.delete('team');
+  try { history.replaceState(null,'',url); } catch { /* Preferences still work when history is unavailable. */ }
+  return updatePreferences(patch);
+}
+const liveList = createLiveGameList($('live-games'), {
+  onChoose: (game) => changeSelection({gameId:game.id,date:null}),
+  onFocusedGameRemoved: () => $('other-games').querySelector('summary').focus({preventScroll:true}),
+});
+function renderLiveGames() {
+  const games = activeGames(currentSnapshot.data?.games);
+  const delayed = Boolean(currentSnapshot.error || (currentSnapshot.data && feedIsStale(currentSnapshot.data)));
+  const selected = preferences.gameId || !preferences.date ? selectGame(currentSnapshot.data?.games,preferences) : null;
+  liveList.render(games,{selectedId:selected?.id,delayed});
+  label('live-games-count',currentSnapshot.data ? `${games.length} ${games.length===1?'game':'games'}` : '');
+  let message;
+  if (!currentSnapshot.data) message = currentSnapshot.error ? 'Unable to check live games. Reconnecting…' : 'Looking for live games…';
+  else if (delayed) message = games.length ? 'Live feed delayed. Showing the last received matchups while we reconnect.' : 'Live feed delayed. No active games in the last update.';
+  else message = games.length ? 'Choose a matchup to keep watching it.' : 'No NFL games are live right now. Open Other games for upcoming games and results.';
+  label('live-games-message',message);
+  $('live-games-message').className = `live-games-message${delayed?' delayed':''}`;
+  const automatic = !preferences.gameId && !preferences.date;
+  $('follow-live').setAttribute('aria-pressed',String(automatic));
+  const pinned = preferences.gameId ? selectGame(snapshot.data?.games,preferences) : null;
+  label('selection-mode',automatic ? 'Automatic follows an active game. Choose a matchup to pin it.'
+    : pinned ? `Pinned to ${pinned.away.abbreviation} at ${pinned.home.abbreviation}. Choose Automatic to follow live games again.`
+      : preferences.gameId ? 'Your selected game stays pinned. Choose Automatic to follow live games again.'
+        : 'Browsing a date. Live now still shows the current games.');
+}
 function renderDemoControls(game, sample) {
   const teamSelect = $('demo-team'), status = $('demo-status');
   if (!teamSelect || !status) return;
@@ -36,6 +72,7 @@ function renderDemoControls(game, sample) {
   status.textContent = `Preview only — live scores stay unchanged.${sample || !game ? ' Sample matchup: SF at KC.' : ''}`;
 }
 function renderHealth() {
+  renderLiveGames();
   const stale = snapshot.data && feedIsStale(snapshot.data, Boolean(snapshot.error));
   $('checked-at').textContent = snapshot.error || stale ? `Reconnecting · ${checkedAgo(snapshot.data).toLowerCase()}`
     : snapshot.data?.feedStatus === 'backup' ? `Backup feed · ${checkedAgo(snapshot.data).toLowerCase()}` : checkedAgo(snapshot.data);
@@ -63,7 +100,7 @@ function renderPreview() {
     const label = snapshot.loading ? 'Connecting to the NFL feed' : snapshot.error ? 'Unable to reach the score feed' : preferences.gameId ? 'This game is not in the selected schedule' : 'No NFL games for this date';
     root.replaceChildren();
     const message = document.createElement('div'); message.className = `empty-scorebug${snapshot.error ? ' error' : ''}`; message.textContent = label; root.append(message);
-    $('game-title').textContent = snapshot.loading ? 'Finding your game…' : 'Choose a game below';
+    $('game-title').textContent = snapshot.loading ? 'Finding your game…' : 'Choose a game above';
     $('phase-badge').textContent = snapshot.error ? 'OFFLINE' : snapshot.loading ? 'CONNECTING' : 'NO GAME';
     $('phase-badge').className = `status-pill${snapshot.error ? ' error' : ''}`;
   }
@@ -77,15 +114,18 @@ function renderGames() {
   const games = snapshot.data?.games || [];
   const current = selectGame(games, preferences);
   const select = $('game-select');
-  const desired = games.map((game) => `${game.id}:${game.away.score}:${game.home.score}:${game.phase}`).join('|');
-  if (select.dataset.options !== desired || !select.options.length) {
-    select.dataset.options = desired; select.replaceChildren();
-    if (!games.length) select.add(new Option(snapshot.loading ? 'Loading games…' : 'No games available — try another date', ''));
-    for (const game of games) {
-      const scores = game.state !== 'pre' ? `  ${game.away.score ?? '–'} – ${game.home.score ?? '–'}` : '';
-      select.add(new Option(`${game.away.abbreviation} @ ${game.home.abbreviation}${scores} · ${phaseLabel(game)}`, game.id));
-    }
+  const options = new Map([...select.options].map((option) => [option.value,option]));
+  const desired = games.length ? games.map((game) => {
+    const scores = game.state !== 'pre' ? `  ${game.away.score ?? '–'} – ${game.home.score ?? '–'}` : '';
+    return [game.id,`${game.away.abbreviation} @ ${game.home.abbreviation}${scores} · ${phaseLabel(game)}`];
+  }) : [['',snapshot.loading ? 'Loading games…' : 'No games available — try another date']];
+  for (const [index,[value,text]] of desired.entries()) {
+    const option = options.get(value) || new Option(text,value);
+    if (option.text !== text) option.text = text;
+    if (select.options[index] !== option) select.insertBefore(option,select.options[index] || null);
+    options.delete(value);
   }
+  for (const option of options.values()) option.remove();
   select.disabled = !games.length;
   select.value = current?.id || '';
   $('games-count').textContent = games.length ? `${games.length} GAME${games.length === 1 ? '' : 'S'}` : 'NFL';
@@ -105,7 +145,7 @@ function renderGames() {
     $('last-play').textContent = current.lastPlay || (current.state === 'pre' ? 'The scorebug will update automatically when the game starts.' : current.status || 'Waiting for the next play.');
     document.title = `${current.away.abbreviation} ${current.away.score ?? '–'} · ${current.home.abbreviation} ${current.home.score ?? '–'} — Scorebug`;
   } else {
-    const label = document.createElement('span'); label.className = 'placeholder-label'; label.textContent = 'The Bears are your default team.'; teams.append(label);
+    const label = document.createElement('span'); label.className = 'placeholder-label'; label.textContent = 'Choose a game or use Automatic.'; teams.append(label);
     $('match-meta').textContent = 'Choose a game or a different date.';
     $('last-play').textContent = snapshot.loading ? 'Waiting for the feed…' : 'No play information available.';
   }
@@ -120,16 +160,35 @@ function renderPreferences() {
   $('snap-checkbox').checked = preferences.snapEnabled !== false; $('lock-checkbox').checked = Boolean(preferences.locked);
   for (const button of $('anchor-grid').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.anchor === preferences.anchor));
 }
-const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (state) => { snapshot = state; renderPreview(); renderGames(); renderHealth(); updateActivity(); } });
+function renderSelectedFeed(state) { snapshot = state; renderPreview(); renderGames(); renderHealth(); updateActivity(); }
+// The current feed is shared by Live now and the normal preview. Only date
+// browsing needs a second poller; returning to Automatic stops that one.
+const poller = new ScoreboardPoller({ date: null, onUpdate: (state) => {
+  currentSnapshot = state;
+  if (!preferences.date) renderSelectedFeed(state); else renderLiveGames();
+} });
+const datedPoller = new ScoreboardPoller({ date: preferences.date, onUpdate: (state) => {
+  datedSnapshot = state;
+  if (preferences.date) renderSelectedFeed(state);
+} });
 onPreferences((next) => {
   const oldDate = preferences.date;
   if (oldDate !== next.date || preferences.gameId !== next.gameId || preferences.team !== next.team) { demoReference = false; animations.clearDemo(); }
-  preferences = next; if (oldDate !== next.date) poller.setDate(next.date); renderPreferences(); renderPreview(); renderGames(); updateActivity();
+  preferences = next;
+  if (oldDate !== next.date) {
+    if (next.date) {
+      snapshot = datedPoller.date === next.date ? datedSnapshot : {data:null,error:null,loading:true};
+      datedPoller.setDate(next.date); datedPoller.start();
+    } else { datedPoller.stop(); snapshot = currentSnapshot; }
+    $('other-games').open = Boolean(next.date);
+  }
+  renderPreferences(); renderPreview(); renderGames(); renderLiveGames(); updateActivity();
 });
 
-$('game-select').addEventListener('change', (event) => { reference = false; demoReference = false; animations.clearDemo(); updatePreferences({ gameId: event.target.value || null }); });
-$('date-input').addEventListener('change', (event) => updatePreferences({ date: event.target.value.replaceAll('-', '') || null, gameId: null }));
-$('week-button').addEventListener('click', () => updatePreferences({ date: null, gameId: null }));
+$('follow-live').addEventListener('click', () => changeSelection({gameId:null,date:null}));
+$('game-select').addEventListener('change', (event) => changeSelection({ gameId: event.target.value || null }));
+$('date-input').addEventListener('change', (event) => changeSelection({ date: event.target.value.replaceAll('-', '') || null, gameId: null }));
+$('week-button').addEventListener('click', () => changeSelection({ date: null, gameId: null }));
 $('size-range').addEventListener('input', (event) => {
   const scale = Number(event.target.value);
   updatePreferences({ scale });
@@ -167,14 +226,14 @@ $('demo-play')?.addEventListener('click', () => {
     ...DEMO_EVENTS[kind] };
   animations.demo(event, game);
 });
-$('refresh-button').addEventListener('click', () => { poller.refresh(); activity.refresh(); });
+$('refresh-button').addEventListener('click', () => { poller.refresh(); if(preferences.date)datedPoller.refresh(); activity.refresh(); });
 $('snap-checkbox').addEventListener('change', (event) => updatePreferences({ snapEnabled: event.target.checked }));
 $('lock-checkbox').addEventListener('change', (event) => updatePreferences({ locked: event.target.checked }));
 $('anchor-grid').addEventListener('click', (event) => { const button = event.target.closest('button[data-anchor]'); if (button) updatePreferences({ anchor: button.dataset.anchor }); });
 $('clean-button').addEventListener('click', () => {
   const url = new URL('/widget.html', location.href);
   const game = selectGame(snapshot.data?.games, preferences);
-  if (game) url.searchParams.set('game', game.id);
+  if (preferences.gameId && game) url.searchParams.set('game', game.id);
   if (preferences.date) url.searchParams.set('date', preferences.date);
   if (desktop) { updatePreferences({ anchor: preferences.anchor || 'bottom-center' }); toast('The desktop scorebug is ready. Drag it to any edge to snap.'); }
   else window.open(url.href, '_blank', 'noopener,noreferrer');
@@ -220,9 +279,10 @@ if (desktop) {
 }
 if (!desktop) $('mode-label').textContent = 'Browser window';
 let disposeUpdates = mountDesktopUpdates($('desktop-updates'));
-renderPreferences(); activity.start(); poller.start();
+$('other-games').open = Boolean(preferences.date);
+renderPreferences(); renderLiveGames(); activity.start(); poller.start(); if(preferences.date)datedPoller.start();
 let healthTimer = setInterval(renderHealth, 1000);
-window.addEventListener('pagehide', () => { poller.stop(); activity.stop(); clearInterval(healthTimer); disposeUpdates(); });
+window.addEventListener('pagehide', () => { poller.stop(); datedPoller.stop(); activity.stop(); clearInterval(healthTimer); disposeUpdates(); });
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted) { disposeUpdates = mountDesktopUpdates($('desktop-updates')); activity.start(); poller.start(); clearInterval(healthTimer); healthTimer = setInterval(renderHealth, 1000); }
+  if (event.persisted) { disposeUpdates = mountDesktopUpdates($('desktop-updates')); activity.start(); poller.start(); if(preferences.date)datedPoller.start(); clearInterval(healthTimer); healthTimer = setInterval(renderHealth, 1000); }
 });

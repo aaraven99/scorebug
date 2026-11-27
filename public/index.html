@@ -19,10 +19,16 @@
     </header>
     <main>
       <div class="intro"><h1 id="page-title">Live NFL scores</h1><p>Choose a game, then keep the score above your other windows.</p></div>
-      <section class="game-picker" aria-labelledby="game-panel-title">
-        <div class="game-choice"><label for="game-select" id="game-panel-title">Game <span id="games-count">NFL</span></label><select id="game-select" aria-label="Select an NFL game"><option value="">Loading games…</option></select></div>
-        <div class="date-choice"><label for="date-input">Date</label><div class="date-controls"><input id="date-input" type="date" aria-label="Filter games by date"><button id="week-button" type="button" class="text-button">This week</button></div></div>
+      <section class="live-games-section" aria-labelledby="live-games-title">
+        <div class="live-games-heading"><h2 id="live-games-title">Live now <span id="live-games-count"></span></h2><button id="follow-live" class="secondary-button" type="button" aria-pressed="true" aria-describedby="selection-mode">Automatic</button></div>
+        <p id="live-games-message" class="live-games-message" role="status">Looking for live games…</p>
+        <div id="live-games" class="live-games" aria-label="Live NFL games"></div>
+        <p id="selection-mode" class="selection-mode">Automatic follows an active game. Choose a matchup to pin it.</p>
       </section>
+      <details id="other-games" class="other-games"><summary>Other games <span>Schedule and dates</span></summary><section class="game-picker" aria-labelledby="game-panel-title">
+        <div class="game-choice"><label for="game-select" id="game-panel-title">All games <span id="games-count">NFL</span></label><select id="game-select" aria-label="Select an NFL game"><option value="">Loading games…</option></select></div>
+        <div class="date-choice"><label for="date-input">Date</label><div class="date-controls"><input id="date-input" type="date" aria-label="Filter games by date"><button id="week-button" type="button" class="text-button">This week</button></div></div>
+      </section></details>
       <p id="feed-error" class="feed-error" role="status" hidden></p>
       <section class="preview-card" aria-label="Scorebug preview">
         <div class="preview-topline"><div class="match-heading"><span class="status-pill" id="phase-badge">CONNECTING</span><span id="game-title">Finding your game…</span></div><button id="reference-toggle" type="button" class="text-button" aria-pressed="false">Sample matchup</button></div>
@@ -43,7 +49,7 @@
           <div class="action-row"><button id="float-button" type="button" class="primary-button"><span id="float-button-label">Float in browser</span></button><button id="clean-button" type="button" class="secondary-button" title="Open just the scoreboard">Clean view</button></div>
           <p id="floating-hint" class="small-note">Use Chrome or Edge, and keep this tab open.</p>
         </section>
-        <section class="latest-section" aria-labelledby="latest-title"><h2 id="latest-title">Latest play</h2><div class="match-teams" id="match-teams"><span>The Bears are your default team.</span></div><div id="match-meta" class="small-note">Scores update automatically.</div><p id="last-play">Waiting for the feed…</p></section>
+        <section class="latest-section" aria-labelledby="latest-title"><h2 id="latest-title">Latest play</h2><div class="match-teams" id="match-teams"><span>Choose a game or use Automatic.</span></div><div id="match-meta" class="small-note">Scores update automatically.</div><p id="last-play">Waiting for the feed…</p></section>
       </div>
       <section class="updates-section" id="desktop-updates" aria-labelledby="updates-title" hidden>
         <div class="section-heading"><h2 id="updates-title">Updates</h2><span id="update-version">Version unavailable</span></div>

@@ -1,6 +1,6 @@
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
 
-export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: 'CHI', date: null, scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
+export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
 const KEY = 'scorebug.preferences.v1';
 export const SCOREBOARD_CACHE_KEY = 'scorebug.scoreboards.v1';
 export const SCOREBOARD_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -11,7 +11,7 @@ let preferences = { ...DEFAULT_PREFERENCES };
 let channel;
 
 export function isSupportedGameId(value) {
-  return typeof value === 'string' && /^(?:\d{1,15}|thescore-\d{1,15})$/.test(value);
+  return typeof value === 'string' && /^(?:\d{1,15}|(?:thescore|fox)-\d{1,15})$/.test(value);
 }
 const canonicalTeamId = (value) => typeof value === 'string' && /^\d{1,8}$/.test(value);
 const stampOf = (data) => typeof data?.fetchedAt === 'string' ? Date.parse(data.fetchedAt) : NaN;
@@ -140,7 +140,30 @@ export function onPreferences(callback) {
   return () => preferencesEvents.removeEventListener('change', listener);
 }
 
-export function selectGame(games, { gameId, team = 'CHI' } = {}, now = Date.now()) {
+/** Halftime and quarter breaks belong to the same active game. */
+export function isActiveGame(game) {
+  return Boolean(game && !['pre', 'post'].includes(game.state) && ['live', 'halftime', 'intermission'].includes(game.phase));
+}
+
+function compareGames(a, b, direction = 1) {
+  const kickoff = (game) => {
+    const parsed = Date.parse(game.startTime);
+    return Number.isFinite(parsed) ? parsed : direction === 1 ? Infinity : -Infinity;
+  };
+  const left = kickoff(a), right = kickoff(b);
+  if (left !== right) return (left - right) * direction;
+  const teamKey = (team) => canonicalTeamId(team?.id) ? team.id.padStart(8, '0') : String(team?.abbreviation || '');
+  const identity = (game) => `${teamKey(game.away)}:${teamKey(game.home)}`;
+  const leftTeam = identity(a), rightTeam = identity(b);
+  if (leftTeam !== rightTeam) return leftTeam < rightTeam ? -1 : 1;
+  return String(a.id || '').localeCompare(String(b.id || ''));
+}
+
+export function activeGames(games) {
+  return Array.isArray(games) ? games.filter(isActiveGame).sort(compareGames) : [];
+}
+
+export function selectGame(games, { gameId } = {}, now = Date.now()) {
   if (!Array.isArray(games) || !games.length) return null;
   if (gameId) {
     if (!isSupportedGameId(gameId)) return null;
@@ -149,13 +172,16 @@ export function selectGame(games, { gameId, team = 'CHI' } = {}, now = Date.now(
     const aliased = games.filter((game) => game && aliasesOf(game).includes(gameId));
     return aliased.length === 1 ? aliased[0] : null;
   }
-  const favorite = games.filter((game) => [game.away?.abbreviation, game.home?.abbreviation].includes(team));
-  const candidates = favorite.length ? favorite : games;
-  const live = candidates.find((game) => game.isLive || game.phase === 'halftime' || game.phase === 'intermission');
-  if (live) return live;
-  const upcoming = candidates.filter((game) => game.state === 'pre' && Date.parse(game.startTime) >= now - 3600000).sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
+  const candidates = games.filter((game) => game && typeof game === 'object');
+  // Ignore legacy favorite-team preferences. A stable fixture order keeps
+  // Automatic on the same active game when providers reorder their lists.
+  const active = activeGames(candidates);
+  if (active.length) return active[0];
+  const upcoming = candidates.filter((game) => game.state === 'pre' && game.phase === 'scheduled'
+    && Date.parse(game.startTime) >= now - 3600000).sort(compareGames);
   if (upcoming.length) return upcoming[0];
-  return [...candidates].sort((a, b) => (Date.parse(b.startTime) || 0) - (Date.parse(a.startTime) || 0))[0];
+  const results = candidates.filter((game) => game.phase === 'final');
+  return (results.length ? results : candidates).sort((a, b) => compareGames(a, b, -1))[0] || null;
 }
 
 export function feedIsStale(data, hasError = false, now = Date.now()) {
