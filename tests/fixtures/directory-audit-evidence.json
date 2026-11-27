@@ -1,0 +1,3289 @@
+{
+  "capturedAt": "2026-11-27T19:09:09.624Z",
+  "leagues": [
+    {
+      "leagueId": "nfl",
+      "name": "NFL",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 16,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+      },
+      "directory": {
+        "count": 32,
+        "withLogo": 32,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 32,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "401873083",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 8,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "nfl",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:01.640633+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 287038,
+          "events": 16,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "week",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 5140
+        },
+        {
+          "leagueId": "nfl",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:01.641578+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 148848,
+          "events": 0,
+          "teams": 32,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 5052
+        },
+        {
+          "leagueId": "nfl",
+          "kind": "summary",
+          "id": "401873083",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=401873083",
+          "checkedAt": "2026-11-27T19:11:21.303962+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 147160,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "injuries",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "predictor",
+            "winprobability",
+            "news",
+            "header",
+            "article",
+            "videos",
+            "wallclockAvailable",
+            "ticketsInfo",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 4297
+        }
+      ]
+    },
+    {
+      "leagueId": "nba",
+      "name": "NBA",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 11,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 30,
+        "withLogo": 30,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 30,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "nba:401909326",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 12,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "nba",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:01.642270+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 218936,
+          "events": 11,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 5142
+        },
+        {
+          "leagueId": "nba",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:06.693665+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 134851,
+          "events": 0,
+          "teams": 30,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4109
+        },
+        {
+          "leagueId": "nba",
+          "kind": "summary",
+          "id": "401909326",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=401909326",
+          "checkedAt": "2026-11-27T19:11:21.305005+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 136629,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "seasonseries",
+            "injuries",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "predictor",
+            "winprobability",
+            "news",
+            "ticketsInfo",
+            "header",
+            "article",
+            "videos",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 4243
+        }
+      ]
+    },
+    {
+      "leagueId": "wnba",
+      "name": "WNBA",
+      "sourceRequests": 4,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 15,
+        "withLogo": 15,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 15,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "wnba:401918311",
+        "state": "post",
+        "scope": "full",
+        "teamStatRows": 25,
+        "players": 27,
+        "plays": 374,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "wnba",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:06.780428+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 28512,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3949
+        },
+        {
+          "leagueId": "wnba",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:06.784391+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 57250,
+          "events": 0,
+          "teams": 14,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4059
+        },
+        {
+          "leagueId": "wnba",
+          "kind": "summary",
+          "id": "401918311",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/summary?event=401918311",
+          "checkedAt": "2026-11-27T19:11:21.305542+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 490939,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "leaders",
+            "seasonseries",
+            "injuries",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "news",
+            "winprobability",
+            "plays",
+            "header",
+            "article",
+            "videos",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 4463
+        },
+        {
+          "leagueId": "wnba",
+          "kind": "sun",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/18",
+          "checkedAt": "2026-11-27T19:11:56.571519+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 3258,
+          "keys": [
+            "team"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3681
+        }
+      ]
+    },
+    {
+      "leagueId": "mlb",
+      "name": "MLB",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 30,
+        "withLogo": 30,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 30,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "mlb:401908046",
+        "state": "post",
+        "scope": "full",
+        "teamStatRows": 171,
+        "players": 31,
+        "plays": 446,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "mlb",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:10.729962+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 20647,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3701
+        },
+        {
+          "leagueId": "mlb",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:10.802376+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 134837,
+          "events": 0,
+          "teams": 30,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3699
+        },
+        {
+          "leagueId": "mlb",
+          "kind": "summary",
+          "id": "401908046",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/summary?event=401908046",
+          "checkedAt": "2026-11-27T19:11:25.548252+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 927587,
+          "keys": [
+            "notes",
+            "boxscore",
+            "format",
+            "gameInfo",
+            "seasonseries",
+            "injuries",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "news",
+            "rosters",
+            "article",
+            "header",
+            "videos",
+            "winprobability",
+            "plays",
+            "playsMap",
+            "atBats",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3418
+        }
+      ]
+    },
+    {
+      "leagueId": "nhl",
+      "name": "NHL",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 15,
+        "live": 4,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 32,
+        "withLogo": 32,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 32,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "nhl:401892795",
+        "state": "in",
+        "scope": "full",
+        "teamStatRows": 14,
+        "players": 38,
+        "plays": 134,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "nhl",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:10.843760+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 285089,
+          "events": 15,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3719
+        },
+        {
+          "leagueId": "nhl",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:14.430991+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 143966,
+          "events": 0,
+          "teams": 32,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4055
+        },
+        {
+          "leagueId": "nhl",
+          "kind": "summary",
+          "id": "401892795",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/summary?event=401892795",
+          "checkedAt": "2026-11-27T19:11:25.601469+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 294640,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "leaders",
+            "seasonseries",
+            "injuries",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "videos",
+            "plays",
+            "news",
+            "onIce",
+            "header",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3247
+        }
+      ]
+    },
+    {
+      "leagueId": "f1",
+      "name": "Formula 1",
+      "sourceRequests": 6,
+      "scoreboard": {
+        "games": 5,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 37,
+        "withLogo": 23,
+        "missingLogo": 14,
+        "scope": "catalog",
+        "complete": true,
+        "sourceCount": 37,
+        "pages": 1,
+        "sourceUrl": "https://sports.core.api.espn.com/v3/sports/racing/f1/athletes?limit=1000&page=1"
+      },
+      "details": {
+        "gameId": "f1:401839138",
+        "state": "post",
+        "scope": "scoreboard",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 22,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "f1",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:14.502036+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 24492,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3979
+        },
+        {
+          "leagueId": "f1",
+          "kind": "athletes-probe",
+          "url": "https://site.web.api.espn.com/apis/common/v3/sports/racing/f1/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:11:25.768566+00:00",
+          "error": "HTTP Error 400: Bad Request",
+          "elapsedMs": 3736
+        },
+        {
+          "leagueId": "f1",
+          "kind": "standings",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/racing/f1/standings?season=2026",
+          "checkedAt": "2026-11-27T19:12:59.753886+00:00",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "leagueId": "f1",
+          "kind": "season-athletes-core",
+          "url": "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/seasons/2026/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:13:04.577483+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 37,
+          "pageCount": 1,
+          "items": 37,
+          "rankings": 0,
+          "sample": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/racing/leagues/f1/seasons/2026/athletes/5592?lang=en&region=us"
+          }
+        },
+        {
+          "leagueId": "f1",
+          "kind": "athletes-core-v3",
+          "url": "https://sports.core.api.espn.com/v3/sports/racing/f1/athletes?limit=1000&active=true",
+          "checkedAt": "2026-11-27T19:13:08.787464+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 37,
+          "pageCount": 1,
+          "items": 37,
+          "rankings": 0,
+          "sample": {
+            "id": "5592",
+            "uid": "s:2000~a:5592",
+            "guid": "45637462-afc3-18a3-b01c-458b93f01f3d",
+            "firstName": "Alexander",
+            "lastName": "Albon",
+            "fullName": "Alexander Albon",
+            "displayName": "Alexander Albon",
+            "slug": "alexander-albon",
+            "shortName": "A. Albon",
+            "dateOfBirth": "1996-03-23T08:00Z",
+            "debutYear": -2147483648,
+            "birthPlace": {
+              "country": "Thailand"
+            },
+            "alternateId": "4409878",
+            "type": "racing"
+          }
+        },
+        {
+          "leagueId": "f1",
+          "kind": "athletes-core-all",
+          "url": "https://sports.core.api.espn.com/v3/sports/racing/f1/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:14:23.565303+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 37,
+          "pageCount": 1,
+          "items": 37,
+          "rankingCount": 0,
+          "standings": null
+        }
+      ]
+    },
+    {
+      "leagueId": "epl",
+      "name": "Premier League",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 20,
+        "withLogo": 20,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 20,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "epl:401879225",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 4,
+        "players": 40,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "epl",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:14.563464+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 16662,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3844
+        },
+        {
+          "leagueId": "epl",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:18.407527+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 24939,
+          "events": 0,
+          "teams": 20,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4117
+        },
+        {
+          "leagueId": "epl",
+          "kind": "summary",
+          "id": "401879225",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/summary?event=401879225",
+          "checkedAt": "2026-11-27T19:11:28.848465+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 239778,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "ticketsInfo",
+            "header",
+            "wallclockAvailable",
+            "seasonseries",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3276
+        }
+      ]
+    },
+    {
+      "leagueId": "ucl",
+      "name": "Champions League",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 9,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 36,
+        "withLogo": 36,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 36,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "ucl:401915378",
+        "state": "post",
+        "scope": "full",
+        "teamStatRows": 28,
+        "players": 46,
+        "plays": 106,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "ucl",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:18.481363+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 94339,
+          "events": 9,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4010
+        },
+        {
+          "leagueId": "ucl",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:18.486338+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 43617,
+          "events": 0,
+          "teams": 36,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4049
+        },
+        {
+          "leagueId": "ucl",
+          "kind": "summary",
+          "id": "401915378",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/summary?event=401915378",
+          "checkedAt": "2026-11-27T19:11:28.967250+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 449716,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "article",
+            "videos",
+            "header",
+            "keyEvents",
+            "commentary",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3202
+        }
+      ]
+    },
+    {
+      "leagueId": "mls",
+      "name": "MLS",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 2,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 30,
+        "withLogo": 30,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 30,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "mls:401933727",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 4,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "mls",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:22.491681+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 28442,
+          "events": 2,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4644
+        },
+        {
+          "leagueId": "mls",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:22.524832+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 106332,
+          "events": 0,
+          "teams": 30,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4673
+        },
+        {
+          "leagueId": "mls",
+          "kind": "summary",
+          "id": "401933727",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/summary?event=401933727",
+          "checkedAt": "2026-11-27T19:11:29.504172+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 139134,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "ticketsInfo",
+            "meta",
+            "seasonseries",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 2626
+        }
+      ]
+    },
+    {
+      "leagueId": "laliga",
+      "name": "LaLiga",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 20,
+        "withLogo": 20,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 20,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "laliga:401882791",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 4,
+        "players": 46,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "laliga",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:22.535754+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 16848,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4559
+        },
+        {
+          "leagueId": "laliga",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:27.095154+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 23858,
+          "events": 0,
+          "teams": 20,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3572
+        },
+        {
+          "leagueId": "laliga",
+          "kind": "summary",
+          "id": "401882791",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/summary?event=401882791",
+          "checkedAt": "2026-11-27T19:11:32.124814+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 218236,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "news",
+            "rosters",
+            "header",
+            "wallclockAvailable",
+            "meta",
+            "seasonseries",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3463
+        }
+      ]
+    },
+    {
+      "leagueId": "bundesliga",
+      "name": "Bundesliga",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 18,
+        "withLogo": 18,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 18,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "bundesliga:401884720",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 4,
+        "players": 40,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "bundesliga",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:27.136515+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 16202,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3350
+        },
+        {
+          "leagueId": "bundesliga",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:27.198400+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 22041,
+          "events": 0,
+          "teams": 18,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3271
+        },
+        {
+          "leagueId": "bundesliga",
+          "kind": "summary",
+          "id": "401884720",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ger.1/summary?event=401884720",
+          "checkedAt": "2026-11-27T19:11:32.130340+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 243493,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "seasonseries",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3491
+        }
+      ]
+    },
+    {
+      "leagueId": "seriea",
+      "name": "Serie A",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 20,
+        "withLogo": 20,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 20,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "seriea:401875004",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 4,
+        "players": 49,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "seriea",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:30.469006+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 16313,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4981
+        },
+        {
+          "leagueId": "seriea",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:30.487022+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 23588,
+          "events": 0,
+          "teams": 20,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4977
+        },
+        {
+          "leagueId": "seriea",
+          "kind": "summary",
+          "id": "401875004",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/ita.1/summary?event=401875004",
+          "checkedAt": "2026-11-27T19:11:32.169566+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 219279,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "seasonseries",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3392
+        }
+      ]
+    },
+    {
+      "leagueId": "ligue1",
+      "name": "Ligue 1",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 18,
+        "withLogo": 18,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 18,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "ligue1:401876392",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 4,
+        "players": 40,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "ligue1",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:30.667025+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 15979,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4824
+        },
+        {
+          "leagueId": "ligue1",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:35.450550+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 21202,
+          "events": 0,
+          "teams": 18,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3700
+        },
+        {
+          "leagueId": "ligue1",
+          "kind": "summary",
+          "id": "401876392",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fra.1/summary?event=401876392",
+          "checkedAt": "2026-11-27T19:11:35.562223+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 238205,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "seasonseries",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3508
+        }
+      ]
+    },
+    {
+      "leagueId": "nwsl",
+      "name": "NWSL",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 16,
+        "withLogo": 16,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 16,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "nwsl:401934232",
+        "state": "post",
+        "scope": "full",
+        "teamStatRows": 28,
+        "players": 40,
+        "plays": 136,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "nwsl",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:35.464576+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 21718,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3734
+        },
+        {
+          "leagueId": "nwsl",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:35.491055+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 56926,
+          "events": 0,
+          "teams": 16,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3752
+        },
+        {
+          "leagueId": "nwsl",
+          "kind": "summary",
+          "id": "401934232",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/summary?event=401934232",
+          "checkedAt": "2026-11-27T19:11:35.587770+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 405960,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "article",
+            "videos",
+            "header",
+            "seasonseries",
+            "keyEvents",
+            "commentary",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3506
+        }
+      ]
+    },
+    {
+      "leagueId": "wsl",
+      "name": "Women's Super League",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 5,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.w.1/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 14,
+        "withLogo": 14,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 14,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.w.1/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "wsl:401902857",
+        "state": "post",
+        "scope": "full",
+        "teamStatRows": 28,
+        "players": 40,
+        "plays": 112,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "wsl",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.w.1/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:39.150939+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 49228,
+          "events": 5,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3317
+        },
+        {
+          "leagueId": "wsl",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.w.1/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:39.199132+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 17914,
+          "events": 0,
+          "teams": 14,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3312
+        },
+        {
+          "leagueId": "wsl",
+          "kind": "summary",
+          "id": "401902857",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.w.1/summary?event=401902857",
+          "checkedAt": "2026-11-27T19:11:35.621899+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 358018,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "videos",
+            "header",
+            "seasonseries",
+            "keyEvents",
+            "commentary",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3508
+        }
+      ]
+    },
+    {
+      "leagueId": "worldcup",
+      "name": "World Cup",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 48,
+        "withLogo": 48,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 48,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "worldcup:760517",
+        "state": "post",
+        "scope": "full",
+        "teamStatRows": 28,
+        "players": 52,
+        "plays": 175,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "worldcup",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:39.243486+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 13947,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3216
+        },
+        {
+          "leagueId": "worldcup",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:42.459577+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 56316,
+          "events": 0,
+          "teams": 48,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4366
+        },
+        {
+          "leagueId": "worldcup",
+          "kind": "summary",
+          "id": "760517",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=760517",
+          "checkedAt": "2026-11-27T19:11:39.070314+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 483130,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "hasOdds",
+            "rosters",
+            "news",
+            "article",
+            "videos",
+            "header",
+            "seasonseries",
+            "keyEvents",
+            "commentary",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3468
+        }
+      ]
+    },
+    {
+      "leagueId": "cfb",
+      "name": "College football",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 79,
+        "live": 5,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?limit=300&groups=90"
+      },
+      "directory": {
+        "count": 763,
+        "withLogo": 672,
+        "missingLogo": 91,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 763,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "cfb:401856762",
+        "state": "in",
+        "scope": "full",
+        "teamStatRows": 15,
+        "players": 53,
+        "plays": 107,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "cfb",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?limit=300&groups=90",
+          "checkedAt": "2026-11-27T19:08:42.468000+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 1439139,
+          "events": 79,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "groups",
+            "season",
+            "week",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4467
+        },
+        {
+          "leagueId": "cfb",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:42.510925+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 1858278,
+          "events": 0,
+          "teams": 763,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4397
+        },
+        {
+          "leagueId": "cfb",
+          "kind": "summary",
+          "id": "401856762",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=401856762",
+          "checkedAt": "2026-11-27T19:11:39.094638+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 350479,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "drives",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "scoringPlays",
+            "videos",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "winprobability",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3357
+        }
+      ]
+    },
+    {
+      "leagueId": "cbb",
+      "name": "Men's college basketball",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 55,
+        "live": 10,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?limit=300&groups=50"
+      },
+      "directory": {
+        "count": 365,
+        "withLogo": 365,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 365,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "cbb:401920533",
+        "state": "in",
+        "scope": "full",
+        "teamStatRows": 25,
+        "players": 31,
+        "plays": 215,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "cbb",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?limit=300&groups=50",
+          "checkedAt": "2026-11-27T19:08:46.825863+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 941591,
+          "events": 55,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "groups",
+            "events",
+            "provider",
+            "eventsDate"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3364
+        },
+        {
+          "leagueId": "cbb",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:46.909506+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 1484842,
+          "events": 0,
+          "teams": 365,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3243
+        },
+        {
+          "leagueId": "cbb",
+          "kind": "summary",
+          "id": "401920533",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event=401920533",
+          "checkedAt": "2026-11-27T19:11:39.130287+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 269968,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "videos",
+            "plays",
+            "news",
+            "winprobability",
+            "header",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3245
+        }
+      ]
+    },
+    {
+      "leagueId": "wcbb",
+      "name": "Women's college basketball",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 78,
+        "live": 13,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard?limit=300&groups=50"
+      },
+      "directory": {
+        "count": 363,
+        "withLogo": 363,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 363,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "wcbb:401921243",
+        "state": "in",
+        "scope": "full",
+        "teamStatRows": 24,
+        "players": 27,
+        "plays": 198,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "wcbb",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard?limit=300&groups=50",
+          "checkedAt": "2026-11-27T19:08:46.935593+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 1055566,
+          "events": 78,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "groups",
+            "events",
+            "provider",
+            "eventsDate"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3256
+        },
+        {
+          "leagueId": "wcbb",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:50.153594+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 1481319,
+          "events": 0,
+          "teams": 363,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3454
+        },
+        {
+          "leagueId": "wcbb",
+          "kind": "summary",
+          "id": "401921243",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event=401921243",
+          "checkedAt": "2026-11-27T19:11:42.375539+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 324674,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "leaders",
+            "broadcasts",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "news",
+            "videos",
+            "plays",
+            "header",
+            "wallclockAvailable",
+            "winprobability",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3343
+        }
+      ]
+    },
+    {
+      "leagueId": "nascar",
+      "name": "NASCAR Cup",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/racing/nascar-premier/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 59,
+        "withLogo": 38,
+        "missingLogo": 21,
+        "scope": "catalog",
+        "complete": true,
+        "sourceCount": 59,
+        "pages": 1,
+        "sourceUrl": "https://sports.core.api.espn.com/v3/sports/racing/nascar-premier/athletes?limit=1000&page=1"
+      },
+      "details": {
+        "gameId": "nascar:202611080042",
+        "state": "post",
+        "scope": "scoreboard",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 40,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "nascar",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/racing/nascar-premier/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:50.190423+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 23133,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3280
+        },
+        {
+          "leagueId": "nascar",
+          "kind": "athletes-probe",
+          "url": "https://site.web.api.espn.com/apis/common/v3/sports/racing/nascar-premier/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:11:42.451552+00:00",
+          "error": "HTTP Error 400: Bad Request",
+          "elapsedMs": 4800
+        },
+        {
+          "leagueId": "nascar",
+          "kind": "athletes-core-all",
+          "url": "https://sports.core.api.espn.com/v3/sports/racing/nascar-premier/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:14:26.915462+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 59,
+          "pageCount": 1,
+          "items": 59,
+          "rankingCount": 0,
+          "standings": null
+        }
+      ]
+    },
+    {
+      "leagueId": "indycar",
+      "name": "IndyCar",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/racing/irl/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 33,
+        "withLogo": 25,
+        "missingLogo": 8,
+        "scope": "catalog",
+        "complete": true,
+        "sourceCount": 33,
+        "pages": 1,
+        "sourceUrl": "https://sports.core.api.espn.com/v3/sports/racing/irl/athletes?limit=1000&page=1"
+      },
+      "details": {
+        "gameId": "indycar:202609061784",
+        "state": "post",
+        "scope": "scoreboard",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 25,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "indycar",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/racing/irl/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:50.192490+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 13451,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3439
+        },
+        {
+          "leagueId": "indycar",
+          "kind": "athletes-probe",
+          "url": "https://site.web.api.espn.com/apis/common/v3/sports/racing/irl/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:11:42.538851+00:00",
+          "error": "HTTP Error 400: Bad Request",
+          "elapsedMs": 4950
+        },
+        {
+          "leagueId": "indycar",
+          "kind": "athletes-core-all",
+          "url": "https://sports.core.api.espn.com/v3/sports/racing/irl/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:14:26.951755+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 33,
+          "pageCount": 1,
+          "items": 33,
+          "rankingCount": 0,
+          "standings": null
+        }
+      ]
+    },
+    {
+      "leagueId": "atp",
+      "name": "ATP tennis",
+      "sourceRequests": 5,
+      "scoreboard": {
+        "games": 0,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 150,
+        "withLogo": 150,
+        "missingLogo": 0,
+        "scope": "ranking",
+        "complete": false,
+        "sourceCount": 150,
+        "pages": null,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/rankings?limit=300"
+      },
+      "details": {
+        "gameId": null,
+        "state": null,
+        "scope": null,
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "atp",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:53.470898+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 8143,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3856
+        },
+        {
+          "leagueId": "atp",
+          "kind": "athletes-probe",
+          "url": "https://site.web.api.espn.com/apis/common/v3/sports/tennis/atp/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:11:45.719311+00:00",
+          "error": "HTTP Error 400: Bad Request",
+          "elapsedMs": 1533
+        },
+        {
+          "leagueId": "atp",
+          "kind": "rankings",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/rankings?limit=1000",
+          "checkedAt": "2026-11-27T19:12:59.752249+00:00",
+          "status": 200,
+          "keys": [
+            "sports",
+            "leagues",
+            "rankings",
+            "availableRankings"
+          ],
+          "count": null,
+          "pageCount": null,
+          "items": 0,
+          "rankings": 1,
+          "sample": null
+        },
+        {
+          "leagueId": "atp",
+          "kind": "athletes-core",
+          "url": "https://sports.core.api.espn.com/v2/sports/tennis/leagues/atp/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:13:04.394609+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 18233,
+          "pageCount": 19,
+          "items": 1000,
+          "rankings": 0,
+          "sample": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/tennis/athletes/183?lang=en&region=us"
+          }
+        },
+        {
+          "leagueId": "atp",
+          "kind": "athletes-core-v3",
+          "url": "https://sports.core.api.espn.com/v3/sports/tennis/atp/athletes?limit=1000&active=true",
+          "checkedAt": "2026-11-27T19:13:08.624387+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 18233,
+          "pageCount": 19,
+          "items": 1000,
+          "rankings": 0,
+          "sample": {
+            "id": "183",
+            "uid": "s:850~a:183",
+            "guid": "1a9f1ca4-7088-da7b-f4b8-736a5f2e4e3c",
+            "firstName": "Ivan",
+            "lastName": "Ljubicic",
+            "fullName": "Ivan Ljubicic",
+            "displayName": "Ivan Ljubicic",
+            "slug": "ivan-ljubicic",
+            "shortName": "I. Ljubicic",
+            "weight": 202,
+            "displayWeight": "202 lbs",
+            "height": 75,
+            "displayHeight": "6' 3\"",
+            "age": 33,
+            "dateOfBirth": "1979-03-19T08:00Z",
+            "debutYear": 1998,
+            "birthPlace": {
+              "summary": "Banja Luka, Bosnia-Herzegovin"
+            },
+            "experience": {
+              "years": 28
+            },
+            "type": "tennis",
+            "hand": {
+              "type": "RIGHT",
+              "abbreviation": "R",
+              "displayValue": "Right"
+            },
+            "active": false
+          }
+        }
+      ]
+    },
+    {
+      "leagueId": "wta",
+      "name": "WTA tennis",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 38,
+        "live": 1,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/tennis/wta/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 187,
+        "withLogo": 187,
+        "missingLogo": 0,
+        "scope": "ranking",
+        "complete": false,
+        "sourceCount": 150,
+        "pages": null,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/tennis/wta/rankings?limit=300"
+      },
+      "details": {
+        "gameId": "wta:186829",
+        "state": "in",
+        "scope": "scoreboard",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "wta",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/tennis/wta/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:53.607942+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 102671,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3676
+        },
+        {
+          "leagueId": "wta",
+          "kind": "athletes-probe",
+          "url": "https://site.web.api.espn.com/apis/common/v3/sports/tennis/wta/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:11:47.251858+00:00",
+          "error": "HTTP Error 400: Bad Request",
+          "elapsedMs": 5441
+        },
+        {
+          "leagueId": "wta",
+          "kind": "rankings",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/tennis/wta/rankings?limit=300",
+          "checkedAt": "2026-11-27T19:14:19.795198+00:00",
+          "status": 200,
+          "keys": [
+            "sports",
+            "leagues",
+            "rankings",
+            "availableRankings"
+          ],
+          "count": null,
+          "pageCount": null,
+          "items": 0,
+          "rankingCount": 150,
+          "standings": null
+        }
+      ]
+    },
+    {
+      "leagueId": "pga",
+      "name": "PGA Tour",
+      "sourceRequests": 14,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 4426,
+        "withLogo": 0,
+        "missingLogo": 4426,
+        "scope": "catalog",
+        "complete": true,
+        "sourceCount": 4426,
+        "pages": 5,
+        "sourceUrl": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&page=1"
+      },
+      "details": {
+        "gameId": "pga:401850982",
+        "state": "pre",
+        "scope": "scoreboard",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "pga",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:53.631166+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 13884,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3686
+        },
+        {
+          "leagueId": "pga",
+          "kind": "athletes-probe",
+          "url": "https://site.web.api.espn.com/apis/common/v3/sports/golf/pga/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:11:47.252554+00:00",
+          "error": "HTTP Error 400: Bad Request",
+          "elapsedMs": 5436
+        },
+        {
+          "leagueId": "pga",
+          "kind": "rankings",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/golf/pga/rankings?limit=1000",
+          "checkedAt": "2026-11-27T19:12:59.753206+00:00",
+          "error": "HTTP Error 500: Internal Server Error"
+        },
+        {
+          "leagueId": "pga",
+          "kind": "athletes-core",
+          "url": "https://sports.core.api.espn.com/v2/sports/golf/leagues/pga/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:13:04.401703+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 4426,
+          "pageCount": 5,
+          "items": 1000,
+          "rankings": 0,
+          "sample": {
+            "$ref": "http://sports.core.api.espn.com/v2/sports/golf/leagues/pga/athletes/5211426?lang=en&region=us"
+          }
+        },
+        {
+          "leagueId": "pga",
+          "kind": "athletes-core-v3",
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&active=true",
+          "checkedAt": "2026-11-27T19:13:08.703932+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 4426,
+          "pageCount": 5,
+          "items": 1000,
+          "rankings": 0,
+          "sample": {
+            "id": "5211426",
+            "uid": "s:1100~a:5211426",
+            "guid": "fe04cd7d-b936-3077-b242-b3540e5a4d6c",
+            "firstName": "Ryan",
+            "lastName": "Abbate",
+            "fullName": "Ryan Abbate",
+            "displayName": "Ryan Abbate",
+            "slug": "ryan-abbate",
+            "shortName": "R. Abbate",
+            "amateur": true,
+            "citizenship": "USA",
+            "linked": true
+          }
+        },
+        {
+          "leagueId": "pga",
+          "kind": "standings",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/golf/pga/standings?season=2026",
+          "checkedAt": "2026-11-27T19:14:19.793481+00:00",
+          "error": "HTTP Error 404: Not Found"
+        },
+        {
+          "leagueId": "pga",
+          "kind": "rankings300",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/golf/pga/rankings?limit=300",
+          "checkedAt": "2026-11-27T19:14:19.794420+00:00",
+          "error": "HTTP Error 500: Internal Server Error"
+        },
+        {
+          "leagueId": "pga",
+          "kind": "season-athletes-core",
+          "url": "https://sports.core.api.espn.com/v2/sports/golf/leagues/pga/seasons/2026/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:14:23.347831+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 4426,
+          "pageCount": 5,
+          "items": 1000,
+          "rankingCount": 0,
+          "standings": null
+        },
+        {
+          "leagueId": "pga",
+          "kind": "athletes-core-season",
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&season=2026",
+          "checkedAt": "2026-11-27T19:14:23.364217+00:00",
+          "status": 200,
+          "keys": [
+            "count",
+            "pageIndex",
+            "pageSize",
+            "pageCount",
+            "items"
+          ],
+          "count": 4426,
+          "pageCount": 5,
+          "items": 1000,
+          "rankingCount": 0,
+          "standings": null
+        },
+        {
+          "leagueId": "pga",
+          "kind": "golf-page",
+          "page": 1,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&page=1",
+          "checkedAt": "2026-11-27T19:17:00.296657+00:00",
+          "status": 200,
+          "count": 4426,
+          "pageCount": 5,
+          "pageIndex": 1,
+          "items": 1000
+        },
+        {
+          "leagueId": "pga",
+          "kind": "golf-page",
+          "page": 2,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&page=2",
+          "checkedAt": "2026-11-27T19:17:00.297827+00:00",
+          "status": 200,
+          "count": 4426,
+          "pageCount": 5,
+          "pageIndex": 2,
+          "items": 1000
+        },
+        {
+          "leagueId": "pga",
+          "kind": "golf-page",
+          "page": 3,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&page=3",
+          "checkedAt": "2026-11-27T19:17:00.298608+00:00",
+          "status": 200,
+          "count": 4426,
+          "pageCount": 5,
+          "pageIndex": 3,
+          "items": 1000
+        },
+        {
+          "leagueId": "pga",
+          "kind": "golf-page",
+          "page": 4,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&page=4",
+          "checkedAt": "2026-11-27T19:17:07.086202+00:00",
+          "status": 200,
+          "count": 4426,
+          "pageCount": 5,
+          "pageIndex": 4,
+          "items": 1000
+        },
+        {
+          "leagueId": "pga",
+          "kind": "golf-page",
+          "page": 5,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/pga/athletes?limit=1000&page=5",
+          "checkedAt": "2026-11-27T19:17:07.131215+00:00",
+          "status": 200,
+          "count": 4426,
+          "pageCount": 5,
+          "pageIndex": 5,
+          "items": 426
+        }
+      ]
+    },
+    {
+      "leagueId": "lpga",
+      "name": "LPGA Tour",
+      "sourceRequests": 6,
+      "scoreboard": {
+        "games": 1,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/golf/lpga/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 3111,
+        "withLogo": 60,
+        "missingLogo": 3051,
+        "scope": "catalog",
+        "complete": true,
+        "sourceCount": 3111,
+        "pages": 4,
+        "sourceUrl": "https://sports.core.api.espn.com/v3/sports/golf/lpga/athletes?limit=1000&page=1"
+      },
+      "details": {
+        "gameId": "lpga:401835177",
+        "state": "post",
+        "scope": "scoreboard",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 60,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "lpga",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/golf/lpga/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:57.284516+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 110276,
+          "events": 1,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 5100
+        },
+        {
+          "leagueId": "lpga",
+          "kind": "athletes-probe",
+          "url": "https://site.web.api.espn.com/apis/common/v3/sports/golf/lpga/athletes?limit=1000",
+          "checkedAt": "2026-11-27T19:11:47.488528+00:00",
+          "error": "HTTP Error 400: Bad Request",
+          "elapsedMs": 5195
+        },
+        {
+          "leagueId": "lpga",
+          "kind": "golf-page",
+          "page": 1,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/lpga/athletes?limit=1000&page=1",
+          "checkedAt": "2026-11-27T19:17:07.134701+00:00",
+          "status": 200,
+          "count": 3111,
+          "pageCount": 4,
+          "pageIndex": 1,
+          "items": 1000
+        },
+        {
+          "leagueId": "lpga",
+          "kind": "golf-page",
+          "page": 2,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/lpga/athletes?limit=1000&page=2",
+          "checkedAt": "2026-11-27T19:17:11.287558+00:00",
+          "status": 200,
+          "count": 3111,
+          "pageCount": 4,
+          "pageIndex": 2,
+          "items": 1000
+        },
+        {
+          "leagueId": "lpga",
+          "kind": "golf-page",
+          "page": 3,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/lpga/athletes?limit=1000&page=3",
+          "checkedAt": "2026-11-27T19:17:11.336274+00:00",
+          "status": 200,
+          "count": 3111,
+          "pageCount": 4,
+          "pageIndex": 3,
+          "items": 1000
+        },
+        {
+          "leagueId": "lpga",
+          "kind": "golf-page",
+          "page": 4,
+          "url": "https://sports.core.api.espn.com/v3/sports/golf/lpga/athletes?limit=1000&page=4",
+          "checkedAt": "2026-11-27T19:17:11.358019+00:00",
+          "status": 200,
+          "count": 3111,
+          "pageCount": 4,
+          "pageIndex": 4,
+          "items": 111
+        }
+      ]
+    },
+    {
+      "leagueId": "nrl",
+      "name": "NRL",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 9,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/rugby-league/3/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 19,
+        "withLogo": 19,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 19,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/rugby-league/3/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "nrl:605100",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "nrl",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby-league/3/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:08:57.317538+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 31085,
+          "events": 9,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "events",
+            "provider",
+            "week"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4950
+        },
+        {
+          "leagueId": "nrl",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby-league/3/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:08:57.326796+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 11481,
+          "events": 0,
+          "teams": 19,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4948
+        },
+        {
+          "leagueId": "nrl",
+          "kind": "summary",
+          "id": "605100",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby-league/3/summary?event=605100",
+          "checkedAt": "2026-11-27T19:11:52.683274+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 28229,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "headToHeadGames",
+            "rosters",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "meta"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3757
+        }
+      ]
+    },
+    {
+      "leagueId": "sixnations",
+      "name": "Six Nations",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 3,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/rugby/180659/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 6,
+        "withLogo": 6,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 6,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/rugby/180659/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "sixnations:602514",
+        "state": "post",
+        "scope": "full",
+        "teamStatRows": 35,
+        "players": 46,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "sixnations",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby/180659/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:09:02.267778+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 133576,
+          "events": 3,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 4033
+        },
+        {
+          "leagueId": "sixnations",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby/180659/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:09:02.274799+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 3582,
+          "events": 0,
+          "teams": 6,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3982
+        },
+        {
+          "leagueId": "sixnations",
+          "kind": "summary",
+          "id": "602514",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby/180659/summary?event=602514",
+          "checkedAt": "2026-11-27T19:11:52.688667+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 634005,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "headToHeadGames",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "hasOdds",
+            "rosters",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3791
+        }
+      ]
+    },
+    {
+      "leagueId": "superrugby",
+      "name": "Super Rugby Pacific",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 3,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/rugby/242041/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 12,
+        "withLogo": 12,
+        "missingLogo": 0,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 12,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/rugby/242041/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "superrugby:604758",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "superrugby",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby/242041/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:09:02.384824+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 11150,
+          "events": 3,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3838
+        },
+        {
+          "leagueId": "superrugby",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby/242041/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:09:06.222942+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 7826,
+          "events": 0,
+          "teams": 12,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3313
+        },
+        {
+          "leagueId": "superrugby",
+          "kind": "summary",
+          "id": "604758",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/rugby/242041/summary?event=604758",
+          "checkedAt": "2026-11-27T19:11:52.693099+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 88361,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "lastFiveGames",
+            "headToHeadGames",
+            "pickcenter",
+            "odds",
+            "againstTheSpread",
+            "hasOdds",
+            "rosters",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3878
+        }
+      ]
+    },
+    {
+      "leagueId": "ncaavb",
+      "name": "Women's college volleyball",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 11,
+        "live": 3,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/volleyball/womens-college-volleyball/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 349,
+        "withLogo": 347,
+        "missingLogo": 2,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 351,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/volleyball/womens-college-volleyball/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "ncaavb:401903426",
+        "state": "in",
+        "scope": "full",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "ncaavb",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/volleyball/womens-college-volleyball/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:09:06.256730+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 51430,
+          "events": 11,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3368
+        },
+        {
+          "leagueId": "ncaavb",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/volleyball/womens-college-volleyball/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:09:06.301419+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 980330,
+          "events": 0,
+          "teams": 351,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3481
+        },
+        {
+          "leagueId": "ncaavb",
+          "kind": "summary",
+          "id": "401903426",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/volleyball/womens-college-volleyball/summary?event=401903426",
+          "checkedAt": "2026-11-27T19:11:56.440415+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 35024,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "videos",
+            "header",
+            "wallclockAvailable",
+            "news",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3811
+        }
+      ]
+    },
+    {
+      "leagueId": "ncaamvb",
+      "name": "Men's college volleyball",
+      "sourceRequests": 3,
+      "scoreboard": {
+        "games": 3,
+        "live": 0,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/volleyball/mens-college-volleyball/scoreboard?limit=300"
+      },
+      "directory": {
+        "count": 81,
+        "withLogo": 54,
+        "missingLogo": 27,
+        "scope": "league",
+        "complete": true,
+        "sourceCount": 83,
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/volleyball/mens-college-volleyball/teams?limit=1000"
+      },
+      "details": {
+        "gameId": "ncaamvb:401934889",
+        "state": "pre",
+        "scope": "full",
+        "teamStatRows": 0,
+        "players": 0,
+        "plays": 0,
+        "entries": 0,
+        "error": null
+      },
+      "sources": [
+        {
+          "leagueId": "ncaamvb",
+          "kind": "scoreboard",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/volleyball/mens-college-volleyball/scoreboard?limit=300",
+          "checkedAt": "2026-11-27T19:09:09.536101+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 12473,
+          "events": 3,
+          "teams": 0,
+          "keys": [
+            "leagues",
+            "season",
+            "day",
+            "events",
+            "provider"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3403
+        },
+        {
+          "leagueId": "ncaamvb",
+          "kind": "teams",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/volleyball/mens-college-volleyball/teams?limit=1000",
+          "checkedAt": "2026-11-27T19:09:09.624908+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 116082,
+          "events": 0,
+          "teams": 83,
+          "keys": [
+            "sports"
+          ],
+          "pageCount": null,
+          "count": null,
+          "elapsedMs": 3380
+        },
+        {
+          "leagueId": "ncaamvb",
+          "kind": "summary",
+          "id": "401934889",
+          "url": "https://site.api.espn.com/apis/site/v2/sports/volleyball/mens-college-volleyball/summary?event=401934889",
+          "checkedAt": "2026-11-27T19:11:56.480594+00:00",
+          "status": 200,
+          "age": null,
+          "bytes": 34759,
+          "keys": [
+            "boxscore",
+            "format",
+            "gameInfo",
+            "news",
+            "header",
+            "wallclockAvailable",
+            "meta",
+            "standings"
+          ],
+          "athletes": 0,
+          "count": null,
+          "pageCount": null,
+          "elapsedMs": 3810
+        }
+      ]
+    }
+  ],
+  "checkedAtRange": [
+    "2026-11-27T19:08:01Z",
+    "2026-11-27T19:25:07.432411+00:00"
+  ],
+  "notes": [
+    "Recorded provider responses, not current live scores.",
+    "Tennis is published rankings plus event entrants, not every registered athlete.",
+    "Driver and golf catalogs may include reserve or historical competitors.",
+    "Two explicit TBD placeholders were excluded from each volleyball directory."
+  ],
+  "productionDirectoryChecks": [
+    {
+      "leagueId": "f1",
+      "kind": "production-directory-check",
+      "url": "https://sports.core.api.espn.com/v3/sports/racing/f1/athletes?limit=1000&page=1",
+      "checkedAt": "2026-11-27T19:25:03.057522+00:00",
+      "status": 200,
+      "count": 37,
+      "sameIds": true,
+      "missing": 0,
+      "added": 0
+    },
+    {
+      "leagueId": "nascar",
+      "kind": "production-directory-check",
+      "url": "https://sports.core.api.espn.com/v3/sports/racing/nascar-premier/athletes?limit=1000&page=1",
+      "checkedAt": "2026-11-27T19:25:03.058316+00:00",
+      "status": 200,
+      "count": 59,
+      "sameIds": true,
+      "missing": 0,
+      "added": 0
+    },
+    {
+      "leagueId": "indycar",
+      "kind": "production-directory-check",
+      "url": "https://sports.core.api.espn.com/v3/sports/racing/irl/athletes?limit=1000&page=1",
+      "checkedAt": "2026-11-27T19:25:03.058863+00:00",
+      "status": 200,
+      "count": 33,
+      "sameIds": true,
+      "missing": 0,
+      "added": 0
+    },
+    {
+      "leagueId": "atp",
+      "kind": "production-directory-check",
+      "url": "https://site.api.espn.com/apis/site/v2/sports/tennis/atp/rankings?limit=300",
+      "checkedAt": "2026-11-27T19:25:07.432411+00:00",
+      "status": 200,
+      "count": 150,
+      "sameIds": true,
+      "missing": 0,
+      "added": 0
+    }
+  ]
+}
