@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { cleanPatch, cleanFavorites, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
+const { cleanPatch, cleanSavedPreferences, cleanFavorites, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
 const { detailsPlacement } = require('./geometry.cjs');
 
 test('cross-sport selections, style and favorites survive desktop validation without losing league identity', () => {
@@ -17,6 +17,38 @@ test('cross-sport selections, style and favorites survive desktop validation wit
   assert.equal(cleanPatch({ gameId: 'f1:9568' }).gameId, 'f1:9568');
   assert.equal(cleanPatch({ gameId: 'fox-123' }).gameId, 'fox-123');
   assert.equal(cleanPatch({ gameId: null, team: null }).gameId, null);
+});
+
+test('F1 driver count and an explicitly selected style survive native validation and saved JSON restoration', async () => {
+  const { normalizePreferencePatch } = await import('../public/preferences-model.js');
+  for (const racingRows of [3,6,20,22,40,60]) for (const styleAuto of [false,true]) {
+    const patch = {leagueId:'f1',gameId:'f1:401000001',styleId:'f1-rounded-tower',racingRows,styleAuto};
+    const saved = JSON.parse(JSON.stringify(cleanPatch(patch)));
+    assert.deepEqual(cleanPatch(saved), patch);
+    assert.deepEqual(normalizePreferencePatch(saved), patch);
+  }
+  for (const [value,expected] of [[0,3],[2,3],[8.8,9],[1000,60]]) {
+    assert.equal(cleanPatch({racingRows:value}).racingRows, expected);
+    assert.deepEqual(cleanPatch({racingRows:value}), normalizePreferencePatch({racingRows:value}));
+  }
+  for (const value of [null,undefined,'22',NaN,Infinity,{},[]]) assert.throws(() => cleanPatch({racingRows:value}), /driver row count/);
+  for (const value of [null,undefined,'false',0,1,{},[]]) assert.throws(() => cleanPatch({styleAuto:value}), /styleAuto/);
+  const basketball = {leagueId:'nba',styleId:'nfl-blades',styleAuto:false};
+  assert.deepEqual(cleanPatch(basketball), basketball, 'native preferences retain a cross-sport selection');
+});
+
+test('upgrading saved desktop styles preserves the choice without changing new-profile or partial-patch defaults', () => {
+  for (const styleId of ['nfl-blades','nfl-cbs-eyebar','f1-rounded-tower']) {
+    const legacy = {leagueId:'nba',styleId,scale:1.2};
+    const migrated = cleanSavedPreferences(JSON.parse(JSON.stringify(legacy)));
+    assert.deepEqual(migrated, {...legacy,styleAuto:false});
+    assert.deepEqual(cleanSavedPreferences(JSON.parse(JSON.stringify(migrated))), migrated);
+    assert.deepEqual(cleanPatch(legacy), legacy, 'a normal partial patch must not infer styleAuto');
+    for (const styleAuto of [false,true]) assert.deepEqual(cleanSavedPreferences({...legacy,styleAuto}), {...legacy,styleAuto});
+  }
+  for (const saved of [{},{scale:.8},{styleAuto:true},{styleAuto:false}]) assert.deepEqual(cleanSavedPreferences(saved), saved);
+  assert.equal(({styleAuto:true,...cleanSavedPreferences({})}).styleAuto,true);
+  assert.throws(()=>cleanSavedPreferences({styleId:'bad/style'}),/Invalid scorebug style/);
 });
 
 test('desktop favorites reject mismatched namespaces and cap saved metadata', () => {

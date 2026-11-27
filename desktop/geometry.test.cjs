@@ -48,6 +48,56 @@ test('all sizes reserve unscaled toolbar room and the complete status badge', ()
   assert.deepEqual(widgetSize(1.8, 'vertical'), { width: 288, height: 565 });
 });
 
+test('native F1 sizing uses the public row layout and reserves the entire classification plus badge', async () => {
+  const { scorebugDimensions, renderScorebug } = await import('../public/scorebug.js');
+  const { widgetPopupSize } = await import('../public/widget-layout.js');
+  const game = {id:'f1:1',leagueId:'f1',sport:'racing',kind:'race',state:'in',phase:'live',entries:[]};
+  for (const orientation of ['horizontal','vertical']) for (const racingRows of [3,6,20,22,60]) for (const scale of [.65,1,1.8]) {
+    const preferences = {leagueId:'f1',orientation,racingRows,scale};
+    const dimensions = scorebugDimensions(game, preferences);
+    const native = widgetSize(scale, orientation, null, dimensions);
+    const browser = widgetPopupSize(preferences);
+    assert.equal(native.width, browser.width);
+    assert.equal(browser.height - native.height, orientation === 'vertical' ? 25 : 0, 'browser side controls reserve their extra row');
+    const markup = renderScorebug(game, {...preferences, stale:true});
+    const [, , svgWidth, svgHeight] = /viewBox="0 (-?\d+) (\d+) (\d+)"/.exec(markup).map(Number);
+    assert.equal(svgWidth, dimensions.width);
+    assert.equal(svgHeight, dimensions.height + dimensions.statusHeight);
+    const visibleHeight = (native.width - 16) * svgHeight / svgWidth;
+    assert.ok(native.height - 39 >= visibleHeight);
+    assert.ok(native.height - 39 - visibleHeight < 1, 'native height must follow the selected row count, without an old NFL-height fallback');
+    assert.match(markup, new RegExp(`data-artwork-height="${dimensions.height}"`));
+  }
+});
+
+test('20, 22 and 60 F1 rows fit every native anchor on short and negative-coordinate displays without clipping', async () => {
+  const { scorebugDimensions } = await import('../public/scorebug-layout.js');
+  const game = {leagueId:'f1',sport:'racing',kind:'race'};
+  const areas = [
+    {x:0,y:0,width:1920,height:1040},
+    {x:-1280,y:48,width:1280,height:672},
+    {x:0,y:-850,width:1440,height:850},
+    {x:-960,y:36,width:960,height:500},
+  ];
+  for (const area of areas) for (const orientation of ['horizontal','vertical']) for (const racingRows of [20,22,60]) for (const scale of [.65,1,1.8]) {
+    const dimensions = scorebugDimensions(game, {orientation,racingRows});
+    const natural = widgetSize(scale, orientation, null, dimensions);
+    const fitted = widgetSize(scale, orientation, area, dimensions);
+    assert.ok(fitted.width <= natural.width && fitted.width <= area.width);
+    assert.ok(fitted.height <= area.height);
+    const paintedHeight = (fitted.width - 16) * (dimensions.height + dimensions.statusHeight) / dimensions.width;
+    assert.ok(paintedHeight <= fitted.height - 39, 'reduce width with height so the SVG keeps its aspect ratio');
+    for (const anchor of ANCHORS) {
+      const widget = anchorBounds(anchor, fitted, area);
+      assert.equal(widget.width, fitted.width);
+      assert.equal(widget.height, fitted.height, `${anchor} must not trim an already fitted classification`);
+      assert.ok(widget.x >= area.x && widget.x + widget.width <= area.x + area.width);
+      assert.ok(widget.y >= area.y && widget.y + widget.height <= area.y + area.height);
+      if (anchor.startsWith('top-')) assert.equal(widget.y, area.y);
+    }
+  }
+});
+
 test('top docks put visible team panels close to the work area with controls and badges below', () => {
   const displays = [
     { scaleFactor: 1, workArea: { x: 0, y: 0, width: 1920, height: 1040 } },

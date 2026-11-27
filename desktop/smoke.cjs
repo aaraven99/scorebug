@@ -502,6 +502,10 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
             const leagueId = url.searchParams.get('league') || 'nfl';
             if (url.origin === location.origin && url.pathname === '/api/scoreboard' && ['nba','f1'].includes(leagueId)) {
               const game = { ...referenceForLeague(leagueId), id: leagueId + ':401000002' };
+              if (leagueId === 'f1') game.entries = Array.from({length:22},(_,index)=>({
+                ...game.entries[index % game.entries.length], id:'f1:smoke-'+index, position:index+1,
+                athlete:{id:'f1:smoke-'+index,name:'Fixture Driver '+(index+1),abbreviation:'D'+(index+1)}
+              }));
               return new Response(JSON.stringify({leagueId,games:[game],fetchedAt:new Date().toISOString(),feedStatus:'live',sourceId:'native-smoke'}),{status:200,headers:{'content-type':'application/json'}});
             }
             if (url.origin === location.origin && url.pathname === '/api/game' && ['nba','f1'].includes(leagueId)) {
@@ -513,7 +517,8 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         try {
           for (const fixture of [
             {leagueId:'nba',styleId:'nba-nbc-pods',anchor:'middle-left',scale:.65,side:'away'},
-            {leagueId:'f1',styleId:'nfl-blades',anchor:'top-right',scale:1.8,side:'comparison'}
+            {leagueId:'f1',styleId:'nfl-blades',anchor:'top-right',scale:1.8,racingRows:22,side:'comparison'},
+            {leagueId:'f1',styleId:'f1-rounded-tower',anchor:'middle-right',scale:1.8,racingRows:22,side:'comparison'}
           ]) {
             const {side,...patch} = fixture;
             await evaluate(`window.scorebugDesktop.setPreferences(${JSON.stringify({...patch,gameId:null})})`);
@@ -524,6 +529,17 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
                 && state.detailsGameId === '${fixture.leagueId}:401000002' && state.detailsLeagueId === '${fixture.leagueId}';
             })()`),4000);
             await pause(180);
+            if (fixture.leagueId === 'f1') {
+              const grid = await evaluate(`(() => {
+                const rows=[...document.querySelectorAll('.widget-board .variant-classification-row')];
+                const svg=document.querySelector('.widget-board .scorebug'), rect=svg.getBoundingClientRect();
+                return {rows:rows.length,selected:svg.dataset.racingRows,top:rect.top,bottom:rect.bottom,viewport:innerHeight,
+                  finalBottom:rows.at(-1)?.getBoundingClientRect().bottom};
+              })()`);
+              assert.equal(grid.rows,22);assert.equal(grid.selected,'22');
+              assert.ok(grid.top>=-1 && grid.bottom<=grid.viewport+1 && grid.finalBottom<=grid.viewport+1,'Full F1 field is clipped by the native window');
+              assert.equal(JSON.parse(fs.readFileSync(preferencesPath,'utf8')).racingRows,22);
+            }
             const source = await evaluate(`(() => {
               const element=document.querySelector(${JSON.stringify(side==='comparison'?'.widget-board .bug-situation-panel':`.widget-board [data-team-side="${side}"] .bug-team-panel`)});
               const rect=element.getBoundingClientRect();
@@ -545,14 +561,14 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
             assert.equal(actual.gradientY,widgetBounds.y+source.y-panelBounds.y);
             const area=screen.getDisplayMatching(panelBounds).workArea;
             assert.ok(panelBounds.x>=area.x && panelBounds.y>=area.y && panelBounds.x+panelBounds.width<=area.x+area.width && panelBounds.y+panelBounds.height<=area.y+area.height);
-            fs.writeFileSync(path.join(evidenceDir,`native-${fixture.leagueId}-widget.png`),(await widget.webContents.capturePage()).toPNG());
+            fs.writeFileSync(path.join(evidenceDir,`native-${fixture.leagueId}-${fixture.anchor}-widget.png`),(await widget.webContents.capturePage()).toPNG());
             await evaluate('window.scorebugDesktop.hideDetails()');
             await waitFor('Alternate-style native child closes',()=>!getDetails(),3000);
           }
-          check('Actual NBA and Formula 1 renderers send measured native anchors, preserve league/game identity and use their own hover geometry, including cross-sport Blades');
+          check('Actual NBA and Formula 1 renderers preserve native hover geometry; the full 22-driver field fits top and side windows at 180%, including cross-sport Blades');
         } finally {
           await evaluate('window.fetch=window.__smokeOriginalFetch; delete window.__smokeOriginalFetch; void 0;');
-          await evaluate('window.scorebugDesktop.setPreferences({leagueId:"nfl",styleId:"nfl-blades",gameId:null,anchor:"bottom-center",scale:1})');
+          await evaluate('window.scorebugDesktop.setPreferences({leagueId:"nfl",styleId:"nfl-blades",gameId:null,anchor:"bottom-center",scale:1,racingRows:6})');
         }
         const compactBounds = widget.getBounds();
         const compactPreferences = (await evaluate('window.scorebugDesktop.getState()')).preferences;

@@ -74,11 +74,15 @@ function cleanPatch(patch) {
     if (typeof patch.scale !== 'number' || !Number.isFinite(patch.scale)) throw new TypeError('Invalid size');
     clean.scale = Math.min(1.8, Math.max(0.65, patch.scale));
   }
+  if (Object.hasOwn(patch, 'racingRows')) {
+    if (typeof patch.racingRows !== 'number' || !Number.isFinite(patch.racingRows)) throw new TypeError('Invalid driver row count');
+    clean.racingRows = Math.min(60, Math.max(3, Math.round(patch.racingRows)));
+  }
   if (Object.hasOwn(patch, 'anchor')) {
     if (patch.anchor !== null && !ANCHORS.includes(patch.anchor)) throw new TypeError('Invalid position');
     clean.anchor = patch.anchor;
   }
-  for (const key of ['snapEnabled', 'locked', 'autoUpdates']) {
+  for (const key of ['snapEnabled', 'locked', 'autoUpdates', 'styleAuto']) {
     if (Object.hasOwn(patch, key)) {
       if (typeof patch[key] !== 'boolean') throw new TypeError(`Invalid ${key}`);
       clean[key] = patch[key];
@@ -124,4 +128,11 @@ function cleanDetailsRegions(value, viewport) {
     ...(typeof input.legacyBlades === 'boolean' ? { legacyBlades: input.legacyBlades && input.styleId === 'nfl-blades' } : {}) };
 }
 
-module.exports = { cleanPatch, cleanFavorites, cleanGameId, cleanLeague, cleanDetailsContext, cleanDetailsRegions };
+/** Migrate persisted records only; ordinary IPC patches never infer a mode. */
+function cleanSavedPreferences(saved) {
+  const clean = cleanPatch(saved);
+  if (clean.styleId && !Object.hasOwn(saved, 'styleAuto')) clean.styleAuto = false;
+  return clean;
+}
+
+module.exports = { cleanPatch, cleanSavedPreferences, cleanFavorites, cleanGameId, cleanLeague, cleanDetailsContext, cleanDetailsRegions };
