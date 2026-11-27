@@ -18,6 +18,13 @@ contextBridge.exposeInMainWorld('scorebugDesktop', {
   },
   getState: () => ipcRenderer.invoke('scorebug:state'),
   openSettings: () => ipcRenderer.invoke('scorebug:settings'),
+  getDetailsPresentation: () => ipcRenderer.invoke('scorebug:details:presentation:get'),
+  onDetailsPresentationChanged: (callback) => {
+    if (typeof callback !== 'function') throw new TypeError('A callback is required');
+    const listener = (_event, presentation) => callback(presentation);
+    ipcRenderer.on('scorebug:details:presentation', listener);
+    return () => ipcRenderer.removeListener('scorebug:details:presentation', listener);
+  },
   showDetails: (side) => ipcRenderer.invoke('scorebug:details:show', side),
   setDefaultDetailsSide: (side) => ipcRenderer.invoke('scorebug:details:default-side', side),
   hideDetails: () => ipcRenderer.invoke('scorebug:details:hide'),

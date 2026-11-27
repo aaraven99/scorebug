@@ -107,24 +107,85 @@ function overlapArea(a, b) {
     Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
 }
 
-function detailsBounds(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', size = { width: 220, height: 230 } } = {}) {
-  const width = Math.min(size.width, workArea.width);
-  const height = Math.min(size.height, workArea.height);
+const DETAILS_SIZE = Object.freeze({ width: 284, height: 216 });
+const DETAILS_SEAM_OVERLAP = 1.5;
+
+function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', size = DETAILS_SIZE } = {}) {
+  side = side === 'away' ? 'away' : 'home';
+  orientation = orientation === 'vertical' ? 'vertical' : 'horizontal';
+  const width = Math.max(1, Math.min(Math.round(finite(size.width, DETAILS_SIZE.width)), workArea.width));
+  const height = Math.max(1, Math.min(Math.round(finite(size.height, DETAILS_SIZE.height)), workArea.height));
+  const polygon = teamPanelPolygon(widgetBounds, orientation, side);
   const team = teamPanelBounds(widgetBounds, orientation, side);
-  const away = teamPanelBounds(widgetBounds, orientation, 'away');
-  const home = teamPanelBounds(widgetBounds, orientation, 'home');
-  const colored = { x: Math.min(away.x, home.x), y: Math.min(away.y, home.y),
-    width: Math.max(away.x + away.width, home.x + home.width) - Math.min(away.x, home.x),
-    height: Math.max(away.y + away.height, home.y + home.height) - Math.min(away.y, home.y) };
-  const y = team.y + (team.height - height) / 2;
-  const right = { x: colored.x + colored.width, y, width, height };
-  const left = { x: colored.x - width, y, width, height };
-  const candidates = side === 'away' ? [left, right] : [right, left];
-  const clamped = candidates.map((bounds) => clampBounds(bounds, workArea));
-  // Native bounds include transparent margins. Touch the colored edge instead;
-  // if the preferred side is offscreen, place the extension on the inward side.
-  const unobstructed = clamped.find((bounds) => overlapArea(bounds, colored) <= Math.max(height, colored.height));
-  return unobstructed || clamped.reduce((best, bounds) => overlapArea(bounds, colored) < overlapArea(best, colored) ? bounds : best);
+  const overlap = DETAILS_SEAM_OVERLAP;
+  const limit = (value, low, high) => Math.max(low, Math.min(value, high));
+  const desired = (direction) => {
+    if (direction === 'left' || direction === 'right') {
+      const edge = direction === 'left' ? [polygon[0], polygon[3]] : [polygon[1], polygon[2]];
+      const inward = direction === 'left' ? overlap : -overlap;
+      const points = edge.map(([x, y]) => [x + inward, y]);
+      const x = direction === 'left' ? Math.max(points[0][0], points[1][0]) - width : Math.min(points[0][0], points[1][0]);
+      const y = limit(team.y + (team.height - height) / 2, workArea.y, workArea.y + workArea.height - height);
+      return { direction, bounds: { x, y, width, height }, points };
+    }
+    const edge = direction === 'up' ? [polygon[0], polygon[1]] : [polygon[3], polygon[2]];
+    const y = edge[0][1] + (direction === 'up' ? overlap : -overlap) - (direction === 'up' ? height : 0);
+    const x = limit((edge[0][0] + edge[1][0]) / 2 - width / 2, workArea.x, workArea.x + workArea.width - width);
+    return { direction, bounds: { x, y, width, height }, points: edge.map(([px, py]) => [px, py + (direction === 'up' ? overlap : -overlap)]) };
+  };
+  const primary = side === 'away' ? 'left' : 'right';
+  const upSpace = team.y - workArea.y;
+  const downSpace = workArea.y + workArea.height - team.y - team.height;
+  const verticalDirections = upSpace >= downSpace ? ['up', 'down'] : ['down', 'up'];
+  // Horizontal teams have different outer edges. If the selected team's edge
+  // is against the screen, attach above/below that team rather than the rival.
+  const directions = orientation === 'vertical'
+    ? [primary, primary === 'left' ? 'right' : 'left', ...verticalDirections]
+    : [primary, ...verticalDirections];
+  const candidates = directions.map(desired);
+  const fits = ({ bounds }) => bounds.x >= workArea.x && bounds.y >= workArea.y &&
+    bounds.x + bounds.width <= workArea.x + workArea.width && bounds.y + bounds.height <= workArea.y + workArea.height;
+  let selected = candidates.find(fits);
+  if (!selected) {
+    // On unusually small displays keep the whole window reachable and choose
+    // the placement that covers the least of the selected team.
+    selected = candidates.map((candidate) => ({ ...candidate, bounds: clampBounds(candidate.bounds, workArea) }))
+      .reduce((best, candidate) => overlapArea(candidate.bounds, team) < overlapArea(best.bounds, team) ? candidate : best);
+  }
+  const bounds = clampBounds(selected.bounds, workArea);
+  const direction = selected.direction;
+  const presentation = {
+    side, direction, orientation,
+    attachment: { left: 'right', right: 'left', up: 'bottom', down: 'top' }[direction],
+    width: bounds.width, height: bounds.height
+  };
+  if (direction === 'left' || direction === 'right') {
+    const [top, bottom] = selected.points;
+    const edgeHeight = bottom[1] - top[1];
+    const topY = limit(top[1], bounds.y, bounds.y + bounds.height);
+    const bottomY = limit(bottom[1], bounds.y, bounds.y + bounds.height);
+    const edgeX = (y) => edgeHeight ? top[0] + (bottom[0] - top[0]) * (y - top[1]) / edgeHeight : top[0];
+    Object.assign(presentation, {
+      joinTop: topY - bounds.y,
+      joinBottom: bottomY - bounds.y,
+      joinTopX: limit(edgeX(topY) - bounds.x, 0, bounds.width),
+      joinBottomX: limit(edgeX(bottomY) - bounds.x, 0, bounds.width)
+    });
+  } else {
+    const [left, right] = selected.points;
+    // A large scorebug can have a wider team than the panel. Joining a centered
+    // portion of its straight edge keeps the blade on that same team's color.
+    Object.assign(presentation, {
+      joinLeft: limit(left[0] - bounds.x, 0, bounds.width),
+      joinRight: limit(right[0] - bounds.x, 0, bounds.width),
+      joinY: limit(left[1] - bounds.y, 0, bounds.height)
+    });
+  }
+  return { bounds, presentation };
+}
+
+function detailsBounds(widgetBounds, workArea, options) {
+  return detailsPlacement(widgetBounds, workArea, options).bounds;
 }
 
 function scorebugHitBounds(bounds, orientation = 'horizontal') {
@@ -146,6 +207,14 @@ const TEAM_POLYGONS = Object.freeze({
     home: [[10, 128], [159, 128], [149, 247], [1, 247]]
   }
 });
+
+function teamPanelPolygon(bounds, orientation = 'horizontal', side = 'home') {
+  const vertical = orientation === 'vertical';
+  const bug = scorebugHitBounds(bounds, orientation);
+  const factor = bug.width / (vertical ? 160 : 600);
+  return TEAM_POLYGONS[vertical ? 'vertical' : 'horizontal'][side === 'away' ? 'away' : 'home']
+    .map(([x, y]) => [bug.x + x * factor, bug.y + y * factor]);
+}
 
 function teamPanelBounds(bounds, orientation = 'horizontal', side = 'home') {
   const vertical = orientation === 'vertical';
@@ -191,4 +260,4 @@ function hoverBridge(a, b) {
   return null;
 }
 
-module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsBounds, scorebugHitBounds, teamPanelBounds, teamAtPoint, hoverBridge };
+module.exports = { ANCHORS, ANCHOR_LABELS, clampBounds, anchorBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsBounds, detailsPlacement, DETAILS_SIZE, DETAILS_SEAM_OVERLAP, scorebugHitBounds, teamPanelBounds, teamPanelPolygon, teamAtPoint, hoverBridge };
