@@ -5,11 +5,13 @@ const CHECK_INTERVAL = 60 * 60 * 1000;
 
 function updateMode({ isPackaged, platform, portable }) {
   if (!isPackaged) return 'development';
+  if (platform === 'darwin') return 'manual-mac';
   if (platform !== 'win32') return 'unsupported';
   return portable ? 'portable' : 'installed';
 }
 
 function modeMessage(mode, automatic) {
+  if (mode === 'manual-mac') return 'Download the latest Mac version to update. Your saved teams, style and position carry over.';
   if (mode === 'portable') return 'Install Scorebug to receive automatic updates.';
   if (mode !== 'installed') return 'Updates are available in the installed Windows app.';
   return automatic ? 'Scorebug checks for updates automatically.' : 'Automatic checks are off. You can check for updates here.';
@@ -25,6 +27,7 @@ class UpdateController {
     currentVersion,
     isPackaged,
     platform,
+    arch = process.arch,
     portable = false,
     automatic = true,
     createUpdater,
@@ -46,6 +49,7 @@ class UpdateController {
       automatic: Boolean(automatic),
       message: modeMessage(this.mode, automatic)
     };
+    if (this.mode === 'manual-mac') this.state.downloadURL = `https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Mac-${arch === 'arm64' ? 'Apple-Silicon' : 'Intel'}.dmg`;
     this.createUpdater = createUpdater;
     this.onStateChanged = onStateChanged;
     this.onAutomaticChanged = onAutomaticChanged;

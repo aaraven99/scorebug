@@ -106,10 +106,10 @@ $hit = [ScorebugWindowHit]::WindowFromPoint($point)
   return stdout.trim();
 }
 
-async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, getGameCenter, preferencesPath }) {
-  const evidenceDir = path.join(__dirname, 'release', 'smoke');
+async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, getGameCenter, preferencesPath, packaged = false }) {
+  const evidenceDir = process.env.SCOREBUG_SMOKE_EVIDENCE || path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
-  const summary = { passed: false, platform: process.platform, electron: process.versions.electron, feedRequired: false, checks: [] };
+  const summary = { passed: false, platform: process.platform, arch: process.arch, packaged, version: require('./package.json').version, electron: process.versions.electron, feedRequired: false, checks: [] };
   let deadline;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
@@ -181,6 +181,15 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         await evaluate('window.scorebugDesktop.setPreferences({ gameId: null, date: null, team: null })');
         assert.equal((await evaluate('window.scorebugDesktop.getState()')).preferences.gameId, null);
         check('An independent-provider game can stay pinned, and Automatic clears the pin');
+        const favorite = { leagueId:'nba',teamId:'nba:4',name:'Chicago Bulls',abbreviation:'CHI' };
+        await evaluate(`window.scorebugDesktop.setPreferences(${JSON.stringify({leagueId:'nba',styleId:'nfl-blades',gameId:'nba:401000002',favorites:[favorite]})})`);
+        const multiPreferences = JSON.parse(fs.readFileSync(preferencesPath,'utf8'));
+        assert.equal(multiPreferences.leagueId,'nba');
+        assert.equal(multiPreferences.gameId,'nba:401000002');
+        assert.deepEqual(multiPreferences.favorites,[favorite]);
+        await assert.rejects(() => evaluate('window.scorebugDesktop.setPreferences({ favorites:[{leagueId:"nba",teamId:"nfl:3"}] })'), /different league/);
+        await evaluate('window.scorebugDesktop.setPreferences({ leagueId:"nfl",styleId:"nfl-blades",gameId:null,favorites:[] })');
+        check('League, style and league-scoped favorites persist; invalid cross-league favorites are rejected');
         const updateState = await evaluate('window.scorebugDesktop.getUpdateState()');
         assert.equal(updateState.mode, 'development');
         assert.equal(updateState.currentVersion, require('./package.json').version);
@@ -347,6 +356,26 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
           }
           check('Real Windows move-release messages snap off-center edge drags and switch side/top orientation');
         }
+        if (process.platform === 'darwin') {
+          assert.equal(widget.isVisibleOnAllWorkspaces(), true);
+          const helper = packaged ? path.join(process.resourcesPath,'mac-mouse-release') : path.join(__dirname,'native','bin','mac-mouse-release');
+          const probe = await execFileAsync(helper,['--probe'],{timeout:3000});
+          assert.match(probe.stdout.trim(),/^[01]$/);
+          for (const anchor of ['middle-left','middle-right','top-center']) {
+            await evaluate('window.scorebugDesktop.setPreferences({anchor:null,snapEnabled:true})');
+            await pause(180);
+            const previous = widget.getBounds(), area = screen.getDisplayMatching(previous).workArea;
+            const release = anchor === 'top-center' ? {x:area.x+(area.width-previous.width)*.35,y:area.y+8}
+              : {x:anchor==='middle-left'?area.x+8:area.x+area.width-previous.width-8,y:area.y+(area.height-previous.height)*.35};
+            // This is an AppKit-window/real helper integration check. Synthetic
+            // input injection is deliberately not used or granted permission.
+            widget.emit('will-move',{preventDefault(){}},{...previous,...release});
+            widget.setBounds({...previous,...release});
+            await waitFor(`Mac release observer snaps ${anchor}`,async()=> (await evaluate('window.scorebugDesktop.getState()')).anchor===anchor,4000);
+            assert.equal((await evaluate('window.scorebugDesktop.getState()')).preferences.orientation,anchor==='top-center'?'horizontal':'vertical');
+          }
+          check('Mac all-spaces floating window and real CoreGraphics release helper support side/top snap integration');
+        }
 
         await evaluate('window.scorebugDesktop.setPreferences({ locked: true })');
         await waitFor('Locked state in the renderer', () => evaluate(`document.body.dataset.locked === 'true' && document.documentElement.dataset.desktopLocked === 'true'`), 3000);
@@ -401,6 +430,13 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(detailState.detailsSide, 'away');
         const sourceGameId = detailState.detailsGameId;
         await assert.rejects(() => panel.webContents.executeJavaScript('window.scorebugDesktop.setDetailsGameId("401000001")'), /Request denied/);
+        await assert.rejects(() => panel.webContents.executeJavaScript('window.scorebugDesktop.setDetailsContext({gameId:"nba:123",leagueId:"nba"})'), /Request denied/);
+        await assert.rejects(() => panel.webContents.executeJavaScript('window.scorebugDesktop.setDetailsRegions([])'), /Request denied/);
+        await assert.rejects(() => evaluate('window.scorebugDesktop.setDetailsContext({gameId:"nba:123",leagueId:"nfl"})'), /different league/);
+        await evaluate('window.scorebugDesktop.setDetailsContext({gameId:"nba:123",leagueId:"nba"})');
+        const basketballContext = await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()');
+        assert.equal(basketballContext.gameId,'nba:123');
+        assert.equal(basketballContext.leagueId,'nba');
         await assert.rejects(() => evaluate('window.scorebugDesktop.setDetailsGameId("fox-../123")'), /Invalid game ID/);
         await evaluate('window.scorebugDesktop.setDetailsGameId("fox-11284")');
         assert.equal((await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()')).gameId, 'fox-11284');
@@ -454,6 +490,70 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Closing details moved or resized the scorebug');
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center" })');
         check('Joined blade extends inward, switches teams without reloading, retracts before dismissal, and safely reverses on quick reopening');
+
+        // Exercise the real renderer → preload → main → child-window contract
+        // with deterministic sports data. The production server is unchanged;
+        // this temporary fetch adapter exists only inside the smoke renderer.
+        await evaluate(`(async () => {
+          const { referenceForLeague } = await import('/sport-fixtures.js');
+          window.__smokeOriginalFetch = window.fetch;
+          window.fetch = async (...args) => {
+            const url = new URL(typeof args[0] === 'string' || args[0] instanceof URL ? args[0] : args[0].url, document.baseURI);
+            const leagueId = url.searchParams.get('league') || 'nfl';
+            if (url.origin === location.origin && url.pathname === '/api/scoreboard' && ['nba','f1'].includes(leagueId)) {
+              const game = { ...referenceForLeague(leagueId), id: leagueId + ':401000002' };
+              return new Response(JSON.stringify({leagueId,games:[game],fetchedAt:new Date().toISOString(),feedStatus:'live',sourceId:'native-smoke'}),{status:200,headers:{'content-type':'application/json'}});
+            }
+            if (url.origin === location.origin && url.pathname === '/api/game' && ['nba','f1'].includes(leagueId)) {
+              return new Response(JSON.stringify({error:'Native geometry fixture has no play-by-play.'}),{status:503,headers:{'content-type':'application/json'}});
+            }
+            return window.__smokeOriginalFetch(...args);
+          };
+        })()`);
+        try {
+          for (const fixture of [
+            {leagueId:'nba',styleId:'nba-nbc-pods',anchor:'middle-left',scale:.65,side:'away'},
+            {leagueId:'f1',styleId:'nfl-blades',anchor:'top-right',scale:1.8,side:'comparison'}
+          ]) {
+            const {side,...patch} = fixture;
+            await evaluate(`window.scorebugDesktop.setPreferences(${JSON.stringify({...patch,gameId:null})})`);
+            await waitFor('Sport-specific widget and source context', () => evaluate(`(async () => {
+              const svg=document.querySelector('.widget-board .scorebug');
+              const state=await window.scorebugDesktop.getState();
+              return svg?.dataset.leagueId === '${fixture.leagueId}' && svg.dataset.styleId === '${fixture.styleId}'
+                && state.detailsGameId === '${fixture.leagueId}:401000002' && state.detailsLeagueId === '${fixture.leagueId}';
+            })()`),4000);
+            await pause(180);
+            const source = await evaluate(`(() => {
+              const element=document.querySelector(${JSON.stringify(side==='comparison'?'.widget-board .bug-situation-panel':`.widget-board [data-team-side="${side}"] .bug-team-panel`)});
+              const rect=element.getBoundingClientRect();
+              return {x:rect.x,y:rect.y,width:rect.width,height:rect.height};
+            })()`);
+            await evaluate(`window.scorebugDesktop.showDetails('${side}')`);
+            await waitFor('Alternate-style native child',async()=>{
+              const panel=getDetails();
+              return panel && !panel.isDestroyed() && panel.isVisible() && await panel.webContents.executeJavaScript('document.body.dataset.phase === "open"');
+            },4000);
+            const panel=getDetails(), panelBounds=panel.getBounds(), widgetBounds=widget.getBounds();
+            const actual=await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()');
+            assert.equal(actual.gameId,`${fixture.leagueId}:401000002`);
+            assert.equal(actual.leagueId,fixture.leagueId);
+            assert.equal(actual.side,side);
+            assert.equal(actual.gradientWidth,source.width);
+            assert.equal(actual.gradientHeight,source.height);
+            assert.equal(actual.gradientX,widgetBounds.x+source.x-panelBounds.x);
+            assert.equal(actual.gradientY,widgetBounds.y+source.y-panelBounds.y);
+            const area=screen.getDisplayMatching(panelBounds).workArea;
+            assert.ok(panelBounds.x>=area.x && panelBounds.y>=area.y && panelBounds.x+panelBounds.width<=area.x+area.width && panelBounds.y+panelBounds.height<=area.y+area.height);
+            fs.writeFileSync(path.join(evidenceDir,`native-${fixture.leagueId}-widget.png`),(await widget.webContents.capturePage()).toPNG());
+            await evaluate('window.scorebugDesktop.hideDetails()');
+            await waitFor('Alternate-style native child closes',()=>!getDetails(),3000);
+          }
+          check('Actual NBA and Formula 1 renderers send measured native anchors, preserve league/game identity and use their own hover geometry, including cross-sport Blades');
+        } finally {
+          await evaluate('window.fetch=window.__smokeOriginalFetch; delete window.__smokeOriginalFetch; void 0;');
+          await evaluate('window.scorebugDesktop.setPreferences({leagueId:"nfl",styleId:"nfl-blades",gameId:null,anchor:"bottom-center",scale:1})');
+        }
         const compactBounds = widget.getBounds();
         const compactPreferences = (await evaluate('window.scorebugDesktop.getState()')).preferences;
         await assert.rejects(() => evaluate('window.scorebugDesktop.setGameCenterFullscreen(true)'), /Request denied/);
@@ -500,7 +600,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         check('Game Center reuses a secure fullscreen window, exits with Escape/F11, restricts its IPC controls and restores the compact scoreboard');
         summary.passed = true;
       })(),
-      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 45 seconds')), 45000); })
+      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 75 seconds')), 75000); })
     ]);
   } catch (error) {
     summary.error = error.stack || String(error);

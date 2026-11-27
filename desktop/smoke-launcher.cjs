@@ -5,13 +5,15 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const electron = require('electron'); // Downloads the pinned runtime, if necessary, before the runtime deadline.
+const packagedExecutable = process.env.SCOREBUG_SMOKE_EXECUTABLE;
+const executable = packagedExecutable || require('electron');
 
 const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'scorebug-smoke-'));
-const child = spawn(electron, ['.', '--smoke-test'], {
+const child = spawn(executable, packagedExecutable ? ['--smoke-test'] : ['.', '--smoke-test'], {
   cwd: __dirname,
   stdio: 'inherit',
-  env: { ...process.env, SCOREBUG_SMOKE_USER_DATA: userData }
+  env: { ...process.env, SCOREBUG_SMOKE_USER_DATA: userData, SCOREBUG_VERIFY_PACKAGE: packagedExecutable ? '1' : '0',
+    SCOREBUG_SMOKE_EVIDENCE: path.join(__dirname, 'release', packagedExecutable ? 'smoke-packaged' : 'smoke') }
 });
 let timedOut = false;
 let finished = false;
@@ -27,12 +29,12 @@ function cleanUp(code) {
 
 const deadline = setTimeout(() => {
   timedOut = true;
-  console.error('[native smoke] FAIL: Electron exceeded the 50-second runtime limit.');
+  console.error('[native smoke] FAIL: Electron exceeded the 80-second runtime limit.');
   if (process.platform === 'win32' && child.pid) {
     const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'inherit' });
     killer.on('error', () => child.kill('SIGKILL'));
   } else child.kill('SIGKILL');
-}, 50000);
+}, 80000);
 
 child.on('error', (error) => { console.error(`[native smoke] Could not launch Electron: ${error.message}`); cleanUp(1); });
 child.on('close', (code) => cleanUp(code));
