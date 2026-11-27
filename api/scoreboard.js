@@ -17,14 +17,17 @@ export default async function handler(req, res) {
     if (dates.length > 1) throw new ScoreboardError('Provide only one date.', { statusCode: 400, code: 'INVALID_DATE' });
     const data = await getScoreboard({ date: dates[0] });
     res.statusCode = 200;
+    if (data.retryAfterMs > 0) res.setHeader('Retry-After', String(Math.ceil(data.retryAfterMs / 1000)));
     res.end(req.method === 'HEAD' ? undefined : JSON.stringify(data));
   } catch (error) {
     const known = error instanceof ScoreboardError;
     res.statusCode = known ? error.statusCode : 502;
-    if (res.statusCode === 503) res.setHeader('Retry-After', '15');
+    const retry = known && Number.isFinite(error.retryAfterMs) ? Math.max(0, error.retryAfterMs) : res.statusCode === 503 ? 4000 : 0;
+    if (retry > 0) res.setHeader('Retry-After', String(Math.ceil(retry / 1000)));
     res.end(req.method === 'HEAD' ? undefined : JSON.stringify({
       error: known ? error.message : 'Live scores are temporarily unavailable. Please try again shortly.',
       code: known ? error.code : 'UPSTREAM_UNAVAILABLE',
+      ...(retry > 0 ? { retryAfterMs: retry } : {}),
     }));
   }
 }
