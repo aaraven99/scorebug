@@ -104,7 +104,7 @@ function syncNativeRegions() {
       }
     }
     const shapes=Object.values(panels), artwork=shapes.length?{x:Math.min(...shapes.map(r=>r.x)),y:Math.min(...shapes.map(r=>r.y)),width:Math.max(...shapes.map(r=>r.x+r.width))-Math.min(...shapes.map(r=>r.x)),height:Math.max(...shapes.map(r=>r.y+r.height))-Math.min(...shapes.map(r=>r.y))}:null;
-    window.scorebugDesktop.setDetailsRegions({targets,panels,board:artwork,styleId:preferences.styleId,legacyBlades:preferences.styleId==='nfl-blades'&&!board.querySelector('svg')?.classList.contains('scorebug--variant')}).catch(()=>{});
+    window.scorebugDesktop.setDetailsRegions({targets,panels,board:artwork,viewport:{width:innerWidth,height:innerHeight},styleId:preferences.styleId,legacyBlades:preferences.styleId==='nfl-blades'&&!board.querySelector('svg')?.classList.contains('scorebug--variant')}).catch(()=>{});
   });
 }
 window.addEventListener('resize',syncNativeRegions);
