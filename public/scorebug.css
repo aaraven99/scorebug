@@ -12,7 +12,7 @@
 .scorebug .bug-team:hover .bug-team-panel{filter:brightness(1.06)}
 .scorebug .bug-situation-panel{stroke:#849184;stroke-opacity:.65;stroke-width:1;stroke-linejoin:round}
 .scorebug .bug-score{font-size:65px;font-weight:800;letter-spacing:-1.6px;paint-order:stroke fill;stroke:#0002;stroke-width:.6}
-.scorebug .bug-score--long{font-size:48px;letter-spacing:-2px}
+.scorebug .bug-score--long{font-size:44px;letter-spacing:-2px}
 .scorebug .bug-abbreviation{font-size:36px;letter-spacing:-1.2px}
 .scorebug .bug-quarter{font-size:25px;letter-spacing:-.6px}
 .scorebug .bug-clock{font-size:30px;font-weight:800;letter-spacing:-.8px}
@@ -33,7 +33,7 @@
 /* Preserve the original colors. Only these few same-color marks need a thin
    light contour to separate them from their own team-colored panel. */
 .scorebug .bug-team-logo--contrast{filter:drop-shadow(.65px 0 .2px #fffe) drop-shadow(-.65px 0 .2px #fffe) drop-shadow(0 .65px .2px #fffe) drop-shadow(0 -.65px .2px #fffe) drop-shadow(0 1px 1px #0006)}
-.scorebug .bug-vertical-score{font-size:52px;letter-spacing:-1.9px}
+.scorebug .bug-vertical-score{font-size:48px;letter-spacing:-1.9px}
 .scorebug .bug-vertical-score--long{font-size:36px;letter-spacing:-1.8px}
 .scorebug .bug-vertical-abbreviation{font-size:25px;letter-spacing:-1px}
 .scorebug .bug-vertical-quarter{font-size:14px;letter-spacing:.4px}

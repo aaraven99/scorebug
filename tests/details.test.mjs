@@ -216,17 +216,17 @@ test('concurrent details readers share a short cache, and a total outage returns
   assert.equal(results[0], results[1]);
   await service({ gameId: '12345' });
   assert.equal(calls, 1);
-  time += 10001;
+  time += 1001;
   fail = true;
   const cached = await service({ gameId: '12345' });
-  assert.equal(calls, 4, 'All three endpoints are tried before using old stats.');
+  assert.equal(calls, 6, 'Summary routes and the two bounded core requests are tried before using old stats.');
   assert.equal(cached.stale, true);
   assert.equal(cached.feedStatus, 'cached');
   assert.equal(cached.fetchedAt, results[0].fetchedAt);
   assert.equal(cached.checkedAt, new Date(time).toISOString());
   assert.equal(cached.lastPlay.id, results[0].lastPlay.id);
   await service({ gameId: '12345' });
-  assert.equal(calls, 4, 'Failed feeds cool down instead of being hammered.');
+  assert.equal(calls, 6, 'Failed feeds cool down instead of being hammered.');
 });
 
 test('service rejects unsafe IDs before fetch, routes the fixed summary URL, and fails safely on bad upstream responses', async () => {
@@ -258,11 +258,11 @@ test('summary fails over to the fixed mirror, retains its identity during cooldo
   assert.equal(backup.feedStatus, 'backup');
   assert.equal(backup.stale, false);
   assert.equal(backup.gameId, '12345');
-  time += 10001;
+  time += 1001;
   assert.equal((await service({ gameId: '12345' })).sourceId, 'espn-web');
   assert.equal(urls.filter((url) => url.includes('site.api.espn.com')).length, 1);
   assert.equal(urls.filter((url) => url === backup.sourceUrl).length, 2);
-  time += 20000; primaryFails = false;
+  time += 3000; primaryFails = false;
   const recovered = await service({ gameId: '12345' });
   assert.equal(recovered.sourceId, 'espn-site');
   assert.equal(recovered.feedStatus, 'primary');
@@ -277,8 +277,8 @@ test('the CDN fallback selects gamepackageJSON and validates the requested game 
     return jsonResponse({ gamepackageJSON: liveFixture.summary, content: { unrelated: true } });
   } });
   const data = await service({ gameId: '401873080' });
-  assert.equal(urls.length, 3);
-  assert.equal(urls.at(-1), 'https://cdn.espn.com/core/nfl/game?xhr=1&gameId=401873080');
+  assert.equal(urls.length, 5);
+  assert.ok(urls.includes('https://cdn.espn.com/core/nfl/game?xhr=1&gameId=401873080'));
   assert.equal(data.sourceId, 'espn-cdn');
   assert.equal(data.feedStatus, 'backup');
   assert.equal(data.players.some((player) => player.name === 'DeVonta Smith'), true);

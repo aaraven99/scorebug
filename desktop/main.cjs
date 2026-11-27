@@ -5,17 +5,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
-const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsBounds, teamAtPoint, hoverBridge } = require('./geometry.cjs');
+const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsPlacement, teamAtPoint, hoverBridge } = require('./geometry.cjs');
 const { HoverIntent } = require('./hover.cjs');
+const { UpdateController } = require('./updates.cjs');
+const { DetailsLifecycle } = require('./details-lifecycle.cjs');
 
 const DEFAULTS = Object.freeze({
   gameId: null,
-  team: 'CHI',
+  team: null,
   date: null,
   scale: 1,
   anchor: 'bottom-center',
   snapEnabled: true,
   locked: false,
+  autoUpdates: true,
   orientation: 'horizontal',
   bounds: null,
   displayId: null
@@ -27,10 +30,16 @@ let widget = null;
 let settings = null;
 let details = null;
 let detailsSide = null;
+let detailsPresentation = null;
+let pendingDetails = null;
 let defaultDetailsSide = 'home';
 let detailsExplicit = false;
 let detailsHoverTimer = null;
 const hoverIntent = new HoverIntent();
+const detailsLifecycle = new DetailsLifecycle({
+  onPhase: (win) => { if (details === win) publishDetailsPresentation(); },
+  onClosed: finishDetailsExit
+});
 let tray = null;
 let httpServer = null;
 let origin = null;
@@ -42,6 +51,8 @@ let moveTimer = null;
 let nativeMoveInProgress = false;
 let moveReleasePending = false;
 let quitting = false;
+let quitCleanupDone = false;
+let updates = null;
 let smokeExitCode = 0;
 
 app.setName('Scorebug');
@@ -55,13 +66,13 @@ function cleanPatch(patch) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new TypeError('Preferences must be an object');
   const clean = {};
   if (Object.hasOwn(patch, 'gameId')) {
-    if (patch.gameId !== null && (typeof patch.gameId !== 'string' || !/^(?:\d{1,15}|thescore-\d{1,15})$/.test(patch.gameId))) {
+    if (patch.gameId !== null && (typeof patch.gameId !== 'string' || !/^(?:\d{1,15}|(?:thescore|fox)-\d{1,15})$/.test(patch.gameId))) {
       throw new TypeError('Invalid game ID');
     }
     clean.gameId = patch.gameId;
   }
   if (Object.hasOwn(patch, 'team')) {
-    if (typeof patch.team !== 'string' || !/^[A-Z]{2,4}$/.test(patch.team)) throw new TypeError('Invalid team');
+    if (patch.team !== null && (typeof patch.team !== 'string' || !/^[A-Z]{2,4}$/.test(patch.team))) throw new TypeError('Invalid team');
     clean.team = patch.team;
   }
   if (Object.hasOwn(patch, 'date')) {
@@ -81,7 +92,7 @@ function cleanPatch(patch) {
     if (patch.anchor !== null && !ANCHORS.includes(patch.anchor)) throw new TypeError('Invalid position');
     clean.anchor = patch.anchor;
   }
-  for (const key of ['snapEnabled', 'locked']) {
+  for (const key of ['snapEnabled', 'locked', 'autoUpdates']) {
     if (Object.hasOwn(patch, key)) {
       if (typeof patch[key] !== 'boolean') throw new TypeError(`Invalid ${key}`);
       clean[key] = patch[key];
@@ -91,8 +102,8 @@ function cleanPatch(patch) {
 }
 
 function publicPreferences() {
-  const { gameId, team, date, scale, anchor, snapEnabled, locked, orientation } = preferences;
-  return { gameId, team, date, scale, anchor, snapEnabled, locked, orientation };
+  const { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, autoUpdates } = preferences;
+  return { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, autoUpdates };
 }
 
 function orientationForAnchor(anchor) {
@@ -135,6 +146,13 @@ function publishPreferences() {
   updateTray();
 }
 
+function publishUpdateState(value) {
+  for (const win of [widget, settings, details]) {
+    if (win && !win.isDestroyed()) win.webContents.send('scorebug:updates:changed', value);
+  }
+  updateTray();
+}
+
 function currentSize() {
   return widgetSize(preferences.scale, preferences.orientation);
 }
@@ -167,6 +185,7 @@ function setPreferences(patch) {
   const clean = cleanPatch(patch);
   const needsPosition = Object.hasOwn(clean, 'scale') || Object.hasOwn(clean, 'anchor');
   preferences = { ...preferences, ...clean };
+  if (Object.hasOwn(clean, 'autoUpdates')) updates?.setAutomaticUpdates(clean.autoUpdates);
   if (widget && !widget.isDestroyed()) {
     widget.setMovable(!preferences.locked);
     if (needsPosition) placeWidget();
@@ -231,42 +250,105 @@ function publishDetailsSide() {
   }
 }
 
+function getDetailsPresentation() {
+  if (!details || details.isDestroyed() || !detailsPresentation) return null;
+  return { ...detailsPresentation, phase: detailsLifecycle.phaseFor(details) };
+}
+
+function publishDetailsPresentation() {
+  const value = getDetailsPresentation();
+  for (const win of [widget, details]) {
+    if (win && !win.isDestroyed()) win.webContents.send('scorebug:details:presentation', value);
+  }
+}
+
 function placeDetails() {
   if (!widget || widget.isDestroyed() || !details || details.isDestroyed()) return;
   const bounds = widget.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  details.setBounds(detailsBounds(bounds, area, { side: detailsSide || defaultDetailsSide, orientation: preferences.orientation }), false);
+  const placement = detailsPlacement(bounds, area, { side: detailsSide || defaultDetailsSide, orientation: preferences.orientation });
+  detailsPresentation = placement.presentation;
+  details.setBounds(placement.bounds, false);
+  publishDetailsPresentation();
 }
 
-function closeDetails({ dismissed = false } = {}) {
+function finishDetailsExit(win) {
+  if (details !== win) {
+    if (!win.isDestroyed()) win.destroy();
+    return;
+  }
+  const next = pendingDetails;
+  pendingDetails = null;
+  if (next && !quitting && !nativeMoveInProgress && widget && !widget.isDestroyed() && widget.isVisible() && !win.isDestroyed()) {
+    // The old blade is fully collapsed before moving its native bounds. Reuse
+    // the renderer and let only the latest requested team's blade unfold.
+    detailsSide = next.side;
+    detailsExplicit = next.focus;
+    hoverIntent.opened();
+    placeDetails();
+    publishDetailsSide();
+    detailsLifecycle.open(win);
+    if (next.focus) { win.show(); win.focus(); }
+    publishDetailsVisibility();
+    return;
+  }
+  details = null;
+  detailsSide = null;
+  detailsPresentation = null;
+  detailsExplicit = false;
+  detailsLifecycle.forget(win);
+  if (!win.isDestroyed()) win.destroy();
+  publishDetailsVisibility();
+  publishDetailsPresentation();
+}
+
+function closeDetails({ dismissed = false, immediate = false } = {}) {
   if (dismissed) hoverIntent.dismiss();
   detailsExplicit = false;
-  detailsSide = null;
+  pendingDetails = null;
   if (details && !details.isDestroyed()) {
-    const closing = details;
+    // Exit animation is bounded, so a dismissed renderer cannot keep polling
+    // invisibly. Drag, hide, startup failure and shutdown bypass the animation.
+    detailsLifecycle.close(details, { immediate: immediate || !details.isVisible() });
+  } else {
+    if (details) detailsLifecycle.forget(details);
     details = null;
-    // Destroy the renderer rather than leaving background polls alive while hidden.
-    closing.destroy();
+    detailsSide = null;
+    detailsPresentation = null;
+    publishDetailsVisibility();
+    publishDetailsPresentation();
   }
-  publishDetailsVisibility();
 }
 
 function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
   cleanDetailsSide(side);
-  if (!widget || widget.isDestroyed() || nativeMoveInProgress || !widget.isVisible()) return;
+  if (quitting || !widget || widget.isDestroyed() || nativeMoveInProgress || !widget.isVisible()) return;
   hoverIntent.opened();
-  detailsExplicit = detailsExplicit || focus;
-  const changed = detailsSide !== side;
-  detailsSide = side;
   if (details && !details.isDestroyed()) {
+    const phase = detailsLifecycle.phaseFor(details);
+    if (detailsSide !== side && details.isVisible() && phase !== 'closed') {
+      pendingDetails = { side, focus: detailsExplicit || focus };
+      detailsLifecycle.close(details);
+      return;
+    }
+    pendingDetails = null;
+    const changed = detailsSide !== side;
+    detailsSide = side;
+    detailsExplicit = detailsExplicit || focus;
     placeDetails();
     if (changed) publishDetailsSide();
+    if (details.isVisible() && (phase === 'closing' || phase === 'closed' || changed)) detailsLifecycle.open(details);
     if (focus && details.isVisible()) { details.show(); details.focus(); }
     return;
   }
+  pendingDetails = null;
+  detailsSide = side;
+  detailsExplicit = focus;
   const area = screen.getDisplayMatching(widget.getBounds()).workArea;
+  const placement = detailsPlacement(widget.getBounds(), area, { side, orientation: preferences.orientation });
+  detailsPresentation = placement.presentation;
   const win = new BrowserWindow({
-    ...detailsBounds(widget.getBounds(), area, { side, orientation: preferences.orientation }),
+    ...placement.bounds,
     parent: widget,
     title: 'Scorebug team stats',
     show: false,
@@ -290,22 +372,32 @@ function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
   win.setAlwaysOnTop(true, 'floating');
   secureWindow(win);
   win.once('ready-to-show', () => {
-    if (details !== win || win.isDestroyed() || !widget || widget.isDestroyed() || nativeMoveInProgress) return;
+    if (details !== win || win.isDestroyed() || quitting || !widget || widget.isDestroyed() || nativeMoveInProgress) return;
     if (detailsExplicit) { win.show(); win.focus(); }
     else win.showInactive();
+    detailsLifecycle.open(win);
     publishDetailsVisibility();
   });
   win.on('closed', () => {
-    if (details === win) { details = null; detailsExplicit = false; detailsSide = null; }
+    detailsLifecycle.forget(win);
+    if (details === win) {
+      details = null;
+      detailsExplicit = false;
+      detailsSide = null;
+      detailsPresentation = null;
+      pendingDetails = null;
+    }
     publishDetailsVisibility();
+    publishDetailsPresentation();
   });
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' && input.key === 'Escape') { event.preventDefault(); closeDetails({ dismissed: true }); }
   });
-  win.loadURL(`${origin}/details.html?desktop=1&side=${side}`).catch((error) => {
+  const query = new URLSearchParams({ desktop: '1', ...placement.presentation, phase: 'closed' });
+  win.loadURL(`${origin}/details.html?${query}`).catch((error) => {
     if (details === win && !win.isDestroyed()) {
       console.warn(`Scorebug details could not open: ${error.message}`);
-      closeDetails({ dismissed: true });
+      closeDetails({ dismissed: true, immediate: true });
     }
   });
 }
@@ -318,10 +410,17 @@ function monitorHoverDetails() {
   const panel = details && !details.isDestroyed() ? details.getBounds() : null;
   const open = Boolean(panel);
   const side = teamAtPoint(bounds, pointer, preferences.orientation);
+  const overDetails = containsPoint(panel, pointer);
+  if (open && detailsLifecycle.phaseFor(details) === 'closing' && !blocked && !hoverIntent.dismissed && (side || overDetails)) {
+    // Returning to the old team reverses the same CSS transition immediately.
+    // A different team only replaces the queued destination, not the exit timer.
+    showDetails({ side: side || detailsSide });
+    return;
+  }
   const action = hoverIntent.update({
     now: Date.now(),
     overWidget: open ? containsPoint(bounds, pointer) : Boolean(side),
-    overDetails: containsPoint(panel, pointer),
+    overDetails,
     inTransit: containsPoint(hoverBridge(bounds, panel), pointer),
     detailsOpen: open,
     side,
@@ -330,7 +429,7 @@ function monitorHoverDetails() {
     keepOpen: detailsExplicit && details && !details.isDestroyed() && (!details.isVisible() || details.isFocused())
   });
   if (action === 'open' || action === 'switch') showDetails({ side: side || defaultDetailsSide });
-  else if (action === 'close') closeDetails();
+  else if (action === 'close') closeDetails({ immediate: blocked });
 }
 
 function isLocalPage(url) {
@@ -370,7 +469,8 @@ function secureWindow(win) {
   });
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('scorebug:preferences:changed', publicPreferences());
-    if (win === details) publishDetailsSide();
+    if (updates) win.webContents.send('scorebug:updates:changed', updates.getState());
+    if (win === details) { publishDetailsSide(); publishDetailsPresentation(); }
   });
 }
 
@@ -426,18 +526,20 @@ function createWidget() {
   secureWindow(widget);
   widget.once('ready-to-show', showWidget);
   widget.on('closed', () => { widget = null; if (!quitting) app.quit(); });
+  widget.on('hide', () => closeDetails({ immediate: true }));
+  widget.on('minimize', () => closeDetails({ immediate: true }));
   widget.on('will-move', (event) => {
     if (preferences.locked) event.preventDefault();
     else {
       if (process.platform === 'win32') nativeMoveInProgress = true;
-      closeDetails();
+      closeDetails({ immediate: true });
     }
   });
   widget.on('move', () => {
     // Windows also emits move while first showing or positioning the HWND.
     // Only its explicit drag-release path may change the chosen anchor.
     if (process.platform === 'win32' || applyingBounds || nativeMoveInProgress || moveReleasePending) return;
-    closeDetails();
+    closeDetails({ immediate: true });
     clearTimeout(moveTimer);
     // Save free placement on other platforms. Windows snapping is deferred until
     // WM_EXITSIZEMOVE, rather than a debounce that could fire while dragging.
@@ -450,7 +552,7 @@ function createWidget() {
     widget.hookWindowMessage(0x0231, () => { // WM_ENTERSIZEMOVE
       nativeMoveInProgress = true;
       moveReleasePending = false;
-      closeDetails();
+      closeDetails({ immediate: true });
       clearTimeout(moveTimer);
     });
     widget.hookWindowMessage(0x0232, finishNativeMove); // WM_EXITSIZEMOVE: the mouse has been released.
@@ -494,8 +596,18 @@ function openSettings() {
 
 function buildMenu() {
   const displays = screen.getAllDisplays();
+  const updateState = updates?.getState();
+  let updateItem = { label: 'Updates', click: openSettings };
+  if (updateState?.mode === 'installed') {
+    if (updateState.status === 'ready') updateItem = { label: 'Restart to update', click: () => updates.restartToUpdate() };
+    else if (updateState.status === 'checking') updateItem = { label: 'Checking for updates…', enabled: false };
+    else if (updateState.status === 'downloading') updateItem = { label: `Downloading update${updateState.percent === null ? '…' : ` (${updateState.percent}%)`}`, enabled: false };
+    else updateItem = { label: 'Check for updates', click: () => { void updates.checkForUpdates(); } };
+  } else if (updateState?.mode === 'portable') {
+    updateItem = { label: 'Get automatic updates', click: openSettings };
+  }
   return Menu.buildFromTemplate([
-    { label: 'Scorebug', enabled: false },
+    { label: `Scorebug ${app.getVersion()}`, enabled: false },
     { label: 'Choose game & settings', click: openSettings, accelerator: 'CommandOrControl+Alt+Shift+S' },
     { label: 'Show scorebug', click: showWidget },
     { label: 'Current team stats', click: () => showDetails({ focus: true }) },
@@ -549,6 +661,7 @@ function buildMenu() {
         showWidget();
       }
     },
+    updateItem,
     { label: 'Quit Scorebug', click: () => app.quit(), accelerator: 'CommandOrControl+Alt+Shift+Q' }
   ]);
 }
@@ -583,6 +696,10 @@ function addHandler(channel, callback, { widgetOnly = false } = {}) {
 function installIpc() {
   addHandler('scorebug:preferences:get', publicPreferences);
   addHandler('scorebug:preferences:set', setPreferences);
+  addHandler('scorebug:updates:get', () => updates.getState());
+  addHandler('scorebug:updates:check', () => updates.checkForUpdates());
+  addHandler('scorebug:updates:restart', () => quitting ? updates.getState() : updates.restartToUpdate());
+  addHandler('scorebug:updates:automatic', (automatic) => updates.setAutomaticUpdates(automatic));
   addHandler('scorebug:state', () => ({
     preferences: publicPreferences(),
     anchor: preferences.anchor,
@@ -592,9 +709,11 @@ function installIpc() {
     bounds: widget && !widget.isDestroyed() ? widget.getBounds() : preferences.bounds,
     detailsVisible: detailsVisible(),
     detailsSide,
+    detailsPresentation: getDetailsPresentation(),
     platform: process.platform
   }));
   addHandler('scorebug:settings', openSettings);
+  addHandler('scorebug:details:presentation:get', getDetailsPresentation);
   addHandler('scorebug:details:show', (side) => showDetails({ focus: true, side: side === undefined ? defaultDetailsSide : cleanDetailsSide(side) }));
   addHandler('scorebug:details:default-side', (side) => { defaultDetailsSide = cleanDetailsSide(side); }, { widgetOnly: true });
   addHandler('scorebug:details:hide', () => { setTimeout(() => closeDetails({ dismissed: true }), 0); });
@@ -614,6 +733,22 @@ function showStartupError(error) {
 
 async function start() {
   readPreferences();
+  updates = new UpdateController({
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    portable: Boolean(process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR),
+    automatic: preferences.autoUpdates,
+    createUpdater: () => require('electron-updater').autoUpdater,
+    onStateChanged: publishUpdateState,
+    onAutomaticChanged: (automatic) => {
+      preferences.autoUpdates = automatic;
+      savePreferences();
+      publishPreferences();
+    },
+    onBeforeRestart: () => { quitting = true; },
+    onRestartCancelled: () => { if (!quitCleanupDone) quitting = false; }
+  });
   const appRoot = app.isPackaged ? path.join(process.resourcesPath, 'scorebug') : path.resolve(__dirname, '..');
   const { createScorebugServer } = await import(pathToFileURL(path.join(appRoot, 'server.mjs')).href);
   httpServer = createScorebugServer();
@@ -631,6 +766,7 @@ async function start() {
   installIpc();
   createWidget();
   createTray();
+  updates.start();
   detailsHoverTimer = setInterval(monitorHoverDetails, 100);
   screen.on('display-added', handleDisplayChange);
   screen.on('display-removed', handleDisplayChange);
@@ -652,16 +788,19 @@ if (!app.requestSingleInstanceLock()) {
   app.on('activate', () => { showWidget(); openSettings(); });
   app.on('before-quit', () => {
     quitting = true;
+    if (quitCleanupDone) return;
+    quitCleanupDone = true;
+    updates?.stop();
     clearTimeout(moveTimer);
     clearTimeout(boundsGuardTimer);
     clearInterval(detailsHoverTimer);
-    closeDetails();
+    closeDetails({ immediate: true });
     if (preferencesPath) savePreferences();
     globalShortcut.unregisterAll();
     if (httpServer) { httpServer.close(); httpServer.closeAllConnections?.(); }
     if (tray && !tray.isDestroyed()) tray.destroy();
   });
-  app.on('window-all-closed', () => app.quit());
+  app.on('window-all-closed', () => { if (!quitting) app.quit(); });
   if (SMOKE_TEST) app.on('will-quit', (event) => { event.preventDefault(); app.exit(smokeExitCode); });
   app.whenReady().then(start).catch(showStartupError);
 }

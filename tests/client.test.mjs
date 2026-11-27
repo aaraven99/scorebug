@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectGame, feedIsStale, gameLabel, ScoreboardPoller, isSupportedGameId, reconcileGameIdentity, readCachedScoreboard, writeCachedScoreboard, SCOREBOARD_CACHE_KEY, SCOREBOARD_CACHE_MAX_AGE_MS, initializePreferences, getPreferences, updatePreferences } from '../public/score-client.js';
+import { selectGame, isActiveGame, activeGames, DEFAULT_PREFERENCES, feedIsStale, gameLabel, ScoreboardPoller, isSupportedGameId, reconcileGameIdentity, readCachedScoreboard, writeCachedScoreboard, SCOREBOARD_CACHE_KEY, SCOREBOARD_CACHE_MAX_AGE_MS, initializePreferences, getPreferences, updatePreferences } from '../public/score-client.js';
 
 const NOW = Date.parse('2026-11-26T19:00:00Z');
 const TEAM_IDS = { CHI: '3', DET: '8', PHI: '21', DAL: '6', KC: '12', BUF: '2', SF: '25', GB: '9' };
@@ -16,22 +16,28 @@ function game(id, { away = 'CHI', home = 'DET', phase = 'live', startTime = '202
   };
 }
 
-test('automatic selection follows the Bears even when another live game is listed first', () => {
+test('Automatic has no favorite and chooses an active game over legacy Bears preferences', () => {
+  assert.equal(DEFAULT_PREFERENCES.team, null);
+  assert.equal(DEFAULT_PREFERENCES.gameId, null);
+  assert.equal(DEFAULT_PREFERENCES.date, null);
   const other = game('1', { away: 'PHI', home: 'DAL' });
-  const bears = game('2');
-  assert.equal(selectGame([other, bears], {}, NOW), bears);
+  for (const phase of ['scheduled', 'final', 'delayed', 'suspended']) {
+    const bears = game('2', { phase });
+    assert.equal(selectGame([bears, other], { gameId: null, team: 'CHI' }, NOW), other);
+    assert.equal(selectGame([other, bears], {}, NOW), other);
+  }
 });
 
 test('an explicit game selection wins, and a missing pinned game does not silently switch teams', () => {
   const bears = game('1');
-  const chosen = game('2', { away: 'KC', home: 'BUF' });
+  const chosen = game('2', { away: 'KC', home: 'BUF', phase: 'final' });
   assert.equal(selectGame([bears, chosen], { gameId: '2' }, NOW), chosen);
   assert.equal(selectGame([bears, chosen], { gameId: '999' }, NOW), null);
   assert.equal(selectGame([], {}, NOW), null);
   assert.equal(selectGame(undefined, {}, NOW), null);
 });
 
-test('live games take priority over upcoming games when the favorite is absent', () => {
+test('live games take priority over upcoming games without team preference', () => {
   const upcoming = game('1', { away: 'PHI', home: 'DAL', phase: 'scheduled', startTime: '2026-11-26T21:30:00Z' });
   const live = game('2', { away: 'KC', home: 'BUF' });
   assert.equal(selectGame([upcoming, live], {}, NOW), live);
@@ -39,10 +45,38 @@ test('live games take priority over upcoming games when the favorite is absent',
 
 test('halftime and quarter breaks keep the current game selected', () => {
   const upcoming = game('1', { phase: 'scheduled', startTime: '2026-12-03T18:00:00Z' });
+  const otherLive = game('3', { away: 'PHI', home: 'DAL', startTime: '2026-11-26T18:30:00Z' });
   for (const phase of ['halftime', 'intermission']) {
     const current = game('2', { phase });
-    assert.equal(selectGame([upcoming, current], {}, NOW), current);
+    assert.equal(selectGame([upcoming, otherLive, current], {}, NOW), current);
   }
+});
+
+test('active-game classification excludes delayed, suspended, pregame and final even with an inconsistent live flag', () => {
+  for (const phase of ['live', 'halftime', 'intermission']) assert.equal(isActiveGame(game('1', { phase })), true);
+  for (const phase of ['scheduled', 'final', 'delayed', 'suspended', 'postponed', 'canceled', 'unknown']) {
+    assert.equal(isActiveGame({ ...game('1', { phase }), isLive: true }), false, phase);
+  }
+  for (const state of ['pre', 'post']) assert.equal(isActiveGame({ ...game('1'), state }), false);
+  assert.equal(isActiveGame(null), false);
+  assert.equal(isActiveGame({ isLive: true, state: 'in' }), false);
+});
+
+test('Automatic keeps a stable fixture when active games reorder or provider IDs change', () => {
+  const early = game('99', { away: 'PHI', home: 'DAL', startTime: '2026-11-26T17:00:00Z' });
+  const later = game('1', { startTime: '2026-11-26T18:00:00Z' });
+  assert.equal(selectGame([later, early], { team: 'CHI' }, NOW), early);
+  assert.equal(selectGame([early, later], { team: 'CHI' }, NOW), early);
+  const tied = [game('300', { away: 'PHI', home: 'DAL' }), game('200', { away: 'KC', home: 'BUF' }), game('100')];
+  const chosen = selectGame(tied, {}, NOW);
+  assert.equal(activeGames(tied)[0], chosen, 'The Live now list uses the same order as Automatic.');
+  assert.equal(selectGame([...tied].reverse(), {}, NOW), chosen);
+  assert.equal(selectGame([tied[1], tied[2], tied[0]], {}, NOW), chosen);
+  const backup = [...tied].reverse().map((value, index) => ({ ...value, id: `thescore-${index + 1}` }));
+  const chosenBackup = selectGame(backup, {}, NOW);
+  assert.equal(chosenBackup.away.id, chosen.away.id);
+  assert.equal(chosenBackup.home.id, chosen.home.id);
+  assert.deepEqual(tied.map((value) => value.id), ['300', '200', '100'], 'Automatic must not reorder the source schedule.');
 });
 
 test('a delayed or suspended in-state game is not mistaken for active live play', () => {
@@ -60,6 +94,13 @@ test('the next scheduled game is chosen in time order without mutating the sched
   const schedule = [later, next];
   assert.equal(selectGame(schedule, {}, NOW), next);
   assert.deepEqual(schedule, [later, next]);
+});
+
+test('without an active or upcoming game, Automatic chooses the latest result without a favorite bias', () => {
+  const bears = game('1', { phase: 'final', startTime: '2026-11-19T18:00:00Z' });
+  const latest = game('2', { away: 'PHI', home: 'DAL', phase: 'final', startTime: '2026-11-26T17:00:00Z' });
+  const postponed = game('3', { away: 'KC', home: 'BUF', phase: 'postponed', startTime: '2026-11-28T18:00:00Z' });
+  assert.equal(selectGame([bears, postponed, latest], { team: 'CHI' }, NOW), latest);
 });
 
 test('freshness depends on last checked time and immediately flags failed or unknown checks', () => {
@@ -151,6 +192,21 @@ test('provider aliases preserve either pinned ID through backup and recovery wit
   assert.equal(selectGame(recovered, { gameId: '401873081' }), recovered[0]);
   assert.equal(Object.hasOwn(primary, 'idAliases'), false);
   assert.equal(Object.hasOwn(backup, 'idAliases'), false);
+});
+
+test('FOX IDs stay bounded and preserve explicit pins through cache restoration and ESPN recovery', () => {
+  assert.equal(isSupportedGameId('fox-11284'), true);
+  for (const id of ['fox-', 'fox-../11284', 'fox-abc', 'fox-1234567890123456', 'fox-1?game=2']) assert.equal(isSupportedGameId(id), false);
+  const primary = game('401873081');
+  const fox = { ...game('fox-11284'), detailsGameId: null };
+  const backed = reconcileGameIdentity([fox], [primary]);
+  assert.equal(selectGame(backed, { gameId: primary.id }).id, fox.id);
+  const storage = memoryStorage();
+  assert.equal(writeCachedScoreboard(null, snapshot(backed, { sourceId: 'fox', source: 'FOX Sports', feedStatus: 'backup' }), { storage, now: NOW }), true);
+  const restored = readCachedScoreboard(null, { storage, now: NOW });
+  assert.equal(selectGame(restored.games, { gameId: primary.id }).id, fox.id);
+  const recovered = reconcileGameIdentity([primary], restored.games);
+  assert.equal(selectGame(recovered, { gameId: fox.id }).id, primary.id);
 });
 
 test('aliases require the exact home/away IDs and a unique kickoff match within five minutes', () => {

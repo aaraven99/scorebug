@@ -12,14 +12,14 @@ A GitHub website login and a connected app have separate permissions. If a conne
 
 ## Publish a new download
 
-You can publish entirely through GitHub's website:
+New versions publish automatically after the Windows checks pass:
 
 1. Set a new, matching version in the root and desktop `package.json` and lockfiles, then merge those changes into `main`.
-2. Open **Actions → Build Windows desktop app → Run workflow**.
-3. Select the **main** branch and check **Publish the tested main commit as the latest Windows release**.
-4. Click **Run workflow**. The workflow tests and builds that exact commit, uploads the verified files to a draft, and then publishes it as the latest release.
+2. The `main` workflow tests and builds that exact commit, uploads the verified files to a draft, and publishes it as the latest release. Installed apps can then download it automatically.
 
-The publish checkbox defaults to off. Leaving it unchecked builds downloadable Actions artifacts without publishing a release. Publication from this manual action is allowed only on `main`; no separate tag or empty release needs to be created in the browser.
+You can follow the progress under **Actions → Build Windows desktop app**. Every new release needs a new version; the workflow never replaces an already-published version with different files.
+
+For a manual build, choose **Run workflow**. Its publish checkbox defaults to off. Enable it only when you need to publish an unpublished version from `main`. No separate tag or empty release needs to be created in the browser. To recover a failed upload, use **Re-run failed jobs** so it reuses the tested files.
 
 ### Publish with a tag instead
 
@@ -36,9 +36,12 @@ Use the version and commit you intend to publish. The workflow rejects a tag tha
 Each successful Windows run uploads **Scorebug-Windows-x64** with:
 
 - **Scorebug-Portable-Windows.zip** — the EXE, a short start guide, and checksums.
-- **Scorebug-Setup-Windows.exe** — an optional installer.
-- **SHA256SUMS.txt** — checksums for the two downloads.
+- **Scorebug-Setup-Windows.exe** — the recommended installer, with automatic updates.
+- **Scorebug-Setup-VERSION-x64.exe**, its **.blockmap**, and **latest.yml** — the files used by installed apps to update themselves.
+- **SHA256SUMS.txt** — checksums for the downloads and update files.
 - **release-info.json** — the build’s version, source commit, and asset hashes.
+
+The packager keeps the update manifest exactly as electron-builder generated it. It verifies the version, installer filename, size, SHA-512 hash, and blockmap against the tested build. The versioned installer must stay in the release alongside the convenient `Scorebug-Setup-Windows.exe` alias.
 
 Only the release job receives repository write permission, after all Windows checks, the native smoke test, and packaging succeed. It uses this same run's artifact, verifies its source commit, checks every file's size and SHA-256 hash, and publishes only after the uploaded files match. Drafts are located by authenticated release listing and retained numeric IDs, so an unfinished draft can be resumed.
 
@@ -52,7 +55,9 @@ The README and website use these links, so users do not need to search Actions o
 - [Latest installer](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe)
 - [Release notes and older versions](https://github.com/aaraven99/scorebug/releases)
 
-The desktop app is unsigned. Publishing a release does not change that.
+Installed copies from version 1.2.2 onward check for new releases and download them automatically. They apply a ready update when the app quits, or when the user chooses **Restart to update**. Closing the settings window keeps the scorebug running. Portable copies need a new download for feature updates; users can switch to the installer without losing their game or position.
+
+The app is unsigned. Update downloads use this GitHub repository over HTTPS and are checked against the release manifest’s hash; they do not have a verified publisher certificate.
 
 ## References
 

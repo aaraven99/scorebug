@@ -110,11 +110,34 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         )`), 18000);
         assert.equal(new URL(widget.webContents.getURL()).origin, origin);
         const state = await evaluate('window.scorebugDesktop.getState()');
-        assert.equal(state.preferences.team, 'CHI');
+        assert.equal(state.preferences.team, null);
+        assert.equal(state.preferences.gameId, null);
+        assert.equal(state.preferences.date, null);
         assert.equal(state.preferences.anchor, 'bottom-center');
         assert.equal(await evaluate('typeof window.require'), 'undefined');
         assert.equal(await evaluate('typeof window.process'), 'undefined');
         check('Real widget DOM, isolated preload and validated getState IPC');
+        await evaluate('window.scorebugDesktop.setPreferences({ gameId: "fox-11284" })');
+        assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).gameId, 'fox-11284');
+        await assert.rejects(() => evaluate('window.scorebugDesktop.setPreferences({ gameId: "fox-../11284" })'));
+        await evaluate('window.scorebugDesktop.setPreferences({ gameId: null, date: null, team: null })');
+        assert.equal((await evaluate('window.scorebugDesktop.getState()')).preferences.gameId, null);
+        check('An independent-provider game can stay pinned, and Automatic clears the pin');
+        const updateState = await evaluate('window.scorebugDesktop.getUpdateState()');
+        assert.equal(updateState.mode, 'development');
+        assert.equal(updateState.currentVersion, require('./package.json').version);
+        assert.equal(updateState.automatic, true);
+        assert.equal((await evaluate('window.scorebugDesktop.checkForUpdates()')).status, 'idle');
+        assert.equal((await evaluate('window.scorebugDesktop.restartToUpdate()')).status, 'idle');
+        await evaluate('window.__observedUpdateState = null; window.scorebugDesktop.onUpdateStateChanged((value) => { window.__observedUpdateState = value; }); void 0;');
+        await evaluate('window.scorebugDesktop.setAutomaticUpdates(false)');
+        await waitFor('Update preference event reaches the preload', () => evaluate('window.__observedUpdateState?.automatic === false'), 3000);
+        assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).autoUpdates, false);
+        await assert.rejects(() => evaluate('window.scorebugDesktop.setAutomaticUpdates("yes")'));
+        await evaluate('window.scorebugDesktop.setAutomaticUpdates(true)');
+        assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).autoUpdates, true);
+        assert.ok(!Object.keys(require.cache).some((entry) => /electron-updater[\\/]out[\\/]main\.js$/.test(entry)), 'A development smoke run must not load the live updater');
+        check('Updater preload actions, persistent preferences and events work without checking or installing updates during development');
         if (process.platform === 'win32') {
           // A passive startup/show move must not enter the non-Windows free-move
           // debounce and erase the anchor after the renderer has initialized.
@@ -210,8 +233,13 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         }, 8000);
         const settingsState = await getSettings().webContents.executeJavaScript('window.scorebugDesktop.getState()');
         assert.equal(settingsState.preferences.anchor, 'bottom-center');
+        await waitFor('Native update settings', () => getSettings().webContents.executeJavaScript(`Boolean(
+          !document.querySelector('#desktop-updates')?.hidden &&
+          document.querySelector('#update-status')?.textContent.includes('running from source') &&
+          document.querySelector('#update-version')?.textContent.includes('${require('./package.json').version}')
+        )`), 3000);
         getSettings().close();
-        check('Settings opens with the same native preference state');
+        check('Settings opens with the same native preference state and working update status');
 
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "middle-left" })');
         await pause(180);
@@ -229,9 +257,9 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Opening details moved or resized the scorebug');
         const panelBounds = panel.getBounds();
         const panelArea = screen.getDisplayMatching(panelBounds).workArea;
-        assert.ok(panelBounds.x >= beforeDetails.x + beforeDetails.width - 10, 'Left-side details should join the colored edge inward');
-        assert.equal(panelBounds.width, Math.min(220, panelArea.width));
-        assert.equal(panelBounds.height, Math.min(230, panelArea.height));
+        assert.ok(panelBounds.x >= beforeDetails.x + beforeDetails.width - 24, 'Left-side details should join the slanted colored edge inward');
+        assert.equal(panelBounds.width, Math.min(284, panelArea.width));
+        assert.equal(panelBounds.height, Math.min(216, panelArea.height));
         assert.ok(panelBounds.x >= panelArea.x && panelBounds.y >= panelArea.y);
         assert.ok(panelBounds.x + panelBounds.width <= panelArea.x + panelArea.width);
         assert.ok(panelBounds.y + panelBounds.height <= panelArea.y + panelArea.height);
@@ -239,6 +267,11 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(detailState.preferences.orientation, 'vertical');
         assert.equal(detailState.detailsVisible, true);
         assert.equal(detailState.detailsSide, 'away');
+        const presentation = await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()');
+        assert.equal(presentation.direction, 'right');
+        assert.equal(presentation.orientation, 'vertical');
+        assert.ok(presentation.joinTop >= 0 && presentation.joinBottom > presentation.joinTop);
+        assert.ok(presentation.joinBottom <= panelBounds.height);
         // executeJavaScript clones its result back to the main process; the
         // subscription returns a function, which must remain in the renderer.
         await panel.webContents.executeJavaScript('window.__observedDetailsSide = null; window.scorebugDesktop.onDetailsSideChanged((side) => { window.__observedDetailsSide = side; }); void 0;');
@@ -247,12 +280,22 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(getDetails(), panel, 'Switching teams recreated the details window');
         assert.equal((await evaluate('window.scorebugDesktop.getState()')).detailsSide, 'home');
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Switching teams moved the scorebug');
+        await waitFor('Expanded blade reaches the renderer', () => panel.webContents.executeJavaScript('document.body.dataset.phase === "open"'), 3000);
         fs.writeFileSync(path.join(evidenceDir, 'native-details.png'), (await panel.webContents.capturePage()).toPNG());
+        await evaluate('window.scorebugDesktop.hideDetails()');
+        assert.equal(getDetails(), panel, 'Dismissal destroyed the blade before it could retract');
+        await waitFor('Native blade begins retracting', async () => (await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()'))?.phase === 'closing', 1000);
+        await waitFor('Blade closing phase reaches the renderer', () => panel.webContents.executeJavaScript('document.body.dataset.phase === "closing"'), 1000);
+        await evaluate('window.scorebugDesktop.showDetails("home")');
+        assert.equal(getDetails(), panel, 'Quick reopening replaced the retracting window');
+        await waitFor('Quick reopening reverses the blade animation', () => panel.webContents.executeJavaScript('document.body.dataset.phase === "open"'), 3000);
+        await pause(100);
+        assert.equal(getDetails(), panel, 'An old close timer destroyed the reopened blade');
         await evaluate('window.scorebugDesktop.hideDetails()');
         await waitFor('Destroyed details renderer', () => !getDetails(), 3000);
         assert.deepEqual(widget.getBounds(), beforeDetails, 'Closing details moved or resized the scorebug');
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center" })');
-        check('Compact team extension joins inward, switches teams without reloading, and destroys its renderer on dismissal');
+        check('Joined blade extends inward, switches teams without reloading, retracts before dismissal, and safely reverses on quick reopening');
         summary.passed = true;
       })(),
       new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 35 seconds')), 35000); })

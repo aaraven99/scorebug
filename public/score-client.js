@@ -1,4 +1,6 @@
-export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: 'CHI', date: null, scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
+import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
+
+export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
 const KEY = 'scorebug.preferences.v1';
 export const SCOREBOARD_CACHE_KEY = 'scorebug.scoreboards.v1';
 export const SCOREBOARD_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -9,7 +11,7 @@ let preferences = { ...DEFAULT_PREFERENCES };
 let channel;
 
 export function isSupportedGameId(value) {
-  return typeof value === 'string' && /^(?:\d{1,15}|thescore-\d{1,15})$/.test(value);
+  return typeof value === 'string' && /^(?:\d{1,15}|(?:thescore|fox)-\d{1,15})$/.test(value);
 }
 const canonicalTeamId = (value) => typeof value === 'string' && /^\d{1,8}$/.test(value);
 const stampOf = (data) => typeof data?.fetchedAt === 'string' ? Date.parse(data.fetchedAt) : NaN;
@@ -58,7 +60,7 @@ function cacheEntries(storage, now) {
       const stamp = stampOf(entry.data);
       if (now - stamp > SCOREBOARD_CACHE_MAX_AGE_MS || stamp - now > FUTURE_TOLERANCE_MS) continue;
       const clean = { date: entry.date, savedAt: Number.isFinite(entry.savedAt) ? Math.min(entry.savedAt, now) : stamp, data: { ...entry.data, games: reconcileGameIdentity(entry.data.games) } };
-      if (!unique.has(entry.date) || stamp > stampOf(unique.get(entry.date).data)) unique.set(entry.date, clean);
+      if (!unique.has(entry.date) || snapshotIsOlder(unique.get(entry.date).data, entry.data, now)) unique.set(entry.date, clean);
     }
     return [...unique.values()].sort((a, b) => b.savedAt - a.savedAt).slice(0, MAX_CACHE_ENTRIES);
   } catch { return []; }
@@ -78,10 +80,11 @@ export function writeCachedScoreboard(date, data, { storage = browserStorage(), 
   if (!key || !validSnapshot(data) || now - stamp > SCOREBOARD_CACHE_MAX_AGE_MS || stamp - now > FUTURE_TOLERANCE_MS) return false;
   try {
     const entries = cacheEntries(storage, now), previous = entries.find((entry) => entry.date === key);
-    if (previous && stampOf(previous.data) > stamp) return false;
+    if (previous && snapshotIsOlder(data, previous.data, now)) return false;
     // A cached response from another server process cannot replace fresher
     // browser data. Equal-age snapshots still retain learned provider aliases.
-    const keepPrevious = previous && stampOf(previous.data) === stamp && (data.stale || data.feedStatus === 'cached') && !previous.data.stale && previous.data.feedStatus !== 'cached';
+    const keepPrevious = previous && stampOf(previous.data) === stamp && (data.stale || data.feedStatus === 'cached')
+      && !previous.data.stale && previous.data.feedStatus !== 'cached' && !snapshotIsOlder(previous.data, data, now);
     const chosen = keepPrevious ? previous.data : data;
     const other = keepPrevious ? data : previous?.data;
     const saved = { ...chosen, games: reconcileGameIdentity(chosen.games, other?.games) };
@@ -137,7 +140,30 @@ export function onPreferences(callback) {
   return () => preferencesEvents.removeEventListener('change', listener);
 }
 
-export function selectGame(games, { gameId, team = 'CHI' } = {}, now = Date.now()) {
+/** Halftime and quarter breaks belong to the same active game. */
+export function isActiveGame(game) {
+  return Boolean(game && !['pre', 'post'].includes(game.state) && ['live', 'halftime', 'intermission'].includes(game.phase));
+}
+
+function compareGames(a, b, direction = 1) {
+  const kickoff = (game) => {
+    const parsed = Date.parse(game.startTime);
+    return Number.isFinite(parsed) ? parsed : direction === 1 ? Infinity : -Infinity;
+  };
+  const left = kickoff(a), right = kickoff(b);
+  if (left !== right) return (left - right) * direction;
+  const teamKey = (team) => canonicalTeamId(team?.id) ? team.id.padStart(8, '0') : String(team?.abbreviation || '');
+  const identity = (game) => `${teamKey(game.away)}:${teamKey(game.home)}`;
+  const leftTeam = identity(a), rightTeam = identity(b);
+  if (leftTeam !== rightTeam) return leftTeam < rightTeam ? -1 : 1;
+  return String(a.id || '').localeCompare(String(b.id || ''));
+}
+
+export function activeGames(games) {
+  return Array.isArray(games) ? games.filter(isActiveGame).sort(compareGames) : [];
+}
+
+export function selectGame(games, { gameId } = {}, now = Date.now()) {
   if (!Array.isArray(games) || !games.length) return null;
   if (gameId) {
     if (!isSupportedGameId(gameId)) return null;
@@ -146,13 +172,16 @@ export function selectGame(games, { gameId, team = 'CHI' } = {}, now = Date.now(
     const aliased = games.filter((game) => game && aliasesOf(game).includes(gameId));
     return aliased.length === 1 ? aliased[0] : null;
   }
-  const favorite = games.filter((game) => [game.away?.abbreviation, game.home?.abbreviation].includes(team));
-  const candidates = favorite.length ? favorite : games;
-  const live = candidates.find((game) => game.isLive || game.phase === 'halftime' || game.phase === 'intermission');
-  if (live) return live;
-  const upcoming = candidates.filter((game) => game.state === 'pre' && Date.parse(game.startTime) >= now - 3600000).sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
+  const candidates = games.filter((game) => game && typeof game === 'object');
+  // Ignore legacy favorite-team preferences. A stable fixture order keeps
+  // Automatic on the same active game when providers reorder their lists.
+  const active = activeGames(candidates);
+  if (active.length) return active[0];
+  const upcoming = candidates.filter((game) => game.state === 'pre' && game.phase === 'scheduled'
+    && Date.parse(game.startTime) >= now - 3600000).sort(compareGames);
   if (upcoming.length) return upcoming[0];
-  return [...candidates].sort((a, b) => (Date.parse(b.startTime) || 0) - (Date.parse(a.startTime) || 0))[0];
+  const results = candidates.filter((game) => game.phase === 'final');
+  return (results.length ? results : candidates).sort((a, b) => compareGames(a, b, -1))[0] || null;
 }
 
 export function feedIsStale(data, hasError = false, now = Date.now()) {
@@ -170,13 +199,13 @@ export function gameLabel(game) {
 }
 
 export class ScoreboardPoller {
-  constructor({ date = null, onUpdate, interval = 10000, apiUrl = '/api/scoreboard', fetcher = (...args) => globalThis.fetch(...args), storage = browserStorage(), now = Date.now, baseURL } = {}) {
+  constructor({ date = null, onUpdate, interval = LIVE_POLL_INTERVAL_MS, apiUrl = '/api/scoreboard', fetcher = (...args) => globalThis.fetch(...args), storage = browserStorage(), now = Date.now, baseURL } = {}) {
     this.document = globalThis.document;
     this.date = date; this.onUpdate = onUpdate; this.interval = interval;
     this.apiUrl = new URL(apiUrl, baseURL || this.document?.baseURI || 'http://localhost/').href;
     this.fetcher = fetcher; this.storage = storage; this.now = now;
     this.data = readCachedScoreboard(date, { storage, now: now() });
-    this.error = null; this.failures = 0; this.stopped = true; this.generation = 0;
+    this.error = null; this.failures = 0; this.stopped = true; this.generation = 0; this.retryAt = 0;
     this.resume = () => { if (!this.document?.hidden) this.refresh(); };
     this.online = () => this.refresh();
   }
@@ -189,7 +218,7 @@ export class ScoreboardPoller {
     this.document?.addEventListener('visibilitychange', this.resume);
     this.document?.addEventListener('resume', this.online);
     const restored = readCachedScoreboard(this.date, { storage: this.storage, now: this.now() });
-    if (restored && (!this.data || stampOf(restored) > stampOf(this.data))) this.data = restored;
+    if (restored && (!this.data || snapshotIsOlder(this.data, restored, this.now()))) this.data = restored;
     if (this.data && feedIsStale(this.data, Boolean(this.error), this.now())) {
       this.data = cachedSnapshot(this.data, this.data.cacheOrigin || 'memory');
       this.onUpdate?.({ data: this.data, error: this.error, loading: true });
@@ -200,33 +229,40 @@ export class ScoreboardPoller {
     if (this.date === date) return;
     this.date = date; this.generation++; this.controller?.abort(); this.controller = null; this.inFlight = false; clearTimeout(this.timer);
     this.data = readCachedScoreboard(date, { storage: this.storage, now: this.now() });
-    this.error = null; this.failures = 0;
+    this.error = null; this.failures = 0; this.retryAt = 0;
     this.onUpdate?.({ data: this.data, error: null, loading: true });
     this.refresh();
   }
   async refresh() {
     if (this.stopped || this.inFlight) return;
     clearTimeout(this.timer);
+    if (this.retryAt > this.now()) {
+      this.timer = setTimeout(() => this.refresh(), this.retryAt - this.now());
+      return;
+    }
     this.inFlight = true;
     const generation = this.generation;
     const started = this.now();
     const controller = new AbortController();
     this.controller = controller;
-    const timeout = setTimeout(() => controller.abort(), 18000);
+    const timeout = setTimeout(() => controller.abort(), FEED_REQUEST_TIMEOUT_MS);
+    let retryAt = 0;
     try {
       const url = new URL(this.apiUrl);
       if (this.date) url.searchParams.set('date', this.date);
       const response = await this.fetcher(url, { cache: 'no-store', signal: controller.signal, headers: { Accept: 'application/json' } });
+      retryAt = this.now() + responseRetryMs(response, null, this.now());
       const body = await response.json();
+      retryAt = Math.max(retryAt, this.now() + responseRetryMs(response, body, this.now()));
       if (!response.ok) throw new Error(body?.error?.message || body?.message || (typeof body?.error === 'string' ? body.error : 'The score feed is temporarily unavailable.'));
       if (!validSnapshot(body)) throw new Error('The score feed returned an unexpected response.');
       if (generation !== this.generation || this.stopped) return;
 
       // A newer snapshot saved by another tab also outranks an old server cache.
       const restored = readCachedScoreboard(this.date, { storage: this.storage, now: this.now() });
-      const previous = restored && (!this.data || stampOf(restored) > stampOf(this.data)) ? restored : this.data;
+      const previous = restored && (!this.data || snapshotIsOlder(this.data, restored, this.now())) ? restored : this.data;
       const stale = feedIsStale(body, false, this.now());
-      const newerPrevious = previous && stampOf(previous) > stampOf(body);
+      const newerPrevious = previous && snapshotIsOlder(body, previous, this.now());
       let next = newerPrevious ? previous : body;
       next = { ...next, games: reconcileGameIdentity(next.games, newerPrevious ? body.games : previous?.games) };
       if (stale || newerPrevious) {
@@ -242,15 +278,16 @@ export class ScoreboardPoller {
       if (generation !== this.generation || this.stopped) return;
       this.failures++; this.error = error;
       const restored = readCachedScoreboard(this.date, { storage: this.storage, now: this.now() });
-      if (restored && (!this.data || stampOf(restored) > stampOf(this.data))) this.data = restored;
+      if (restored && (!this.data || snapshotIsOlder(this.data, restored, this.now()))) this.data = restored;
       if (this.data) this.data = cachedSnapshot(this.data, this.data.cacheOrigin || 'memory');
       this.onUpdate?.({ data: this.data, error, loading: false });
     } finally {
       clearTimeout(timeout);
       if (generation === this.generation) {
         this.controller = null; this.inFlight = false;
+        this.retryAt = retryAt;
         if (!this.stopped) {
-          const wait = this.failures ? Math.min(60000, this.interval * 2 ** Math.min(this.failures, 3)) : Math.max(1000, this.interval - (this.now() - started));
+          const wait = nextPollDelay({ interval: this.interval, failures: this.failures, started, now: this.now(), retryAt });
           this.timer = setTimeout(() => this.refresh(), wait);
         }
       }
