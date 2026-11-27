@@ -29,7 +29,7 @@ permissions:
 
 concurrency:
   group: desktop-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && 'publish' || 'build' }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || !inputs.publish_release }}
+  cancel-in-progress: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') && (github.event_name != 'workflow_dispatch' || !inputs.publish_release) }}
 
 jobs:
   windows:
@@ -52,11 +52,13 @@ jobs:
         run: npm ci --prefix desktop
       - name: Check release version
         run: python scripts/package_windows_release.py --check-tag
+      - name: Check automatic-update packaging
+        run: python scripts/test_package_windows_release.py
       - name: Check live data and event detection
         run: npm test
       - name: Verify Vercel static build
         run: npm run build
-      - name: Check snapping geometry
+      - name: Check desktop geometry and update lifecycle
         run: npm test --prefix desktop
       - name: Verify real Windows widget, preload and positioning
         timeout-minutes: 3
@@ -71,7 +73,7 @@ jobs:
           retention-days: 14
       - name: Build portable app and installer
         run: npm run dist:win --prefix desktop
-      - name: Package the simple Windows download
+      - name: Package downloads and verify automatic-update files
         run: python scripts/package_windows_release.py
       - name: Upload Windows downloads
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -84,7 +86,7 @@ jobs:
   release:
     name: Publish the tested Windows release
     if: >-
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
       (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main')
     needs: windows
     runs-on: ubuntu-latest
@@ -130,10 +132,14 @@ jobs:
           if [[ "$RELEASE_REF" == refs/tags/* ]]; then
             test "${RELEASE_REF#refs/tags/}" = "$RELEASE_TAG" || fail 'The pushed tag differs from the tested package version.'
           else
-            test "$RELEASE_REF" = refs/heads/main || fail 'Manual publication is allowed only from main.'
+            test "$RELEASE_REF" = refs/heads/main || fail 'Non-tag publication is allowed only from main.'
           fi
-          assets=(Scorebug-Portable-Windows.zip Scorebug-Setup-Windows.exe SHA256SUMS.txt)
-          jq -e '([.assets[].name] | sort) == (["Scorebug-Portable-Windows.zip", "Scorebug-Setup-Windows.exe", "SHA256SUMS.txt"] | sort)' release/release-info.json > /dev/null
+          versioned_installer="Scorebug-Setup-${release_version}-x64.exe"
+          # Keep the human download alias and the versioned installer referenced
+          # by electron-builder's unchanged manifest. All files stay in a draft
+          # until verified; publish the manifest last within that draft as well.
+          assets=(Scorebug-Portable-Windows.zip Scorebug-Setup-Windows.exe "$versioned_installer" "${versioned_installer}.blockmap" SHA256SUMS.txt latest.yml)
+          jq -e --arg installer "$versioned_installer" '([.assets[].name] | sort) == (["Scorebug-Portable-Windows.zip", "Scorebug-Setup-Windows.exe", $installer, ($installer + ".blockmap"), "SHA256SUMS.txt", "latest.yml"] | sort)' release/release-info.json > /dev/null
           for asset in "${assets[@]}"; do
             digest="$(sha256sum "release/$asset" | cut -d ' ' -f 1)"
             bytes="$(stat -c %s "release/$asset")"
@@ -175,7 +181,7 @@ jobs:
           test "$count" -le 1 || fail 'Multiple releases match this tag.'
           if [ "$count" = 0 ]; then
             jq -n --arg tag "$RELEASE_TAG" --arg sha "$RELEASE_COMMIT" --arg version "$release_version" \
-              '{tag_name:$tag,target_commitish:$sha,name:("Scorebug "+$version),draft:true,prerelease:false,body:"Download Scorebug-Portable-Windows.zip, extract it, quit any older copy, and open the EXE inside.\n\nDrag near a side edge for the vertical layout. Hover a colored team panel for its stats.\n\nThe app is unsigned. This release passed the real Windows smoke test before packaging."}' > create-release.json
+              '{tag_name:$tag,target_commitish:$sha,name:("Scorebug "+$version),draft:true,prerelease:false,body:"Download Scorebug-Setup-Windows.exe. Quit any older Scorebug, then run the installer once. Your saved game and position carry over.\n\nThe installed app downloads future feature updates in the background and applies them when you quit. Use Restart to update in settings if you want the update right away.\n\nThe portable ZIP is also available, but it needs manual feature updates. Drag near a side edge for the vertical layout; hover a team for its stats.\n\nThe app is unsigned. This release passed the real Windows smoke test and update-package checks before publication."}' > create-release.json
             gh api --method POST "repos/$GH_REPO/releases" --input create-release.json > release-state.json
           else
             jq '.[0]' matching-releases.json > release-state.json
@@ -245,3 +251,5 @@ jobs:
           for asset in "${assets[@]}"; do asset_matches "$asset"; done
           echo "Published $RELEASE_TAG from $RELEASE_COMMIT after verifying every asset."
           curl --fail --silent --show-error --head --location --retry 3 --output /dev/null "https://github.com/$GH_REPO/releases/latest/download/Scorebug-Portable-Windows.zip"
+          curl --fail --silent --show-error --head --location --retry 3 --output /dev/null "https://github.com/$GH_REPO/releases/latest/download/Scorebug-Setup-Windows.exe"
+          curl --fail --silent --show-error --head --location --retry 3 --output /dev/null "https://github.com/$GH_REPO/releases/latest/download/latest.yml"
