@@ -97,7 +97,7 @@ test('a partly unknown base state does not silently turn unknown bases into empt
 });
 
 test('the 2026 Connecticut Sun mark remains available after the provider hides inactive team-directory entries',()=>{
- assert.equal(localTeamLogo({leagueId:'wnba',sport:'basketball',abbreviation:'CON'}),'/logos/wnba/con.png');
+ assert.equal(localTeamLogo({leagueId:'wnba',sport:'basketball',abbreviation:'CON'}),'/logos/wnba/connecticut.png');
  const geometry=teamLogoPresentation({leagueId:'wnba',sport:'basketball',abbreviation:'CON'});
  assert.deepEqual(geometry.size,[500,500]);assert.ok(geometry.bounds[2]>geometry.bounds[0]);
 });
