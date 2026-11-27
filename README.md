@@ -1,6 +1,6 @@
 # Scorebug
 
-Keep a live score above your other apps. Choose your sport, save your favorite teams, and pick a broadcast-inspired look.
+Keep a live score above your other apps. Choose your sport, save your favorite teams and scorebug styles, and start watching.
 
 **[Open Scorebug in your browser](https://sports-scorebug.vercel.app/)**
 
@@ -22,10 +22,14 @@ If a download does not start, [open the latest release](https://github.com/aarav
 
 ## Start watching
 
-1. **Choose a sport or league.** Leave **Automatic** selected to follow a live game, or click a game to keep watching that one.
-2. **Add your favorites.** Open **Add a favorite**, type a team name, and click its result. You can find the Bears while watching another sport. When a favorite plays live, its game appears in **Your favorites** and stays in its league’s **Live now** list. Automatic prefers a live favorite in the selected league. Favorites are saved on this device.
-3. **Pick a style.** Choose a name such as **NFL-Blades**, **NBA-NBC Pods**, or **F1-Rounded Tower**. **Browse styles** shows the options visually. Your chosen style stays selected when you change sports or reopen the app. For example, NBA in NFL-Blades still shows basketball scores and stats.
+1. **Choose a sport or league.** Leave **Automatic** selected to follow a live game, or click a game to keep watching that one. The **College sports** group includes college football and men's and women's college basketball.
+2. **Save your teams.** Under **Favorite teams**, open **Add a team or competitor**, type a name, and click its result. For a college team, choose its sport in **Search in** to load that directory. When a favorite plays live, its game appears in **Favorite teams** and in its league’s **Live now** list. Automatic prefers a live favorite in the selected league.
+3. **Pick and save your styles.** Choose a look in **Scorebug style** or **Browse styles**. Click its star to save it under **Favorite styles**, then click its saved name whenever you want to switch. In **Browse styles**, turn on **Favorites only** to show your saved looks.
 4. **Place the scorebug.** Drag the desktop app to an edge and release to snap it. Side positions use a compact vertical layout. On the website, choose **Normal** or **Side**, then **Float in browser**.
+
+Teams, saved styles, and layout are remembered on this device. To remove a saved style, click its star again or the × beside its name.
+
+Starring a look keeps your current game and style. Your selected style also stays selected when you change sports—for example, NBA in NFL-Blades still shows basketball scores and stats.
 
 Hover a team logo or its timeout marks for that team’s stats. Hover the middle clock area to compare the teams and see the reported field position. The field stays in the middle panel. Racing layouts use the session header for the classification and timing details.
 
