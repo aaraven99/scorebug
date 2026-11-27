@@ -23,6 +23,8 @@ Prefer an installer? [Download the Windows setup file](https://github.com/aarave
 
 Scores update about every 10 seconds without reloading. The game clock shows the latest time from the feed. The computer needs to stay awake and online.
 
+If a feed fails, Scorebug switches to a backup automatically. If every feed is down, it keeps the last received score visible with a **FEED DELAYED** label and keeps trying.
+
 ## Put the web version on Vercel
 
 Import [aaraven99/scorebug](https://github.com/aaraven99/scorebug) and use:

@@ -1,0 +1,268 @@
+{
+  "_capture": {
+    "retrievedAt": "2026-11-27T00:29:46.833Z",
+    "sourceUrl": "https://api.thescore.com/nfl/events?game_date.in=2026-11-26T05%3A00%3A00.000Z%2C2026-11-27T04%3A59%3A59.999Z",
+    "note": "Factual fields only from one public provider response. Articles, recaps, odds, provider logos, and unrelated metadata omitted. The live snapshot is distinct from the regular box score."
+  },
+  "events": [
+    {
+      "id": 140741,
+      "event_status": "final",
+      "status": "final",
+      "game_date": "Thu, 26 Nov 2026 18:00:00 -0000",
+      "game_type": "Regular Season",
+      "updated_at": "Thu, 26 Nov 2026 22:02:05 -0000",
+      "stadium": "Ford Field",
+      "location": "Detroit, MI",
+      "tv_listings_by_country_code": {
+        "us": [
+          {
+            "short_name": "CBS/Paramount+",
+            "long_name": "CBS/Paramount+"
+          }
+        ]
+      },
+      "away_team": {
+        "id": 25,
+        "abbreviation": "CHI",
+        "full_name": "Chicago Bears",
+        "colour_1": "E64100",
+        "colour_2": "0B162A"
+      },
+      "home_team": {
+        "id": 26,
+        "abbreviation": "DET",
+        "full_name": "Detroit Lions",
+        "colour_1": "006DB0",
+        "colour_2": "B0B7BC"
+      },
+      "standings": {
+        "away": {
+          "short_record": "9-2-0"
+        },
+        "home": {
+          "short_record": "8-3-0"
+        }
+      },
+      "live_box_score": null,
+      "box_score": {
+        "id": 35892,
+        "progress": {
+          "clock_label": "Final",
+          "string": "Final",
+          "status": "final",
+          "event_status": "final",
+          "segment": 4,
+          "segment_string": "4th",
+          "segment_description": "4th Quarter",
+          "clock": "0:00",
+          "overtime": false
+        },
+        "segment_number": 4,
+        "down": null,
+        "formatted_distance": null,
+        "field_position": null,
+        "yards_from_goal": null,
+        "home_timeouts_left": null,
+        "away_timeouts_left": null,
+        "updated_at": "Thu, 26 Nov 2026 22:15:06 -0000",
+        "score": {
+          "home": {
+            "score": 35
+          },
+          "away": {
+            "score": 39
+          },
+          "winning_team": "/nfl/teams/25",
+          "losing_team": "/nfl/teams/26",
+          "tie_game": false
+        },
+        "team_in_possession": null
+      }
+    },
+    {
+      "id": 140742,
+      "event_status": "in_progress",
+      "status": "in_progress",
+      "game_date": "Thu, 26 Nov 2026 21:30:00 -0000",
+      "game_type": "Regular Season",
+      "updated_at": "Thu, 26 Nov 2026 23:47:55 -0000",
+      "stadium": "AT&T Stadium",
+      "location": "Arlington, TX",
+      "tv_listings_by_country_code": {
+        "us": [
+          {
+            "short_name": "FOX",
+            "long_name": "FOX"
+          }
+        ]
+      },
+      "away_team": {
+        "id": 19,
+        "abbreviation": "PHI",
+        "full_name": "Philadelphia Eagles",
+        "colour_1": "054F59",
+        "colour_2": "A5ACAF"
+      },
+      "home_team": {
+        "id": 17,
+        "abbreviation": "DAL",
+        "full_name": "Dallas Cowboys",
+        "colour_1": "00338D",
+        "colour_2": "ACC0C6"
+      },
+      "standings": {
+        "away": {
+          "short_record": "3-7-0"
+        },
+        "home": {
+          "short_record": "5-6-0"
+        }
+      },
+      "live_box_score": {
+        "id": 10052,
+        "progress": {
+          "clock_label": "14:53 4th",
+          "string": "14:53 4th",
+          "status": "in_progress",
+          "event_status": "in_progress",
+          "segment": 4,
+          "segment_string": "4th",
+          "segment_description": "4th Quarter",
+          "clock": "14:53",
+          "overtime": false
+        },
+        "event_status": {
+          "id": 2
+        },
+        "down": 3,
+        "formatted_distance": "1",
+        "field_position": "DAL 35",
+        "yards_from_goal": 65,
+        "score": {
+          "home": {
+            "score": 31
+          },
+          "away": {
+            "score": 17
+          },
+          "winning_team": "/nfl/teams/17",
+          "losing_team": "/nfl/teams/19",
+          "tie_game": false
+        },
+        "team_in_possession": {
+          "api_uri": "/nfl/teams/17"
+        }
+      },
+      "box_score": {
+        "id": 35894,
+        "progress": {
+          "clock_label": "14:54 4th",
+          "string": "14:54 4th",
+          "status": "in_progress",
+          "event_status": "in_progress",
+          "segment": 4,
+          "segment_string": "4th",
+          "segment_description": "4th Quarter",
+          "clock": "14:54",
+          "overtime": false
+        },
+        "segment_number": 4,
+        "down": 3,
+        "formatted_distance": "1",
+        "field_position": "DAL 35",
+        "yards_from_goal": 65,
+        "home_timeouts_left": 3,
+        "away_timeouts_left": 3,
+        "updated_at": "Fri, 27 Nov 2026 00:27:49 -0000",
+        "score": {
+          "home": {
+            "score": 31
+          },
+          "away": {
+            "score": 17
+          },
+          "winning_team": "/nfl/teams/17",
+          "losing_team": "/nfl/teams/19",
+          "tie_game": false
+        },
+        "team_in_possession": {
+          "id": 17,
+          "api_uri": "/nfl/teams/17"
+        }
+      }
+    },
+    {
+      "id": 140743,
+      "event_status": "pre_game",
+      "status": "pre_game",
+      "game_date": "Fri, 27 Nov 2026 01:20:00 -0000",
+      "game_type": "Regular Season",
+      "updated_at": "Wed, 25 Nov 2026 23:25:06 -0000",
+      "stadium": "Highmark Stadium",
+      "location": "Orchard Park, NY",
+      "tv_listings_by_country_code": {
+        "us": [
+          {
+            "short_name": "NBC/Peacock",
+            "long_name": "NBC/Peacock"
+          }
+        ]
+      },
+      "away_team": {
+        "id": 6,
+        "abbreviation": "KC",
+        "full_name": "Kansas City Chiefs",
+        "colour_1": "E31837",
+        "colour_2": "FFB612"
+      },
+      "home_team": {
+        "id": 1,
+        "abbreviation": "BUF",
+        "full_name": "Buffalo Bills",
+        "colour_1": "00338D",
+        "colour_2": "C60C30"
+      },
+      "standings": {
+        "away": {
+          "short_record": "8-2-0"
+        },
+        "home": {
+          "short_record": "9-1-0"
+        }
+      },
+      "live_box_score": {
+        "id": 10053,
+        "progress": {
+          "clock_label": "Pre Game",
+          "string": "Pre Game",
+          "status": "pre_game",
+          "event_status": "pre_game",
+          "segment": 1,
+          "segment_string": "1st",
+          "segment_description": "1st Quarter",
+          "clock": "15:00",
+          "overtime": false
+        },
+        "event_status": {
+          "id": 1
+        },
+        "down": null,
+        "formatted_distance": null,
+        "field_position": null,
+        "yards_from_goal": null,
+        "score": {
+          "home": {
+            "score": 0
+          },
+          "away": {
+            "score": 0
+          },
+          "tie_game": true
+        },
+        "team_in_possession": null
+      },
+      "box_score": null
+    }
+  ]
+}

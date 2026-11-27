@@ -4,6 +4,7 @@ import { localTeamLogo } from './team-assets.js';
 import { attachDetailsHover } from './details-hover.js';
 import { createGameActivity } from './game-activity.js';
 import { createScoreAnimations } from './score-animation.js';
+import { selectDemoPlayer } from './game-events.js';
 import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, ScoreboardPoller, feedIsStale, checkedAgo } from './score-client.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,7 +18,7 @@ let toastTimer;
 let renderedSvg = '';
 const animations = createScoreAnimations($('scorebug-preview'));
 const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear() });
-function updateActivity() { activity.setGame(reference ? null : selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt); }
+function updateActivity() { activity.setGame(reference ? null : selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt, { sourceId: snapshot.data?.sourceId, stale: snapshot.data?.stale, error: Boolean(snapshot.error) }); }
 function floatingSize() { return preferences.orientation === 'vertical' ? { width: Math.round(160 * preferences.scale), height: Math.round(370 * preferences.scale) } : { width: Math.round(520 * preferences.scale), height: Math.round(176 * preferences.scale) }; }
 
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6500); }
@@ -35,7 +36,8 @@ function renderDemoControls(game, sample) {
 }
 function renderHealth() {
   const stale = snapshot.data && feedIsStale(snapshot.data, Boolean(snapshot.error));
-  $('checked-at').textContent = snapshot.error ? `Reconnecting · ${checkedAgo(snapshot.data).toLowerCase()}` : checkedAgo(snapshot.data);
+  $('checked-at').textContent = snapshot.error || stale ? `Reconnecting · ${checkedAgo(snapshot.data).toLowerCase()}`
+    : snapshot.data?.feedStatus === 'backup' ? `Backup feed · ${checkedAgo(snapshot.data).toLowerCase()}` : checkedAgo(snapshot.data);
   const dot = $('feed-health').querySelector('.health-dot');
   dot.className = `health-dot${snapshot.error || stale ? ' error' : snapshot.data ? '' : ' pending'}`;
   if (stale) renderPreview();
@@ -54,7 +56,7 @@ function renderPreview() {
     animations.attach(preferences.orientation);
     $('game-title').textContent = sample ? 'Sample matchup: San Francisco at Kansas City' : `${game.away.name} at ${game.home.name}`;
     $('phase-badge').textContent = sample ? 'SAMPLE' : phaseLabel(game);
-    $('phase-badge').className = `status-pill${!sample && game.isLive ? ' live' : ''}${!sample && snapshot.error ? ' error' : ''}`;
+    $('phase-badge').className = `status-pill${!sample && game.isLive ? ' live' : ''}${!sample && feedIsStale(snapshot.data, Boolean(snapshot.error)) ? ' error' : ''}`;
   } else {
     renderedSvg = '';
     const label = snapshot.loading ? 'Connecting to the NFL feed' : snapshot.error ? 'Unable to reach the score feed' : preferences.gameId ? 'This game is not in the selected schedule' : 'No NFL games for this date';
@@ -86,8 +88,9 @@ function renderGames() {
   select.disabled = !games.length;
   select.value = current?.id || '';
   $('games-count').textContent = games.length ? `${games.length} GAME${games.length === 1 ? '' : 'S'}` : 'NFL';
-  $('feed-error').hidden = !snapshot.error;
-  $('feed-error').textContent = snapshot.error ? 'The feed is unavailable. Last known scores are marked as delayed; reconnecting automatically. You can also use the refresh button.' : '';
+  const delayed = snapshot.data && feedIsStale(snapshot.data, Boolean(snapshot.error));
+  $('feed-error').hidden = !snapshot.error && !delayed;
+  $('feed-error').textContent = snapshot.error || delayed ? 'Reconnecting automatically. The last received score stays visible and is marked as delayed.' : '';
   const teams = $('match-teams'); teams.replaceChildren();
   if (current) {
     for (const [index, team] of [current.away, current.home].entries()) {
@@ -116,7 +119,7 @@ function renderPreferences() {
   $('snap-checkbox').checked = preferences.snapEnabled !== false; $('lock-checkbox').checked = Boolean(preferences.locked);
   for (const button of $('anchor-grid').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.anchor === preferences.anchor));
 }
-const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (state) => { snapshot = state; renderPreview(); renderGames(); renderHealth(); if (!state.error) updateActivity(); } });
+const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (state) => { snapshot = state; renderPreview(); renderGames(); renderHealth(); updateActivity(); } });
 onPreferences((next) => {
   const oldDate = preferences.date;
   if (oldDate !== next.date || preferences.gameId !== next.gameId || preferences.team !== next.team) { demoReference = false; animations.clearDemo(); }
@@ -156,8 +159,11 @@ $('demo-play')?.addEventListener('click', () => {
   const game = reference || demoReference ? referenceGame : selected;
   const side = $('demo-team')?.value === 'home' ? 'home' : 'away';
   const kind = Object.hasOwn(DEMO_EVENTS, $('demo-event')?.value) ? $('demo-event').value : 'touchdown';
+  const details = activity.getDetails();
   const event = { id: `demo:${++demoSequence}`, gameId: game.id, kind, teamId: game[side].id,
-    detail: 'Animation preview only.', playId: null, period: null, clock: null, yardsGained: null, ...DEMO_EVENTS[kind] };
+    detail: 'Animation preview only.', playId: null, period: null, clock: null, yardsGained: null,
+    player: details?.gameId === game.id ? selectDemoPlayer(details, game[side].id, kind) : null,
+    ...DEMO_EVENTS[kind] };
   animations.demo(event, game);
 });
 $('refresh-button').addEventListener('click', () => { poller.refresh(); activity.refresh(); });

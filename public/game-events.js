@@ -11,6 +11,22 @@ const validId = (value) => typeof value === 'string' && /^\d{1,24}$/.test(value)
 const compareId = (a, b) => BigInt(a) > BigInt(b) ? 1 : BigInt(a) < BigInt(b) ? -1 : 0;
 const array = (value) => Array.isArray(value) ? value : [];
 
+function eventPlayer(value, teamId) {
+  if (!value || value.teamId !== teamId || typeof value.name !== 'string') return null;
+  const name = value.name.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90);
+  if (!name) return null;
+  let headshot = null;
+  try {
+    const url = new URL(value.headshot);
+    if (url.protocol === 'https:' && /(^|\.)espncdn\.com$/i.test(url.hostname) && !url.username && !url.password && !url.port && /^\/i\/headshots\/nfl\/players\//.test(url.pathname)) headshot = url.href;
+  } catch { /* A name without a photograph is still useful. */ }
+  return { id: validId(value.id) ? value.id : null, name, headshot };
+}
+
+function componentPlayer(play, part, teamId) {
+  return eventPlayer(part.component === 'conversion' ? play.conversionPlayer : play.player, teamId);
+}
+
 function conversion(attempt) {
   if (attempt?.points === 1 && (attempt.typeId === '61' || /^Extra Point Good$/i.test(attempt.type || ''))) return { kind: 'extra-point', points: 1 };
   if (attempt?.points === 2 && /Two[ -]Point/i.test(attempt.type || '')) return { kind: 'two-point', points: 2 };
@@ -58,6 +74,12 @@ function mergePlay(previous, next) {
   for (const [key, field] of Object.entries(next)) if (field !== null && field !== undefined) value[key] = field;
   value.scores = { ...previous.scores };
   for (const side of ['away', 'home']) if (score(next.scores?.[side]) !== null) value.scores[side] = next.scores[side];
+  for (const key of ['player', 'conversionPlayer']) {
+    if (previous[key] && next[key] && previous[key].id && previous[key].id === next[key].id) {
+      value[key] = { ...previous[key] };
+      for (const [field, detail] of Object.entries(next[key])) if (detail !== null && detail !== undefined) value[key][field] = detail;
+    }
+  }
   return value;
 }
 
@@ -70,6 +92,32 @@ function collectPlays(game, details) {
     plays.set(play.id, mergePlay(plays.get(play.id), play));
   }
   return [...plays.values()].sort((a, b) => compareId(a.id, b.id));
+}
+
+/** A labeled demo may use this game's reported roster; callers gate freshness. */
+export function selectDemoPlayer(details, teamId, kind) {
+  if (!validId(details?.gameId) || !validId(teamId) || ![details.away?.id, details.home?.id].includes(teamId)) return null;
+  const categories = {
+    touchdown: ['receiving', 'rushing'], 'field-goal': ['kicking'], 'extra-point': ['kicking'],
+    'two-point': ['receiving', 'rushing'], 'big-play': ['receiving', 'rushing'],
+    interception: ['interceptions', 'defensive'], fumble: ['defensive'], safety: ['defensive'],
+  }[kind];
+  if (!categories) return null;
+  for (const play of array(details.eventPlays)) {
+    for (const part of components(play)) {
+      if (part.kind !== kind) continue;
+      const player = componentPlayer(play, part, teamId);
+      if (player) return player;
+    }
+  }
+  for (const category of categories) {
+    for (const player of array(details.players)) {
+      if (!array(player.statCategories).includes(category)) continue;
+      const selected = eventPlayer(player, teamId);
+      if (selected) return selected;
+    }
+  }
+  return null;
 }
 
 /**
@@ -127,6 +175,7 @@ export function createGameEventTracker({ maxEvents = 4, scoreFallbackDelayMs = 1
       title: SCORE_TITLES[part.kind] || ({ interception: 'INTERCEPTION', fumble: 'FUMBLE RECOVERED', 'big-play': 'BIG PLAY' })[part.kind],
       detail: play.text || '', points: part.points ?? null, playId: play.id,
       period: play.period ?? null, clock: play.clock ?? null, yardsGained: part.component === 'conversion' ? null : integer(play.yardsGained),
+      player: componentPlayer(play, part, teamId),
     };
   }
   function update({ game, details = null, contextKey = '', now = Date.now(), silent = false } = {}) {
@@ -230,7 +279,7 @@ export function createGameEventTracker({ maxEvents = 4, scoreFallbackDelayMs = 1
       emitted.push({
         id: `${game.id}:score:${teamId}:${mature.join('-')}`, gameId: game.id, kind: 'score', teamId,
         title: SCORE_TITLES.score, detail: `${team.abbreviation || 'Team'} score increased by ${mature.length}.`,
-        points: mature.length, playId: null, period: game.period ?? null, clock: game.clock ?? null, yardsGained: null,
+        points: mature.length, playId: null, period: game.period ?? null, clock: game.clock ?? null, yardsGained: null, player: null,
       });
     }
     return emitted.slice(-limit);

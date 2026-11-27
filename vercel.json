@@ -6,10 +6,10 @@
   "outputDirectory": "dist",
   "functions": {
     "api/scoreboard.js": {
-      "maxDuration": 15
+      "maxDuration": 20
     },
     "api/game.js": {
-      "maxDuration": 15
+      "maxDuration": 20
     }
   },
   "headers": [

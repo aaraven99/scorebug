@@ -6,15 +6,51 @@
 .details-popover{border-radius:3px;animation:stats-expand-right .18s ease-out both}.details-popover[data-direction=left]{animation-name:stats-expand-left}
 @keyframes stats-expand-right{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}}
 @keyframes stats-expand-left{from{clip-path:inset(0 0 0 100%)}to{clip-path:inset(0)}}
-.score-animation-host{position:relative}.score-animation{--event-color:#425349;position:absolute;z-index:2;top:2.8%;left:1%;right:1%;height:61%;pointer-events:none;overflow:hidden;clip-path:polygon(3% 0,100% 0,97% 100%,0 100%);background:linear-gradient(110deg,color-mix(in srgb,var(--event-color) 88%,#fff),var(--event-color) 55%,color-mix(in srgb,var(--event-color) 55%,#000));box-shadow:inset 0 2px 0 #ffffff80,inset 0 -2px 0 #a1aaa1;color:#fff;text-shadow:0 1px 2px #0007}
-.score-animation-content{display:flex;height:100%;width:100%;align-items:center;justify-content:center;gap:13px;padding:3px 20px;position:relative;z-index:1}.score-animation-copy{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;gap:3px}.score-animation strong{font-family:"Scorebug Tomorrow",Arial,sans-serif;font-style:italic;font-weight:800;line-height:1;font-size:clamp(14px,3.1vw,28px);letter-spacing:-.7px;text-align:center}.score-animation span{font:700 10px/1.2 Arial,sans-serif;letter-spacing:1.4px;color:#fff9e9}.score-animation-logo{width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 1px 2px #0008)}
-.score-animation.is-playing{animation:score-enter .24s cubic-bezier(.22,.72,.28,1) both}.score-animation.is-playing:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,#ffffff32 45%,transparent 65%);animation:score-shine .8s .15s ease-out both}
-.score-animation-host[data-animation-orientation=vertical] .score-animation{top:1%;left:1%;right:1%;height:69%;clip-path:polygon(6% 0,100% 0,94% 100%,0 100%)}.score-animation-host[data-animation-orientation=vertical] .score-animation-content{flex-direction:column;gap:15px;padding:12px 9px}.score-animation-host[data-animation-orientation=vertical] .score-animation-logo{width:65px;height:65px}.score-animation-host[data-animation-orientation=vertical] .score-animation strong{font-size:clamp(11px,10vw,20px);line-height:1.15;overflow-wrap:anywhere}.score-animation-host[data-animation-orientation=vertical] .score-animation span{font-size:9px;letter-spacing:.3px;margin-top:7px}
-@keyframes score-enter{from{opacity:0;transform:translateX(-7%);clip-path:polygon(0 0,0 0,0 100%,0 100%)}to{opacity:1;transform:translateX(0)}}
+/* Announcements occupy only the team panels. Their timers live in the owner window. */
+.score-animation-host{position:relative;container-type:inline-size;container-name:scorebug-animation}
+.score-animation,.score-animation *{box-sizing:border-box}
+.score-animation{--event-color:#425349;--event-frame:polygon(3% 0,100% 0,97% 100%,0 100%);position:absolute;z-index:2;top:2.8%;left:1%;right:1%;height:61%;pointer-events:none;overflow:hidden;clip-path:var(--event-frame);background:linear-gradient(110deg,color-mix(in srgb,var(--event-color) 88%,#fff),var(--event-color) 55%,color-mix(in srgb,var(--event-color) 55%,#000));box-shadow:inset 0 2px 0 #ffffff80,inset 0 -2px 0 #a1aaa1;color:#fff;text-shadow:0 1px 2px #0007}
+.score-animation[hidden],.score-animation [hidden]{display:none!important}
+.score-animation-content{display:flex;height:100%;width:100%;align-items:center;justify-content:center;gap:clamp(7px,2.4cqw,13px);padding:3px clamp(11px,4cqw,22px);position:relative;z-index:1}
+.score-animation-art{position:relative;align-self:stretch;flex:0 0 clamp(42px,14cqw,76px);display:grid;place-items:center;isolation:isolate;min-width:0}
+.score-animation-logo{width:clamp(32px,10.6cqw,57px);height:clamp(32px,10.6cqw,57px);object-fit:contain;filter:drop-shadow(0 1px 2px #0008);position:relative;z-index:2}
+.score-animation-crest-fallback{font:900 clamp(15px,4.7cqw,26px)/1 Arial,sans-serif;font-style:italic;letter-spacing:-.6px}
+.score-animation-player-photo{position:absolute;z-index:1;bottom:-4%;left:-12%;width:124%;height:116%;object-fit:contain;object-position:center bottom;opacity:0;transition:opacity .16s ease;filter:drop-shadow(0 1px 2px #0004)}
+.score-animation-art[data-portrait=ready] .score-animation-player-photo{opacity:1}
+.score-animation-art[data-portrait=ready] .score-animation-logo,.score-animation-art[data-portrait=ready] .score-animation-crest-fallback{position:absolute;right:-2px;bottom:3px;width:clamp(16px,4.3cqw,23px);height:clamp(16px,4.3cqw,23px);padding:2px;border-radius:50%;background:#fffffff0;filter:drop-shadow(0 1px 2px #0005)}
+.score-animation-art[data-portrait=ready] .score-animation-crest-fallback{display:grid;place-items:center;color:#18231e;text-shadow:none;font-size:7px;letter-spacing:-.4px}
+.score-animation-copy{display:flex;flex:0 1 auto;flex-direction:column;align-items:flex-start;justify-content:center;min-width:0;max-width:calc(100% - 58px);gap:2px}
+.score-animation-meta{display:flex;align-items:center;flex-wrap:nowrap;gap:6px;min-width:0;max-width:100%;line-height:1}
+.score-animation-detail{font:700 clamp(7px,1.8cqw,10px)/1.15 Arial,sans-serif;letter-spacing:1.1px;color:#fff9e9;white-space:nowrap}
+.score-animation .score-animation-title{font-family:"Scorebug Tomorrow",Arial,sans-serif;font-style:italic;font-weight:800;line-height:1.03;font-size:clamp(14px,5.2cqw,28px);letter-spacing:-.65px;text-align:left;max-width:100%;text-wrap:balance}
+.score-animation .score-animation-title--long{font-size:clamp(12px,4.6cqw,25px);letter-spacing:-.55px}
+.score-animation-player-name,.score-animation-team-name{font:700 clamp(9px,2.6cqw,14px)/1.15 Arial,sans-serif;letter-spacing:.1px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.score-animation-team-name{font-weight:600;color:#fff9e9}
+.score-animation .score-animation-demo-label{display:inline-block;flex:none;background:#fff;color:#25332a;border-radius:2px;padding:2px 4px;font:800 clamp(6px,1.5cqw,8px)/1 Arial,sans-serif;letter-spacing:.5px;text-shadow:none}
+.score-animation.is-playing{animation:score-enter .28s cubic-bezier(.22,.72,.28,1) both}
+.score-animation.is-playing:after,.score-animation.is-exiting:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 25%,#ffffff32 45%,transparent 65%);pointer-events:none}
+.score-animation.is-playing:after{animation:score-shine .8s .15s ease-out both}
+.score-animation.is-exiting{animation:score-exit .26s cubic-bezier(.4,.02,.72,.7) both}
+.score-animation.is-exiting .score-animation-content{animation:score-content-exit .22s ease-in both}
+.score-animation.is-exiting:after{animation:score-shine .26s ease-in both}
+.score-animation-host[data-animation-orientation=vertical] .score-animation{--event-frame:polygon(6% 0,100% 0,94% 100%,0 100%);top:1%;left:1%;right:1%;height:69%}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-content{flex-direction:column;gap:6px;padding:10px 14px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-art{align-self:center;flex:0 1 110px;width:110px;min-height:68px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-logo{width:65px;height:65px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-logo,.score-animation-host[data-animation-orientation=vertical] .score-animation-art[data-portrait=ready] .score-animation-crest-fallback{width:25px;height:25px;right:3px;bottom:2px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-copy{max-width:100%;flex:none;align-items:center;gap:5px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-meta{justify-content:center;gap:5px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-detail{font-size:9px;letter-spacing:.5px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-title{font-size:17px;line-height:1.08;text-align:center;overflow-wrap:normal;letter-spacing:-.65px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-title--long{font-size:15px}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-player-name,.score-animation-host[data-animation-orientation=vertical] .score-animation-team-name{font-size:12px;line-height:1.15;white-space:normal;text-align:center;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.score-animation-host[data-animation-orientation=vertical] .score-animation-demo-label{font-size:7px}
+@container scorebug-animation (max-width:380px){.score-animation-host[data-animation-orientation=horizontal] .score-animation-content{padding-top:2px;padding-bottom:2px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-copy{gap:1px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-meta{gap:4px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-demo-label{padding:1px 3px}.score-animation-host[data-animation-orientation=horizontal] .score-animation-detail{letter-spacing:.5px}}
+@keyframes score-enter{from{opacity:0;transform:translateX(-7%);clip-path:polygon(0 0,0 0,0 100%,0 100%)}to{opacity:1;transform:translateX(0);clip-path:var(--event-frame)}}
+@keyframes score-exit{from{opacity:var(--event-exit-opacity,1);transform:var(--event-exit-transform,translateX(0));clip-path:var(--event-exit-clip,var(--event-frame))}to{opacity:0;transform:translateX(5%);clip-path:polygon(100% 0,100% 0,100% 100%,100% 100%)}}
+@keyframes score-content-exit{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(9px)}}
 @keyframes score-shine{from{transform:translateX(-110%)}to{transform:translateX(110%)}}
-@media(prefers-reduced-motion:reduce){.score-animation,.score-animation:after,.details-popover{animation:none!important}}
+@media(prefers-reduced-motion:reduce){.score-animation,.score-animation:after,.score-animation-content,.details-popover{animation:none!important}.score-animation-player-photo{transition:none}}
 .widget-page[data-desktop] .widget-board{width:100%}
-.score-animation .score-animation-demo-label{display:inline-block;align-self:center;background:#fff;color:#25332a;border-radius:2px;padding:2px 5px;font:700 8px/1 Arial,sans-serif;letter-spacing:.5px;text-shadow:none}.score-animation[data-demo=true] .score-animation-copy{gap:2px}
-@media(max-width:520px){.score-animation-host[data-animation-orientation=horizontal] .score-animation[data-demo=true] .score-animation-content{padding:2px 8px;gap:7px}.score-animation-host[data-animation-orientation=horizontal] .score-animation[data-demo=true] strong{font-size:13px;letter-spacing:-.35px}.score-animation-host[data-animation-orientation=horizontal] .score-animation[data-demo=true] .score-animation-logo{width:32px;height:32px}.score-animation-host[data-animation-orientation=horizontal] .score-animation[data-demo=true] .score-animation-copy{gap:1px}.score-animation-host[data-animation-orientation=horizontal] .score-animation[data-demo=true] span{font-size:8px;line-height:1.1;letter-spacing:.6px}.score-animation-host[data-animation-orientation=horizontal] .score-animation[data-demo=true] .score-animation-demo-label{font-size:7px;padding:1px 4px}}
 /* A sample or delayed-feed badge adds space above the same team panels. */
 .score-animation-host[data-animation-orientation=horizontal]:has(.bug-status-flag) .score-animation{top:17.3%;height:51.9%}.score-animation-host[data-animation-orientation=vertical]:has(.bug-status-flag) .score-animation{top:5.7%;height:66.8%}

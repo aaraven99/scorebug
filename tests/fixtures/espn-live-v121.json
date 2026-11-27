@@ -1,0 +1,1173 @@
+{
+  "capturedAt": "2026-11-27T00:17:16.200722+00:00",
+  "sourceUrls": [
+    "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
+    "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=401873080",
+    "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=401873081",
+    "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873080/competitions/401873080/plays/401873080943",
+    "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873081/competitions/401873081/plays/401873081489",
+    "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/401873081/competitions/401873081/plays/4018730814061"
+  ],
+  "note": "Selected actual ESPN fields. Historical participant roles come from the public core play endpoint for the identical play ID; no private references are fetched. Header has no current situation in this sample.",
+  "scoreboardEvent": {
+    "id": "401873080",
+    "name": "Philadelphia Eagles at Dallas Cowboys",
+    "shortName": "PHI @ DAL",
+    "date": "2026-11-26T21:30Z",
+    "competitions": [
+      {
+        "competitors": [
+          {
+            "id": "6",
+            "homeAway": "home",
+            "score": "31",
+            "team": {
+              "id": "6",
+              "abbreviation": "DAL",
+              "displayName": "Dallas Cowboys"
+            }
+          },
+          {
+            "id": "21",
+            "homeAway": "away",
+            "score": "10",
+            "team": {
+              "id": "21",
+              "abbreviation": "PHI",
+              "displayName": "Philadelphia Eagles"
+            }
+          }
+        ],
+        "status": {
+          "clock": 170.0,
+          "displayClock": "2:50",
+          "period": 3,
+          "type": {
+            "id": "2",
+            "name": "STATUS_IN_PROGRESS",
+            "state": "in",
+            "completed": false,
+            "description": "In Progress",
+            "detail": "2:50 - 3rd Quarter",
+            "shortDetail": "2:50 - 3rd"
+          },
+          "isTBDFlex": false
+        },
+        "situation": {
+          "down": 1,
+          "distance": 10,
+          "shortDownDistanceText": "1st & 10",
+          "downDistanceText": "1st & 10 at PHI 39",
+          "possessionText": "PHI 39",
+          "possession": "21",
+          "lastPlay": {
+            "id": "4018730803009",
+            "type": {
+              "id": "24",
+              "text": "Pass Reception",
+              "abbreviation": "REC"
+            },
+            "text": " (Shotgun) J.Milton pass short left to D.Smith to PHI 39 for 14 yards (C.Durant).",
+            "scoreValue": 0,
+            "statYardage": 14,
+            "start": {
+              "team": {
+                "id": "21"
+              }
+            },
+            "end": {
+              "team": {
+                "id": "21"
+              }
+            },
+            "team": {
+              "id": "21"
+            },
+            "athletesInvolved": [
+              {
+                "id": "4241478",
+                "displayName": "DeVonta Smith",
+                "headshot": "https://a.espncdn.com/i/headshots/nfl/players/full/4241478.png",
+                "position": "WR",
+                "team": {
+                  "id": "21"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "summary": {
+    "header": {
+      "id": "401873080",
+      "competitions": [
+        {
+          "date": "2026-11-26T21:30Z",
+          "status": {
+            "displayClock": "2:50",
+            "period": 3,
+            "type": {
+              "id": "2",
+              "name": "STATUS_IN_PROGRESS",
+              "state": "in",
+              "completed": false,
+              "description": "In Progress",
+              "detail": "2:50 - 3rd Quarter",
+              "shortDetail": "2:50 - 3rd",
+              "statusPrimary": "2:50",
+              "statusSecondary": "3rd"
+            },
+            "isTBDFlex": false,
+            "displayPeriod": "3rd"
+          },
+          "competitors": [
+            {
+              "id": "6",
+              "homeAway": "home",
+              "score": "31",
+              "team": {
+                "id": "6",
+                "abbreviation": "DAL",
+                "displayName": "Dallas Cowboys"
+              }
+            },
+            {
+              "id": "21",
+              "homeAway": "away",
+              "score": "10",
+              "team": {
+                "id": "21",
+                "abbreviation": "PHI",
+                "displayName": "Philadelphia Eagles"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "meta": {
+      "lastUpdatedAt": "2026-11-27T00:16:25Z"
+    },
+    "boxscore": {
+      "players": [
+        {
+          "team": {
+            "id": "21"
+          },
+          "statistics": [
+            {
+              "name": "passing",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "4360698",
+                    "displayName": "Joe Milton",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4360698.png",
+                      "alt": "Joe Milton"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "rushing",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "4360698",
+                    "displayName": "Joe Milton",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4360698.png",
+                      "alt": "Joe Milton"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "receiving",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "4241478",
+                    "displayName": "DeVonta Smith",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4241478.png",
+                      "alt": "DeVonta Smith"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kicking",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "3050478",
+                    "displayName": "Jake Elliott",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3050478.png",
+                      "alt": "Jake Elliott"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "team": {
+            "id": "6"
+          },
+          "statistics": [
+            {
+              "name": "passing",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "2577417",
+                    "displayName": "Dak Prescott",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/2577417.png",
+                      "alt": "Dak Prescott"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "rushing",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "3676833",
+                    "displayName": "KaVontae Turpin",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3676833.png",
+                      "alt": "KaVontae Turpin"
+                    }
+                  }
+                },
+                {
+                  "athlete": {
+                    "id": "2577417",
+                    "displayName": "Dak Prescott",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/2577417.png",
+                      "alt": "Dak Prescott"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "receiving",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "3676833",
+                    "displayName": "KaVontae Turpin",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3676833.png",
+                      "alt": "KaVontae Turpin"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "defensive",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "4384549",
+                    "displayName": "Cobie Durant",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4384549.png",
+                      "alt": "Cobie Durant"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kickReturns",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "3676833",
+                    "displayName": "KaVontae Turpin",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3676833.png",
+                      "alt": "KaVontae Turpin"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "puntReturns",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "3676833",
+                    "displayName": "KaVontae Turpin",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3676833.png",
+                      "alt": "KaVontae Turpin"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "kicking",
+              "athletes": [
+                {
+                  "athlete": {
+                    "id": "3953687",
+                    "displayName": "Brandon Aubrey",
+                    "headshot": {
+                      "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3953687.png",
+                      "alt": "Brandon Aubrey"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "scoringPlays": [
+      {
+        "id": "401873080943",
+        "type": {
+          "id": "67",
+          "text": "Passing Touchdown",
+          "abbreviation": "TD"
+        },
+        "text": "KaVontae Turpin 31 Yd pass from Dak Prescott (Brandon Aubrey Kick)",
+        "team": {
+          "id": "6"
+        },
+        "scoringType": {
+          "name": "touchdown",
+          "displayName": "Touchdown",
+          "abbreviation": "TD"
+        },
+        "awayScore": 0,
+        "homeScore": 14
+      },
+      {
+        "id": "4018730801853",
+        "type": {
+          "id": "67",
+          "text": "Passing Touchdown",
+          "abbreviation": "TD"
+        },
+        "text": "DeVonta Smith 50 Yd pass from Joe Milton (Jake Elliott Kick)",
+        "team": {
+          "id": "21"
+        },
+        "scoringType": {
+          "name": "touchdown",
+          "displayName": "Touchdown",
+          "abbreviation": "TD"
+        },
+        "awayScore": 10,
+        "homeScore": 21
+      },
+      {
+        "id": "4018730802937",
+        "type": {
+          "id": "59",
+          "text": "Field Goal Good",
+          "abbreviation": "FG"
+        },
+        "text": "Brandon Aubrey 59 Yd Field Goal ",
+        "team": {
+          "id": "6"
+        },
+        "scoringType": {
+          "name": "field-goal",
+          "displayName": "Field Goal",
+          "abbreviation": "FG"
+        },
+        "awayScore": 10,
+        "homeScore": 31
+      }
+    ],
+    "drives": {
+      "previous": [
+        {
+          "plays": [
+            {
+              "id": "4018730801853",
+              "sequenceNumber": "185300",
+              "type": {
+                "id": "67",
+                "text": "Passing Touchdown",
+                "abbreviation": "TD"
+              },
+              "text": "(Shotgun) J.Milton pass deep right to D.Smith for 50 yards, TOUCHDOWN. J.Elliott extra point is GOOD, Center-R.Underwood, Holder-B.Mann.",
+              "awayScore": 10,
+              "homeScore": 21,
+              "period": {
+                "number": 2
+              },
+              "clock": {
+                "displayValue": "4:06"
+              },
+              "scoringPlay": true,
+              "wallclock": "2026-11-26T23:05:35Z",
+              "statYardage": 50,
+              "start": {
+                "down": 2,
+                "distance": 4,
+                "yardsToEndzone": 50,
+                "downDistanceText": "2nd & 4 at 50",
+                "shortDownDistanceText": "2nd & 4",
+                "possessionText": "50",
+                "team": {
+                  "id": "21"
+                }
+              },
+              "end": {
+                "down": -1,
+                "distance": 10,
+                "yardsToEndzone": 0,
+                "team": {
+                  "id": "21"
+                }
+              },
+              "scoringType": {
+                "name": "touchdown",
+                "displayName": "Touchdown",
+                "abbreviation": "TD"
+              },
+              "pointAfterAttempt": {
+                "id": 61,
+                "text": "Extra Point Good",
+                "abbreviation": "Extra Point Good",
+                "value": 1
+              },
+              "isTurnover": false,
+              "teamParticipants": [
+                {
+                  "id": "21",
+                  "type": "offense"
+                },
+                {
+                  "id": "6",
+                  "type": "defense"
+                }
+              ]
+            },
+            {
+              "id": "4018730802937",
+              "sequenceNumber": "293700",
+              "type": {
+                "id": "59",
+                "text": "Field Goal Good",
+                "abbreviation": "FG"
+              },
+              "text": " B.Aubrey 59 yard field goal is GOOD, Center-T.Sieg, Holder-B.Anger.",
+              "awayScore": 10,
+              "homeScore": 31,
+              "period": {
+                "number": 3
+              },
+              "clock": {
+                "displayValue": "3:35"
+              },
+              "scoringPlay": true,
+              "wallclock": "2026-11-27T00:11:48Z",
+              "statYardage": 59,
+              "start": {
+                "down": 4,
+                "distance": 11,
+                "yardsToEndzone": 41,
+                "downDistanceText": "4th & 11 at PHI 41",
+                "shortDownDistanceText": "4th & 11",
+                "possessionText": "PHI 41",
+                "team": {
+                  "id": "6"
+                }
+              },
+              "end": {
+                "down": -1,
+                "distance": 10,
+                "yardsToEndzone": 0,
+                "team": {
+                  "id": "6"
+                }
+              },
+              "scoringType": {
+                "name": "field-goal",
+                "displayName": "Field Goal",
+                "abbreviation": "FG"
+              },
+              "isTurnover": false,
+              "teamParticipants": [
+                {
+                  "id": "6",
+                  "type": "offense"
+                },
+                {
+                  "id": "21",
+                  "type": "defense"
+                }
+              ]
+            },
+            {
+              "id": "401873080943",
+              "sequenceNumber": "94300",
+              "type": {
+                "id": "67",
+                "text": "Passing Touchdown",
+                "abbreviation": "TD"
+              },
+              "text": "D.Prescott pass short right to K.Turpin for 31 yards, TOUCHDOWN [J.Greenard]. B.Aubrey extra point is GOOD, Center-T.Sieg, Holder-B.Anger.",
+              "awayScore": 0,
+              "homeScore": 14,
+              "period": {
+                "number": 1
+              },
+              "clock": {
+                "displayValue": "0:36"
+              },
+              "scoringPlay": true,
+              "wallclock": "2026-11-26T22:24:46Z",
+              "statYardage": 31,
+              "start": {
+                "down": 2,
+                "distance": 8,
+                "yardsToEndzone": 31,
+                "downDistanceText": "2nd & 8 at PHI 31",
+                "shortDownDistanceText": "2nd & 8",
+                "possessionText": "PHI 31",
+                "team": {
+                  "id": "6"
+                }
+              },
+              "end": {
+                "down": -1,
+                "distance": 10,
+                "yardsToEndzone": 0,
+                "team": {
+                  "id": "6"
+                }
+              },
+              "scoringType": {
+                "name": "touchdown",
+                "displayName": "Touchdown",
+                "abbreviation": "TD"
+              },
+              "pointAfterAttempt": {
+                "id": 61,
+                "text": "Extra Point Good",
+                "abbreviation": "Extra Point Good",
+                "value": 1
+              },
+              "isTurnover": false,
+              "teamParticipants": [
+                {
+                  "id": "6",
+                  "type": "offense"
+                },
+                {
+                  "id": "21",
+                  "type": "defense"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "current": {
+        "team": {
+          "id": "21"
+        },
+        "plays": [
+          {
+            "id": "4018730803009",
+            "sequenceNumber": "300900",
+            "type": {
+              "id": "24",
+              "text": "Pass Reception",
+              "abbreviation": "REC"
+            },
+            "text": " (Shotgun) J.Milton pass short left to D.Smith to PHI 39 for 14 yards (C.Durant).",
+            "awayScore": 10,
+            "homeScore": 31,
+            "period": {
+              "number": 3
+            },
+            "clock": {
+              "displayValue": "2:50"
+            },
+            "scoringPlay": false,
+            "scoreValue": 0,
+            "wallclock": "2026-11-27T00:16:25Z",
+            "statYardage": 14,
+            "start": {
+              "down": 2,
+              "distance": 5,
+              "yardsToEndzone": 75,
+              "downDistanceText": "2nd & 5 at PHI 25",
+              "shortDownDistanceText": "2nd & 5",
+              "possessionText": "PHI 25",
+              "team": {
+                "id": "21"
+              }
+            },
+            "end": {
+              "down": 1,
+              "distance": 10,
+              "yardsToEndzone": 61,
+              "downDistanceText": "1st & 10 at PHI 39",
+              "shortDownDistanceText": "1st & 10",
+              "possessionText": "PHI 39",
+              "team": {
+                "id": "21"
+              }
+            },
+            "isTurnover": false,
+            "teamParticipants": [
+              {
+                "id": "21",
+                "type": "offense"
+              },
+              {
+                "id": "6",
+                "type": "defense"
+              }
+            ],
+            "participants": [
+              {
+                "type": "passer",
+                "athlete": {
+                  "id": "4360698",
+                  "displayName": "Joe Milton",
+                  "fullName": "Joe Milton",
+                  "shortName": "J. Milton",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4360698.png",
+                    "alt": "Joe Milton"
+                  },
+                  "position": {
+                    "name": "Quarterback",
+                    "displayName": "Quarterback",
+                    "abbreviation": "QB"
+                  },
+                  "team": {
+                    "abbreviation": "PHI"
+                  }
+                }
+              },
+              {
+                "type": "receiver",
+                "athlete": {
+                  "id": "4241478",
+                  "displayName": "DeVonta Smith",
+                  "fullName": "DeVonta Smith",
+                  "shortName": "D. Smith",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4241478.png",
+                    "alt": "DeVonta Smith"
+                  },
+                  "position": {
+                    "name": "Wide Receiver",
+                    "displayName": "Wide Receiver",
+                    "abbreviation": "WR"
+                  },
+                  "team": {
+                    "abbreviation": "PHI"
+                  }
+                }
+              },
+              {
+                "type": "tackler",
+                "athlete": {
+                  "id": "4384549",
+                  "displayName": "Cobie Durant",
+                  "fullName": "Cobie Durant",
+                  "shortName": "C. Durant",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4384549.png",
+                    "alt": "Cobie Durant"
+                  },
+                  "position": {
+                    "name": "Cornerback",
+                    "displayName": "Cornerback",
+                    "abbreviation": "CB"
+                  },
+                  "team": {
+                    "abbreviation": "DAL"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "touchdownParticipants": [
+    {
+      "type": "passer",
+      "athlete": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/2577417?lang=en&region=us"
+      }
+    },
+    {
+      "type": "receiver",
+      "athlete": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3676833?lang=en&region=us"
+      }
+    },
+    {
+      "type": "scorer",
+      "athlete": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3676833?lang=en&region=us"
+      }
+    },
+    {
+      "type": "kicker",
+      "athlete": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3953687?lang=en&region=us"
+      }
+    },
+    {
+      "type": "patScorer",
+      "athlete": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3953687?lang=en&region=us"
+      }
+    },
+    {
+      "type": "other",
+      "athlete": {
+        "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3916409?lang=en&region=us"
+      }
+    }
+  ],
+  "turnovers": {
+    "teams": [
+      {
+        "id": "8",
+        "abbreviation": "DET"
+      },
+      {
+        "id": "3",
+        "abbreviation": "CHI"
+      }
+    ],
+    "boxscorePlayers": [
+      {
+        "team": {
+          "id": "3"
+        },
+        "statistics": [
+          {
+            "name": "passing",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4431611",
+                  "displayName": "Caleb Williams",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4431611.png",
+                    "alt": "Caleb Williams"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "rushing",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4431611",
+                  "displayName": "Caleb Williams",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4431611.png",
+                    "alt": "Caleb Williams"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "receiving",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4723086",
+                  "displayName": "Colston Loveland",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4723086.png",
+                    "alt": "Colston Loveland"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "fumbles",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4723086",
+                  "displayName": "Colston Loveland",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4723086.png",
+                    "alt": "Colston Loveland"
+                  }
+                }
+              },
+              {
+                "athlete": {
+                  "id": "4431611",
+                  "displayName": "Caleb Williams",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4431611.png",
+                    "alt": "Caleb Williams"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "defensive",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4954445",
+                  "displayName": "Dillon Thieneman",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4954445.png",
+                    "alt": "Dillon Thieneman"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "interceptions",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4954445",
+                  "displayName": "Dillon Thieneman",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4954445.png",
+                    "alt": "Dillon Thieneman"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "team": {
+          "id": "8"
+        },
+        "statistics": [
+          {
+            "name": "passing",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "3046779",
+                  "displayName": "Jared Goff",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3046779.png",
+                    "alt": "Jared Goff"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "rushing",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "3046779",
+                  "displayName": "Jared Goff",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3046779.png",
+                    "alt": "Jared Goff"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "receiving",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "3046779",
+                  "displayName": "Jared Goff",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3046779.png",
+                    "alt": "Jared Goff"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "fumbles",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "3046779",
+                  "displayName": "Jared Goff",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/3046779.png",
+                    "alt": "Jared Goff"
+                  }
+                }
+              },
+              {
+                "athlete": {
+                  "id": "4241411",
+                  "displayName": "Malcolm Rodriguez",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4241411.png",
+                    "alt": "Malcolm Rodriguez"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "defensive",
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "4241411",
+                  "displayName": "Malcolm Rodriguez",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4241411.png",
+                    "alt": "Malcolm Rodriguez"
+                  }
+                }
+              },
+              {
+                "athlete": {
+                  "id": "4685461",
+                  "displayName": "Derrick Moore",
+                  "headshot": {
+                    "href": "https://a.espncdn.com/i/headshots/nfl/players/full/4685461.png",
+                    "alt": "Derrick Moore"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "plays": [
+      {
+        "id": "401873081489",
+        "sequenceNumber": "48900",
+        "type": {
+          "id": "29",
+          "text": "Fumble Recovery (Opponent)"
+        },
+        "text": "C.Williams pass short right to C.Loveland to DET 17 for 5 yards (B.Branch, D.Moore). FUMBLES (D.Moore), RECOVERED by DET-M.Rodriguez at DET 16.",
+        "awayScore": 0,
+        "homeScore": 3,
+        "period": {
+          "number": 1
+        },
+        "clock": {
+          "displayValue": "7:52"
+        },
+        "scoringPlay": false,
+        "wallclock": "2026-11-26T18:17:06Z",
+        "statYardage": 0,
+        "start": {
+          "down": 2,
+          "distance": 8,
+          "yardsToEndzone": 22,
+          "downDistanceText": "2nd & 8 at DET 22",
+          "shortDownDistanceText": "2nd & 8",
+          "possessionText": "DET 22",
+          "team": {
+            "id": "3"
+          }
+        },
+        "end": {
+          "down": 1,
+          "distance": 10,
+          "yardsToEndzone": 84,
+          "downDistanceText": "1st & 10 at DET 16",
+          "shortDownDistanceText": "1st & 10",
+          "possessionText": "DET 16",
+          "team": {
+            "id": "8"
+          }
+        },
+        "isTurnover": true,
+        "teamParticipants": [
+          {
+            "id": "8",
+            "type": "defense"
+          },
+          {
+            "id": "3",
+            "type": "offense"
+          }
+        ],
+        "participants": [
+          {
+            "type": "passer",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4431611?lang=en&region=us"
+            }
+          },
+          {
+            "type": "receiver",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4723086?lang=en&region=us"
+            }
+          },
+          {
+            "type": "fumbler",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4723086?lang=en&region=us"
+            }
+          },
+          {
+            "type": "assistedBy",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4685461?lang=en&region=us"
+            }
+          },
+          {
+            "type": "forcedBy",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4685461?lang=en&region=us"
+            }
+          },
+          {
+            "type": "recoverer",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4241411?lang=en&region=us"
+            }
+          },
+          {
+            "type": "other",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4692025?lang=en&region=us"
+            }
+          }
+        ]
+      },
+      {
+        "id": "4018730814061",
+        "sequenceNumber": "406100",
+        "type": {
+          "id": "26",
+          "text": "Pass Interception Return",
+          "abbreviation": "INTR"
+        },
+        "text": "J.Goff pass short left intended for J.Williams INTERCEPTED by D.Thieneman (T.Edwards) at CHI 21. D.Thieneman to CHI 39 for 18 yards (T.Conklin).",
+        "awayScore": 32,
+        "homeScore": 35,
+        "period": {
+          "number": 4
+        },
+        "clock": {
+          "displayValue": "5:34"
+        },
+        "scoringPlay": false,
+        "wallclock": "2026-11-26T21:02:03Z",
+        "statYardage": 18,
+        "start": {
+          "down": 3,
+          "distance": 1,
+          "yardsToEndzone": 34,
+          "downDistanceText": "3rd & 1 at CHI 34",
+          "shortDownDistanceText": "3rd & 1",
+          "possessionText": "CHI 34",
+          "team": {
+            "id": "8"
+          }
+        },
+        "end": {
+          "down": 1,
+          "distance": 10,
+          "yardsToEndzone": 61,
+          "downDistanceText": "1st & 10 at CHI 39",
+          "shortDownDistanceText": "1st & 10",
+          "possessionText": "CHI 39",
+          "team": {
+            "id": "3"
+          }
+        },
+        "isTurnover": true,
+        "teamParticipants": [
+          {
+            "id": "3",
+            "type": "defense"
+          },
+          {
+            "id": "8",
+            "type": "offense"
+          }
+        ],
+        "participants": [
+          {
+            "type": "passer",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3046779?lang=en&region=us"
+            }
+          },
+          {
+            "type": "passDefender",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4954445?lang=en&region=us"
+            }
+          },
+          {
+            "type": "returner",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4954445?lang=en&region=us"
+            }
+          },
+          {
+            "type": "tackler",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3915486?lang=en&region=us"
+            }
+          },
+          {
+            "type": "other",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/3121544?lang=en&region=us"
+            }
+          },
+          {
+            "type": "other",
+            "athlete": {
+              "$ref": "http://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2026/athletes/4426388?lang=en&region=us"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

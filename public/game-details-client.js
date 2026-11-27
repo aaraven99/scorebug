@@ -34,7 +34,7 @@ export class GameDetailsPoller {
     clearTimeout(this.timer);
     const id = this.gameId, generation = this.generation;
     const controller = new AbortController(); this.controller = controller;
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 18000);
     this.state = { ...this.state, loading: true };
     this.onUpdate(this.state);
     try {

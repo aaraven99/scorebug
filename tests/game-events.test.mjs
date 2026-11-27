@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGameEventTracker } from '../public/game-events.js';
+import { createGameEventTracker, selectDemoPlayer } from '../public/game-events.js';
 import { normalizePlay } from '../lib/nfl.mjs';
 
 const NOW = Date.parse('2026-11-26T20:00:00Z');
@@ -33,6 +33,69 @@ function harness(options) {
   return { tracker, send: (gameValue, detailsValue = details(play(100)), elapsed = 0, extras = {}) => tracker.update({ game: gameValue, details: detailsValue, now: NOW + elapsed, contextKey: '20261126', ...extras }) };
 }
 
+const receiver = { id: '4241478', name: 'DeVonta Smith', headshot: 'https://a.espncdn.com/i/headshots/nfl/players/full/4241478.png', teamId: '3', position: 'WR' };
+const kicker = { id: '3050478', name: 'Jake Elliott', headshot: 'https://a.espncdn.com/i/headshots/nfl/players/full/3050478.png', teamId: '3', position: 'K' };
+
+test('touchdown and same-ID PAT carry separate confirmed players without changing deduplication', () => {
+  const { send } = harness(); send(game());
+  const scored = { ...touchdown(200, 7, goodPat), player: receiver, conversionPlayer: kicker };
+  const notices = send(game(7), details(scored), 1000);
+  assert.deepEqual(notices.map((event) => [event.kind, event.player?.name]), [['touchdown', 'DeVonta Smith'], ['extra-point', 'Jake Elliott']]);
+  assert.deepEqual(notices[0].player, { id: receiver.id, name: receiver.name, headshot: receiver.headshot });
+  assert.deepEqual(send(game(7), details({ ...scored, player: { ...receiver, name: 'Updated display name' } }), 2000), []);
+});
+
+test('a missing conversion scorer never inherits the touchdown scorer, and generic increases have no player', () => {
+  const { send } = harness(); send(game());
+  const scored = { ...touchdown(200, 7, goodPat), player: receiver };
+  const notices = send(game(7), details(scored), 1000);
+  assert.equal(notices[1].kind, 'extra-point');
+  assert.equal(notices[1].player, null);
+  const fallback = harness(); fallback.send(game());
+  fallback.send(game(3), null, 1000);
+  const generic = fallback.send(game(3), null, 13000);
+  assert.equal(generic[0].kind, 'score');
+  assert.equal(generic[0].player, null);
+});
+
+test('big-play and turnover players must belong to the beneficiary, and unsafe photos preserve only the name', () => {
+  const { send } = harness(); send(game());
+  const big = play(200, { type: 'Pass Reception', typeId: '24', yardsGained: 30, player: receiver });
+  assert.equal(send(game(), details(big), 1000)[0].player.name, receiver.name);
+  const defender = { id: '77', name: 'Reported Defender', headshot: 'https://a.espncdn.com.evil.example/player.png', teamId: '8' };
+  const intercepted = play(300, { type: 'Pass Interception Return', typeId: '26', isTurnover: true, end: { teamId: '8' }, player: defender });
+  const turnover = send(game(), details(intercepted, big), 2000)[0];
+  assert.equal(turnover.teamId, '8');
+  assert.deepEqual(turnover.player, { id: '77', name: 'Reported Defender', headshot: null });
+  const wrongTeam = play(400, { ...intercepted, id: '400', player: receiver });
+  assert.equal(send(game(), details(wrongTeam), 3000)[0].player, null);
+});
+
+test('a sparse primary player cannot erase the matching summary headshot', () => {
+  const { send } = harness(); send(game());
+  const detailed = { ...touchdown(200), player: receiver };
+  const primary = { ...detailed, player: { ...receiver, headshot: null, position: null } };
+  const notices = send(game(6, 0, { lastPlayDetails: primary }), details(detailed), 1000);
+  assert.equal(notices[0].player.headshot, receiver.headshot);
+  assert.deepEqual(send(game(6), details(detailed), 2000), []);
+});
+
+test('demo player selection uses matching play roles or actual same-team boxscore categories', () => {
+  const scored = { ...touchdown(200, 7, goodPat), player: receiver, conversionPlayer: kicker };
+  const source = { ...details(scored), away: teams[0], home: teams[1], players: [
+    { ...receiver, statCategories: ['receiving'] }, { ...kicker, statCategories: ['kicking'] },
+    { id: '99', name: 'Reported Home Kicker', headshot: null, teamId: '8', statCategories: ['kicking'] },
+  ] };
+  assert.equal(selectDemoPlayer(source, '3', 'touchdown').id, receiver.id);
+  assert.equal(selectDemoPlayer(source, '3', 'extra-point').id, kicker.id);
+  assert.equal(selectDemoPlayer(source, '3', 'field-goal').id, kicker.id);
+  assert.equal(selectDemoPlayer(source, '8', 'field-goal').name, 'Reported Home Kicker');
+  assert.equal(selectDemoPlayer(source, '8', 'touchdown'), null);
+  assert.equal(selectDemoPlayer(source, '999', 'field-goal'), null);
+  assert.equal(selectDemoPlayer(source, '3', 'score'), null);
+  assert.equal(selectDemoPlayer({ ...source, gameId: 'invalid' }, '3', 'touchdown'), null);
+});
+
 test('initial hydration, duplicate polls, game changes, and date changes seed without replaying history', () => {
   const { send } = harness();
   const scored = touchdown(200, 7, goodPat);
@@ -40,6 +103,17 @@ test('initial hydration, duplicate polls, game changes, and date changes seed wi
   assert.deepEqual(send(game(7), details(scored), 10000), []);
   assert.deepEqual(send(game(14), details(touchdown(300, 14, goodPat)), 20000, { contextKey: 'another-date' }), []);
   assert.deepEqual(send(game(21, 0, { id: '401873080' }), { gameId: '401873080', eventPlays: [touchdown(400, 21, goodPat)] }, 30000), []);
+});
+
+test('changing feed-source context seeds silently on failover and recovery but permits later fresh plays', () => {
+  const { send } = harness();
+  send(game(), details(play(100)), 0, { contextKey: 'current:espn-primary' });
+  assert.deepEqual(send(game(7), details(touchdown(200, 7, goodPat)), 1000, { contextKey: 'current:espn-mirror' }), []);
+  assert.deepEqual(send(game(7), details(touchdown(200, 7, goodPat)), 2000, { contextKey: 'current:espn-mirror' }), []);
+  const fieldGoal = play(300, { type: 'Field Goal Good', typeId: '59', scoringPlay: true, scoringType: 'field-goal', scoringTeamId: '3', scores: { away: 10, home: 0 } });
+  assert.deepEqual(send(game(10), details(fieldGoal), 3000, { contextKey: 'current:espn-mirror' }).map((event) => event.kind), ['field-goal']);
+  assert.deepEqual(send(game(17), details(touchdown(400, 17, goodPat)), 4000, { contextKey: 'current:espn-primary' }), []);
+  assert.deepEqual(send(game(17), details(touchdown(400, 17, goodPat)), 17000, { contextKey: 'current:espn-primary' }), []);
 });
 
 test('touchdown and later successful PAT on the same ESPN play ID are separate, deduplicated events', () => {
