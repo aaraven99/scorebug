@@ -1,6 +1,6 @@
 {
   "name": "scorebug",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "private": true,
   "description": "Live multi-sport scorebugs, favorite teams and broadcast-inspired styles for Windows, macOS and the web.",
   "type": "module",
@@ -12,9 +12,16 @@
     "start": "node server.mjs",
     "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "desktop": "npm --prefix desktop start"
+    "desktop": "npm --prefix desktop start",
+    "qa": "node scripts/qa-scorebug.mjs --suite all --passes 3 --browser chromium",
+    "qa:matrix": "node scripts/qa-scorebug.mjs --suite matrix --passes 3 --browser chromium",
+    "qa:flows": "node scripts/qa-scorebug.mjs --suite flows --passes 3 --browser chromium",
+    "qa:mobile": "node scripts/qa-scorebug.mjs --suite flows --passes 3 --browser webkit"
   },
   "dependencies": {
     "@vercel/analytics": "2.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1"
   }
 }
