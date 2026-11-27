@@ -4,6 +4,68 @@ import { localTeamLogo } from '../../public/team-assets.js';
 import { MULTISPORT_LOGO_ARTWORK } from '../../public/team-logo-artwork.js';
 import { fixtureForLeague } from './fixtures.mjs';
 
+/** Keep a real pointer gesture intact if a saved team's remote logo fails. */
+export async function verifyFavoriteRemovalDuringLogoFailure({page,net,pass,engine,equal,truth,prefs,directories}) {
+  const original=await prefs(page);
+  const bears=directories.nfl?.teams.find(team=>team.name==='Chicago Bears');
+  const stars=directories.nwsl?.teams.find(team=>/Chicago (?:Stars|Red Stars)/.test(team.name));
+  truth(Boolean(bears?.logo&&stars),'The audited Bears and Chicago Stars fixtures are available');
+  // A fresh URL requests the real logo path rather than reusing decoded image
+  // data from earlier tests. Only this test's saved favorite uses the query.
+  const logo=new URL(bears.logo);logo.searchParams.set('qa-favorite-failure',`${engine}-${pass}`);
+  const favorites=[['nfl',{...bears,logo:logo.href}],['nwsl',stars]].map(([leagueId,team])=>({leagueId,teamId:team.id,name:team.name,abbreviation:team.abbreviation,logo:team.logo,color:team.color}));
+  let releaseImage,pointerDown=false,requests=0;
+  const failureGate=new Promise(resolve=>releaseImage=resolve);
+  const match=url=>url.href===logo.href;
+  const failLogo=async route=>{
+    requests++;await failureGate;
+    net.expectedImageFailures.set(route.request().url(),Date.now());
+    await route.abort('failed');
+  };
+  await page.route(match,failLogo);
+  try{
+    await page.selectOption('#league-select','nba');await page.selectOption('#style-select','nfl-blades');
+    // Seed a saved board, then use its actual controls after a real reload.
+    // Writing storage alone avoids creating an extra image request in the
+    // outgoing document while the request under test is intentionally held.
+    await page.evaluate(favorites=>{
+      const key='scorebug.preferences.v2',saved=JSON.parse(localStorage.getItem(key)||'{}');
+      localStorage.setItem(key,JSON.stringify({...saved,favorites}));
+    },favorites);
+    await page.reload({waitUntil:'domcontentloaded'});
+    const remove=page.getByRole('button',{name:`Remove ${bears.name} from favorites`,exact:true});
+    await remove.scrollIntoViewIfNeeded();
+    const pending=await remove.locator('..').locator('img').evaluate(image=>!image.complete);
+    truth(pending&&requests>0,'The actual favorite-logo request is still pending before pointerdown');
+    const before=await remove.boundingBox();truth(Boolean(before),'The Remove button has visible bounds');
+    await page.mouse.move(before.x+before.width/2,before.y+before.height/2);
+    await page.mouse.down();pointerDown=true;releaseImage();
+    await page.waitForFunction(url=>{
+      const image=[...document.querySelectorAll('#favorite-chips img')].find(image=>image.src===url);
+      return image?.complete&&image.naturalWidth===0;
+    },logo.href);
+    const after=await remove.boundingBox();
+    equal(after,before,'A failed favorite logo must not move or resize the Remove button during a pointer gesture');
+    await page.mouse.up();pointerDown=false;
+    equal((await prefs(page)).favorites.map(team=>team.teamId),[stars.id],'The original pointerup removes Bears immediately');
+    equal(await page.locator('#favorite-chips button').count(),1,'Only the Stars favorite remains in the UI');
+    await page.getByRole('button',{name:`Remove ${stars.name} from favorites`,exact:true}).click();
+    await page.selectOption('#league-select','nfl');await page.selectOption('#style-select','nfl-blades');
+    equal((await prefs(page)).favorites,[],'A second removal and rapid sport/style changes keep both teams removed');
+    await page.reload({waitUntil:'domcontentloaded'});
+    await page.waitForFunction(()=>document.querySelector('#league-select')?.options.length>20);
+    const restored=await prefs(page);
+    equal(restored.favorites,[],'Both removals persist after reload');
+    equal([restored.leagueId,restored.styleId],['nfl','nfl-blades'],'The requested sport and style persist with the removals');
+    equal(await page.locator('#favorite-chips button').count(),0);
+    return {before,after,requests,remainingFavorites:restored.favorites.length};
+  }finally{
+    releaseImage();if(pointerDown)await page.mouse.up();
+    await page.unroute(match,failLogo);
+    await page.evaluate(async original=>{await(await import('/score-client.js')).updatePreferences(original,{updateURL:true});},original);
+  }
+}
+
 /** Real controls and navigation beyond the catalog renderer matrix. */
 export async function runExtraFlows({page,context,net,pass,engine,check,equal,truth,prefs,waitBoard,screenshot,directories}) {
   const evidence={localLogos:0,sizeSelections:0,hoverPanels:0,driverSelections:0,mobileWidths:[]};
@@ -133,6 +195,10 @@ export async function runExtraFlows({page,context,net,pass,engine,check,equal,tr
     await page.waitForFunction(async()=>(await import('/score-client.js')).getPreferences().favorites.some(team=>team.leagueId==='nfl'&&team.name==='Chicago Bears'));
     equal((await prefs(page)).leagueId,'nba','Saving an NFL team must not switch the watched NBA game');
     await page.locator('#favorite-chips button').first().click();await current();
+  });
+
+  await check(`p${pass}:favorite-removal-survives-logo-failure-during-pointer`,async()=>{
+    evidence.favoriteRemoval=await verifyFavoriteRemovalDuringLogoFailure({page,net,pass,engine,equal,truth,prefs,directories});
   });
 
   await check(`p${pass}:style-gallery-search-sport-filter-and-empty-recovery`,async()=>{
