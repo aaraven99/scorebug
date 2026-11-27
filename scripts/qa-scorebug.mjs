@@ -64,6 +64,6 @@ try{
   browser=await(engine==='chromium'?chromium:webkit).launch({headless:true,...(executablePath?{executablePath,args:['--no-sandbox','--disable-dev-shm-usage','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--no-zygote']}:{})});
   report.browserVersion=browser.version();report.executableOverride=Boolean(executablePath);
   if(suite==='all'||suite==='matrix')await runMatrix();
-  if(suite==='all'||suite==='flows'){const {runFlows}=await import('../tests/qa/flows.mjs');report.flows=await runFlows({browser,engine,baseURL,passes,outDir,directories,screenshots:report.screenshots});report.counts.flowChecks=report.flows.checks;report.counts.assertions+=report.flows.assertions;report.counts.failures+=report.flows.failures.length;}
+  if(suite==='all'||suite==='flows'){const {runFlows}=await import('../tests/qa/flows.mjs');report.flows=await runFlows({browser,engine,baseURL,passes,outDir,directories,screenshots:report.screenshots});report.counts.flowChecks=report.flows.checks;report.counts.assertions+=report.flows.assertions;report.counts.failures+=report.flows.failures.length;report.counts.browserDiagnostics=report.flows.browserDiagnostics.length;}
 }catch(error){report.errors.push({message:error.message,stack:error.stack});process.exitCode=1;}
 finally{await browser?.close();await new Promise(resolve=>server.close(resolve));await finish();if(!report.passed)process.exitCode=1;}
