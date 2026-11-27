@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 test('legacy browser styles migrate to a saved choice while new profiles and explicit modes retain their defaults', async () => {
   const originals=Object.fromEntries(['localStorage','location','history'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
-  const memory=new Map(),key='scorebug.preferences.v1';
+  const memory=new Map(),key='scorebug.preferences.v2',legacyKey='scorebug.preferences.v1';
   Object.defineProperties(globalThis,{
     localStorage:{configurable:true,value:{getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,String(value))}},
     location:{configurable:true,value:{href:'https://scorebug.test/',search:''}},
@@ -20,7 +20,7 @@ test('legacy browser styles migrate to a saved choice while new profiles and exp
       [{styleId:'bad/style'},true,'nfl-blades'],
     ];
     for(const [index,[saved,automatic,styleId]] of cases.entries()){
-      memory.clear();if(saved!==null)memory.set(key,JSON.stringify(saved));
+      memory.clear();if(saved!==null)memory.set(legacyKey,JSON.stringify(saved));
       const client=await import(`../public/score-client.js?style-migration-${index}`);
       await client.initializePreferences();
       assert.equal(client.getPreferences().styleAuto,automatic,JSON.stringify(saved));
