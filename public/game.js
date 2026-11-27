@@ -74,6 +74,13 @@ function render() {
   text('center-status', game ? [game.status, game.broadcast, game.venue].filter(Boolean).join(' · ') : 'The last received score stays visible if a feed is interrupted.');
   $('center-league-select').value = preferences.leagueId;
   $('center-style-select').value = preferences.styleId;
+  const standbyURL = new URL('/standby.html', location.origin);
+  standbyURL.searchParams.set('league', preferences.leagueId);
+  standbyURL.searchParams.set('style', preferences.styleId);
+  standbyURL.searchParams.set('game', game?.id || preferences.gameId || '');
+  standbyURL.searchParams.set('date', preferences.date || '');
+  standbyURL.searchParams.set('rows', String(preferences.racingRows));
+  $('center-standby').href = standbyURL.href;
   text('period-title',periodHeading(game));
   updateMarkup($('center-quarters'), isClassification ? `<p class="data-note">${game?.entries?.length || 0} reported competitors</p>` : quarterMarkup(game,summary));
   updateMarkup($('center-field'), renderSportSurface(game));
@@ -115,14 +122,7 @@ function update() {
 const poller = new ScoreboardPoller({ leagueId:preferences.leagueId, date: preferences.date, onUpdate: (next) => { snapshot = next; update(); } });
 onPreferences((next) => { const old = preferences; preferences = next; if (old.date !== next.date || old.leagueId !== next.leagueId) poller.setContext({date:next.date,leagueId:next.leagueId}); update(); });
 function choose(patch) {
-  const url = new URL(location.href);
-  if (Object.hasOwn(patch, 'gameId')) { if (patch.gameId) url.searchParams.set('game', patch.gameId); else url.searchParams.delete('game'); }
-  if (Object.hasOwn(patch, 'date')) { if (patch.date) url.searchParams.set('date', patch.date); else url.searchParams.delete('date'); }
-  url.searchParams.delete('team');
-  if(patch.leagueId)url.searchParams.set('league',patch.leagueId);
-  if(patch.styleId)url.searchParams.set('style',patch.styleId);
-  try { history.replaceState(null, '', url); } catch { /* Shared preferences still carry the selection. */ }
-  return updatePreferences(patch);
+  return updatePreferences(patch,{updateURL:true});
 }
 for(const league of LEAGUES)$('center-league-select').add(new Option(league.name,league.id));
 for(const style of SCOREBUG_STYLES)$('center-style-select').add(new Option(style.name,style.id));
@@ -137,9 +137,9 @@ $('center-fullscreen').addEventListener('click', async () => {
     if (bridge?.setGameCenterFullscreen) { const next = await bridge.setGameCenterFullscreen(!nativeFullscreen); nativeFullscreen = Boolean(next?.fullscreen); }
     else if (document.fullscreenElement) await document.exitFullscreen();
     else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
-    else notice('This browser does not support full screen here. You can maximize the window instead.');
+    else notice('Full screen is unavailable in this browser. Try Standby for a view that fits your screen.');
     renderFullscreen();
-  } catch { notice('Full screen is unavailable here. You can maximize this window instead.'); }
+  } catch { notice('Full screen is unavailable here. Try Standby for a view that fits your screen.'); }
 });
 document.addEventListener('fullscreenchange', renderFullscreen);
 if (bridge?.getGameCenterState) {

@@ -1,0 +1,14 @@
+{
+  "id": "/standby.html",
+  "name": "Scorebug Standby",
+  "short_name": "Scorebug",
+  "start_url": "/standby.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080a0d",
+  "theme_color": "#080a0d",
+  "icons": [
+    { "src": "/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

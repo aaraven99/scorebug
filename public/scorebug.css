@@ -50,7 +50,9 @@
    Team marks retain original colors; statistical text is fitted to its cell. */
 .scorebug--variant text.variant-text{font-family:Arial,Helvetica,sans-serif;font-style:normal;font-weight:700;letter-spacing:0;paint-order:stroke fill;stroke:none}
 .scorebug--variant .variant-score{font-family:Arial,Helvetica,sans-serif;font-weight:900;letter-spacing:-1px}
-.scorebug--variant .variant-open-score{paint-order:stroke fill;stroke:#0004;stroke-width:1.2;filter:drop-shadow(0 1px 1px #0005)}
+.scorebug--variant text.variant-open-score{paint-order:stroke fill;stroke:#101820;stroke-width:1.8;filter:drop-shadow(0 1px 1px #0008)}
+.scorebug--variant text.variant-aux-text{paint-order:stroke fill;stroke:#101820;stroke-width:1.65;stroke-linejoin:round}
+.scorebug--family-minimal .variant-timeouts rect{paint-order:stroke fill;stroke:#101820;stroke-width:1}
 .scorebug--variant .bug-team-panel{stroke-width:2;stroke-linejoin:round}
 .scorebug--variant .bug-situation-panel{stroke-width:1;stroke-linejoin:round}
 .scorebug--variant .bug-team-logo{filter:drop-shadow(0 .8px .8px #0005)}

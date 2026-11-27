@@ -1,5 +1,7 @@
 import { normalizePreferencePatch, normalizeFavorites, normalizeFavoriteStyleIds, supportedGameId, gameLeague, matchesFavorite, validLeagueId, leagueOfId, validDate } from './preferences-model.js';
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
+import { createPreferenceURLSync } from './preference-url.js';
+import { saveUserState } from './user-state-storage.js';
 
 export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], favoriteStyleIds: Object.freeze([]), scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
 // Older open tabs rewrite records using their older schema. Migrate their last
@@ -18,6 +20,9 @@ let preferences = { ...DEFAULT_PREFERENCES };
 let channel;
 let favoriteStylesChannel;
 let preferencesInitialized = false;
+const preferenceURL = createPreferenceURLSync({readPreferences:()=>preferences});
+globalThis.addEventListener?.('pagehide',()=>preferenceURL.pause());
+globalThis.addEventListener?.('pageshow',()=>{if(preferencesInitialized)preferenceURL.resume();});
 
 export function isSupportedGameId(value) {
   return supportedGameId(value);
@@ -138,29 +143,22 @@ function sharedPreferencePatch(value) {
   return shared;
 }
 function syncPreferenceURL() {
-  if (!preferencesInitialized || !globalThis.location?.href || !globalThis.history?.replaceState) return;
-  try {
-    const url = new URL(globalThis.location.href), before = url.href;
-    // A pop-out's original style/rows must not override later choices on reload.
-    for (const [key, param] of [['leagueId','league'], ['styleId','style'], ['gameId','game'], ['date','date'], ['racingRows','rows']]) {
-      if (!url.searchParams.has(param)) continue;
-      if (preferences[key] == null) url.searchParams.delete(param);
-      else url.searchParams.set(param, String(preferences[key]));
-    }
-    if (url.href !== before) globalThis.history.replaceState(null, '', url.href);
-  } catch { /* Sandboxed or opaque windows still receive shared preferences. */ }
+  if(preferencesInitialized)preferenceURL.sync();
+}
+function savePreferenceRecord(key,value){
+  try{saveUserState(localStorage,key,value);}catch{/* Storage may be blocked entirely. */}
 }
 function persistPreferences() {
   try {
     const { favoriteStyleIds, ...shared } = preferences;
     const value = JSON.stringify(shared);
-    if (localStorage.getItem(KEY) !== value) localStorage.setItem(KEY, value);
+    savePreferenceRecord(KEY,value);
   } catch { /* storage is optional */ }
 }
 function persistFavoriteStyles() {
   try {
     const value = JSON.stringify(preferences.favoriteStyleIds);
-    if (localStorage.getItem(FAVORITE_STYLES_KEY) !== value) localStorage.setItem(FAVORITE_STYLES_KEY, value);
+    savePreferenceRecord(FAVORITE_STYLES_KEY,value);
   } catch { /* storage is optional */ }
 }
 function acceptPreferences(next, { persist = true } = {}) {
@@ -211,13 +209,15 @@ export async function initializePreferences() {
     try { acceptPreferences(await globalThis.scorebugDesktop.getPreferences()); } catch { /* local settings remain available */ }
     globalThis.scorebugDesktop.onPreferencesChanged?.(acceptPreferences);
   }
-  const query = new URLSearchParams(globalThis.location?.search || '');
+  const recoveringURL=preferenceURL.recoverReload();
+  const query = new URLSearchParams(recoveringURL?'':globalThis.location?.search || '');
   const patch = {};
   if (validLeagueId(query.get('league'))) patch.leagueId = query.get('league');
   if (query.has('style')) Object.assign(patch, normalizePreferencePatch({styleId:query.get('style')}));
   if (patch.styleId && patch.styleId !== preferences.styleId) patch.styleAuto = false;
   if (query.has('rows') && /^\d{1,2}$/.test(query.get('rows'))) Object.assign(patch, normalizePreferencePatch({racingRows:Number(query.get('rows'))}));
   if (isSupportedGameId(query.get('game'))) patch.gameId = query.get('game');
+  else if (query.has('game') && query.get('game') === '') patch.gameId = null;
   if (query.has('date')) patch.date = validDate(query.get('date')) ? query.get('date') : null;
   if (/^[A-Z]{2,4}$/.test(query.get('team') || '')) patch.team = query.get('team');
   if (patch.gameId) patch.leagueId ||= leagueOfId(patch.gameId);
@@ -228,7 +228,8 @@ export async function initializePreferences() {
   return getPreferences();
 }
 
-export async function updatePreferences(patch) {
+export async function updatePreferences(patch,{updateURL=false}={}) {
+  if(updateURL)preferenceURL.include(patch,{clearTeam:true});
   acceptPreferences(patch);
   if (Object.keys(sharedPreferencePatch(patch)).length) channel?.postMessage(sharedPreferencePatch(getPreferences()));
   if (Object.hasOwn(normalizePreferencePatch(patch), 'favoriteStyleIds')) favoriteStylesChannel?.postMessage([...preferences.favoriteStyleIds]);

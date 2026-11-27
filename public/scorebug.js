@@ -3,6 +3,7 @@ import { localTeamLogo, teamLogoPresentation } from './team-assets.js';
 import { getScorebugStyle } from './scorebug-styles.js';
 import { renderStyledScorebug } from './scorebug-variants.js';
 import { sportFor } from './sports.js';
+import { imageFallbackLabel, installSvgImageRecovery } from './svg-image-recovery.js';
 export { SCOREBUG_DIMENSIONS, scorebugDimensions } from './scorebug-layout.js';
 
 let nextId = 0;
@@ -72,7 +73,7 @@ function logoImage(team, centerX, centerY, maxWidth, maxHeight) {
   const scale = Math.min(maxWidth / (right - left), maxHeight / (bottom - top));
   const x = centerX - (left + right) / 2 * scale;
   const y = centerY - (top + bottom) / 2 * scale;
-  return `<image class="bug-team-logo${outline ? ' bug-team-logo--contrast' : ''}" href="${escape(href)}" x="${x}" y="${y}" width="${size[0] * scale}" height="${size[1] * scale}" preserveAspectRatio="xMidYMid meet"/>`;
+  return `<image class="bug-team-logo${outline ? ' bug-team-logo--contrast' : ''}" href="${escape(href)}" x="${x}" y="${y}" width="${size[0] * scale}" height="${size[1] * scale}" preserveAspectRatio="xMidYMid meet" data-scorebug-image="" data-image-state="image" data-fallback-label="${escape(imageFallbackLabel(team))}" data-fallback-name="${escape(String(team.name || team.shortName || team.abbreviation || 'Team').slice(0, 160))}" data-fallback-x="${centerX}" data-fallback-y="${centerY}" data-fallback-width="${maxWidth}" data-fallback-height="${maxHeight}"/>`;
 }
 
 function teamLogo(team, side) {
@@ -194,6 +195,7 @@ function comparisonTarget(path, clipId) {
  * Top-docked widgets can place that badge space below with statusPosition.
  */
 export function renderScorebug(game, options = {}) {
+  installSvgImageRecovery();
   const style = getScorebugStyle(options.styleId);
   if (style.id !== 'nfl-blades' || sportFor(game) !== 'football') return renderStyledScorebug(game, { ...options, idPrefix: options.idPrefix || `variant-${++nextId}` }, style, { teamPalette, logoImage, possession });
   if (options.orientation === 'vertical') return renderVerticalScorebug(game, options);
