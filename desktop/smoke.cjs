@@ -118,7 +118,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
   const evidenceDir = process.env.SCOREBUG_SMOKE_EVIDENCE || path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
   const summary = { passed: false, platform: process.platform, arch: process.arch, packaged, softwareRendering: process.env.SCOREBUG_SMOKE_SOFTWARE_RENDERING === '1', version: require('./package.json').version, electron: process.versions.electron, feedRequired: false, checks: [] };
-  let deadline;
+  let deadline, restoreStandbyNetwork;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
   const readScorebugLayout = async (options = {}) => {
@@ -677,6 +677,12 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         await waitFor('Close state reaches the compact window', () => evaluate('window.__gameCenterState?.open === false && window.__gameCenterState?.fullscreen === false'), 3000);
         check('Game Center reuses a secure fullscreen window, exits with Escape/F11, restricts its IPC controls and restores the compact scoreboard');
 
+        // This group intentionally exercises the last-confirmed cached score.
+        // Keep real NBA responses from replacing its explicitly labelled fixture
+        // as Settings and Game Center navigate through fresh renderer documents.
+        const smokeRequests = widget.webContents.session.webRequest;
+        smokeRequests.onBeforeRequest({ urls: [`${origin}/api/scoreboard*`] }, (_request, done) => done({ cancel: true }));
+        restoreStandbyNetwork = () => { smokeRequests.onBeforeRequest(null); restoreStandbyNetwork = null; };
         await evaluate('window.scorebugDesktop.openSettings()');
         await waitFor('Settings Standby entry', () => getSettings()?.webContents.executeJavaScript('Boolean(document.querySelector("#standby-button"))'), 8000);
         const standbyWindow = getSettings();
@@ -695,6 +701,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
           if (new URL(standbyWindow.webContents.getURL()).pathname !== '/standby.html') return false;
           return standbyEvaluate('(async () => Boolean(document.querySelector(".slot-details:not([hidden])") && (await window.scorebugDesktop.getPreferences()).leagueId))()');
         }, 8000);
+        assert.equal(await standbyEvaluate('document.querySelector(".slot-phase").textContent'), 'DELAYED', 'The cached native test score must be labelled delayed');
         let standbySaved = await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")');
         assert.deepEqual((await standbyEvaluate('window.scorebugDesktop.getState()')).preferences, compactPreferences, 'Opening Standby changed the native selection');
         await standbyEvaluate('document.querySelector(".slot-details").click(); void 0;');
@@ -737,6 +744,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")'), standbySaved, 'Returning to Settings changed the saved board');
         await evaluate(`window.scorebugDesktop.setPreferences(${JSON.stringify(compactPreferences)})`);
         standbyWindow.close();
+        restoreStandbyNetwork();
         check('Standby preserves its independent board, opens the selected game in the real dashboard and returns safely to Settings');
         summary.passed = true;
       })(),
@@ -747,6 +755,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
     throw error;
   } finally {
     clearTimeout(deadline);
+    restoreStandbyNetwork?.();
     fs.writeFileSync(path.join(evidenceDir, 'summary.json'), JSON.stringify(summary, null, 2));
     console.log(`[native smoke] ${summary.passed ? 'SUCCESS' : 'FAILED'}: ${summary.checks.length} integration groups checked. ESPN availability does not gate this test.`);
   }
