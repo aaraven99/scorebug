@@ -4,7 +4,7 @@
 
 ## Live updates and animations
 
-Scores and the selected game's summary refresh approximately every **10 seconds**, including while the stats card is closed. The page does not reload. The current score and field situation come from the scoreboard; summary data supplies team totals and structured play evidence. The server shares concurrent requests and briefly caches scoreboard data for 5 seconds and summaries for 10 seconds.
+Scores and the selected game's summary check for updates approximately every **2 seconds**, including while the stats card is closed. Requests never overlap: if a request takes longer, the next check follows it. The page does not reload. The current score and field situation come from the scoreboard; summary data supplies team totals and structured play evidence. The server shares concurrent requests and caches both feeds for **1 second**. This is a polling target, not a guarantee that the provider reports each play within two seconds.
 
 Animations are driven by newly observed feed events:
 
@@ -20,15 +20,17 @@ The [ESPN scoreboard](https://site.api.espn.com/apis/site/v2/sports/football/nfl
 
 ### Backup feeds
 
-The primary ESPN request gets up to 7 seconds. If it fails, available backup routes race within a 14-second total budget:
+The primary ESPN request starts first. Available backups join immediately if it fails, or after **1.5 seconds** if it is still loading. A fast primary uses only one request. Each route has up to **6 seconds**, within an **8-second total budget**:
 
 - ESPN's alternate site API.
-- The independent [theScore feed](https://api.thescore.com/nfl/events), with up to 7 seconds for its response.
+- The independent [theScore feed](https://api.thescore.com/nfl/events).
 - ESPN's web CDN, for the current week only. Its scoreboard does not honor arbitrary dates, so dated requests never use that route.
 
-Game summaries separately fall back to ESPN's alternate site API and its CDN game package. These are alternate routes to ESPN, not independent providers. Each response is validated for shape and identity; stale CDN cache responses are rejected when their headers disclose a delay. A successful HTTP request cannot prove that a provider's underlying data is current.
+Game summaries separately fall back to ESPN's alternate site API and its CDN game package. These are alternate routes to ESPN, not independent providers. Each response is validated for shape and identity. A live CDN response older than 5 seconds triggers a fresh alternative; if every alternative fails, a validated response aged 6–45 seconds can still show the score with a delayed label. Older responses and explicit stale-cache warnings are rejected. A successful HTTP request cannot prove that a provider's underlying data is current.
 
-Failed routes cool down for 30–60 seconds; the primary is retried automatically. A warm server retains the last successful snapshot for up to 6 hours. The browser also saves bounded, date-specific snapshots so a refresh during an outage can restore the last received score. Cached data keeps its original update time and shows **FEED DELAYED**. Retries back off to 20/40/60 seconds after all feeds fail. A fresh backup is labeled **Backup feed**.
+Failed routes cool down for **4/8/16/30 seconds**, or longer when the provider sends `Retry-After`. A working backup is reused without racing every route on every check. A slow losing route is probed again after 10 seconds. The primary returns automatically when healthy. After an outage, client retries back off to **4/8/16/30 seconds** and return to the two-second cadence on success.
+
+A warm server retains the last successful snapshot for up to 6 hours. The browser also saves bounded, date-specific snapshots so a refresh during an outage can restore the last received score. Cached data keeps its original update time and shows **FEED DELAYED**. Provider update times and clear backwards progress across sources keep an older fallback from replacing newer known information. The same source can still publish score and clock corrections. A fresh backup is labeled **Backup feed**.
 
 Matchups are linked across providers only when the away team, home team, and kickoff time match. Provider IDs stay separate from ESPN summary IDs. A backup's clock, down, possession, and timeouts come from one coherent frame; unsupported values remain unavailable. Source changes and recovery from cached data establish silent animation baselines.
 
