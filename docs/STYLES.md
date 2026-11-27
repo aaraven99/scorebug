@@ -2,6 +2,8 @@
 
 Choose a sport first, then a style. The sport controls the score, clock, statistics and animations. The style controls how those details look. For example, NBA games can use NFL-Blades while keeping basketball information.
 
+Click the star beside **Scorebug style** to save the current look, or star any card in **Browse styles**. Saved looks appear in **Favorite styles** for quick switching. Turn on **Favorites only** in the browser to see just those cards; search and the **All sports** filter still work. Starring a card saves it without changing your game or active style. Click its name or preview to use it.
+
 These responsive interpretations follow the 83 score and timing layouts in the uploaded Scorebug Reference Atlas. They use original team artwork and licensed open fonts. Normal and Side views both support the full catalogue.
 
 The atlas’s F1 TV Multiview reference (67) is a video-viewing interface. Timing styles 60–66 provide the scorebug portion; the app does not include broadcast video or onboard footage.

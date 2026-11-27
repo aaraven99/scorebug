@@ -33,7 +33,7 @@ export function referenceForLeague(leagueId='nfl', teams=[]) {
   if (['nba','mlb','nhl'].includes(league.id)) pair.forEach((team,i)=>{ if (!team.logo && fixtures[league.id]) team.logo=`https://a.espncdn.com/i/teamlogos/${league.id}/500/${fallback[i][0]}.png`; });
   const game={...base,away:pair[0],home:pair[1],name:`${pair[0].name} at ${pair[1].name}`,possessionTeamId:pair[0].id};
   if(sport==='football'){game.away.timeouts=2;game.home.timeouts=3;game.downDistance='2ND & 6';game.fieldPosition=`${game.home.abbreviation} 34`;}
-  if(sport==='basketball'){game.period=3;game.away.timeouts=4;game.home.timeouts=3;game.situation={shotClock:18,bonusTeamId:game.home.id};}
+  if(sport==='basketball'){game.period=league.regulationPeriods===2?2:3;game.away.timeouts=4;game.home.timeouts=3;game.situation={shotClock:18,bonusTeamId:game.home.id};}
   if(sport==='baseball'){game.clock=null;game.period=7;game.situation={half:'top',balls:2,strikes:1,outs:1,onFirst:true,onSecond:false,onThird:true};}
   if(sport==='hockey'){game.situation={powerPlayTeamId:game.away.id,powerPlayTime:'1:12'};}
   if(['soccer','rugby'].includes(sport)){game.clock='67:24';game.situation={};}

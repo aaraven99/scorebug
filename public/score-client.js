@@ -1,11 +1,14 @@
-import { normalizePreferencePatch, normalizeFavorites, supportedGameId, gameLeague, matchesFavorite, validLeagueId, leagueOfId, validDate } from './preferences-model.js';
+import { normalizePreferencePatch, normalizeFavorites, normalizeFavoriteStyleIds, supportedGameId, gameLeague, matchesFavorite, validLeagueId, leagueOfId, validDate } from './preferences-model.js';
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
 
-export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
+export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], favoriteStyleIds: Object.freeze([]), scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
 // Older open tabs rewrite records using their older schema. Migrate their last
 // saved choice once, then keep the current schema out of that write-back loop.
 const KEY = 'scorebug.preferences.v2';
 const LEGACY_KEY = 'scorebug.preferences.v1';
+// v2.0.1 tabs still share the base record. Keep new style favorites separate so
+// their schema cannot discard it, while ordinary settings keep syncing normally.
+export const FAVORITE_STYLES_KEY = 'scorebug.favorite-styles.v1';
 export const SCOREBOARD_CACHE_KEY = 'scorebug.scoreboards.v1';
 export const SCOREBOARD_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 24, MAX_CACHE_CHARS = 2000000, MAX_GAMES = 256;
@@ -13,6 +16,7 @@ const FUTURE_TOLERANCE_MS = 60000;
 const preferencesEvents = new EventTarget();
 let preferences = { ...DEFAULT_PREFERENCES };
 let channel;
+let favoriteStylesChannel;
 let preferencesInitialized = false;
 
 export function isSupportedGameId(value) {
@@ -120,9 +124,19 @@ try {
   preferences = { ...preferences, ...saved };
   if (current === null) persistPreferences();
 } catch { /* private browsing or corrupt storage */ }
+try {
+  const saved = localStorage.getItem(FAVORITE_STYLES_KEY);
+  if (saved !== null) preferences.favoriteStyleIds = normalizeFavoriteStyleIds(JSON.parse(saved));
+  else if (preferences.favoriteStyleIds.length) persistFavoriteStyles();
+} catch { /* Favorite styles remain available in memory. */ }
 try { if (typeof window !== 'undefined') channel = new BroadcastChannel(KEY); } catch { /* optional */ }
+try { if (typeof window !== 'undefined') favoriteStylesChannel = new BroadcastChannel(FAVORITE_STYLES_KEY); } catch { /* optional */ }
 
-export function getPreferences() { return { ...preferences, favorites: normalizeFavorites(preferences.favorites) }; }
+export function getPreferences() { return { ...preferences, favorites: normalizeFavorites(preferences.favorites), favoriteStyleIds: normalizeFavoriteStyleIds(preferences.favoriteStyleIds) }; }
+function sharedPreferencePatch(value) {
+  const { favoriteStyleIds, ...shared } = normalizePreferencePatch(value);
+  return shared;
+}
 function syncPreferenceURL() {
   if (!preferencesInitialized || !globalThis.location?.href || !globalThis.history?.replaceState) return;
   try {
@@ -138,15 +152,26 @@ function syncPreferenceURL() {
 }
 function persistPreferences() {
   try {
-    const value = JSON.stringify(preferences);
+    const { favoriteStyleIds, ...shared } = preferences;
+    const value = JSON.stringify(shared);
     if (localStorage.getItem(KEY) !== value) localStorage.setItem(KEY, value);
   } catch { /* storage is optional */ }
 }
+function persistFavoriteStyles() {
+  try {
+    const value = JSON.stringify(preferences.favoriteStyleIds);
+    if (localStorage.getItem(FAVORITE_STYLES_KEY) !== value) localStorage.setItem(FAVORITE_STYLES_KEY, value);
+  } catch { /* storage is optional */ }
+}
 function acceptPreferences(next, { persist = true } = {}) {
-  const updated = { ...preferences, ...normalizePreferencePatch(next) };
+  const patch = normalizePreferencePatch(next);
+  const updated = { ...preferences, ...patch };
   const changed = JSON.stringify(updated) !== JSON.stringify(preferences);
   preferences = updated;
-  if (persist) persistPreferences();
+  if (persist) {
+    if (Object.keys(sharedPreferencePatch(patch)).length) persistPreferences();
+    if (Object.hasOwn(patch, 'favoriteStyleIds')) persistFavoriteStyles();
+  }
   syncPreferenceURL();
   if (changed) preferencesEvents.dispatchEvent(new CustomEvent('change', { detail: getPreferences() }));
 }
@@ -156,15 +181,27 @@ if (channel) channel.onmessage = (event) => {
     const current = localStorage.getItem(KEY);
     // A later user choice may already be committed while an older channel
     // message waits in another tab's queue. Only that latest record can win.
-    if (current !== null && JSON.stringify(normalizePreferencePatch(JSON.parse(current))) !== JSON.stringify(normalizePreferencePatch(event.data))) return;
+    if (current !== null && JSON.stringify(sharedPreferencePatch(JSON.parse(current))) !== JSON.stringify(sharedPreferencePatch(event.data))) return;
   } catch { /* BroadcastChannel still works when storage is unavailable. */ }
-  acceptPreferences(event.data, { persist: false });
+  acceptPreferences(sharedPreferencePatch(event.data), { persist: false });
+};
+if (favoriteStylesChannel) favoriteStylesChannel.onmessage = (event) => {
+  if (!Array.isArray(event.data)) return;
+  const ids = normalizeFavoriteStyleIds(event.data);
+  try {
+    const current = localStorage.getItem(FAVORITE_STYLES_KEY);
+    if (current !== null && JSON.stringify(normalizeFavoriteStyleIds(JSON.parse(current))) !== JSON.stringify(ids)) return;
+  } catch { /* Channel sync also works without local storage. */ }
+  acceptPreferences({ favoriteStyleIds: ids }, { persist: false });
 };
 globalThis.addEventListener?.('storage', (event) => {
-  if (event.key !== KEY || !event.newValue) return;
+  if (![KEY, FAVORITE_STYLES_KEY].includes(event.key) || !event.newValue) return;
   try {
-    if (localStorage.getItem(KEY) !== event.newValue) return;
-    acceptPreferences(JSON.parse(event.newValue), { persist: false });
+    if (localStorage.getItem(event.key) !== event.newValue) return;
+    const parsed = JSON.parse(event.newValue);
+    if (event.key === FAVORITE_STYLES_KEY) {
+      if (Array.isArray(parsed)) acceptPreferences({ favoriteStyleIds: normalizeFavoriteStyleIds(parsed) }, { persist: false });
+    } else acceptPreferences(sharedPreferencePatch(parsed), { persist: false });
   } catch { /* Ignore invalid or superseded records. */ }
 });
 
@@ -193,7 +230,8 @@ export async function initializePreferences() {
 
 export async function updatePreferences(patch) {
   acceptPreferences(patch);
-  channel?.postMessage(getPreferences());
+  if (Object.keys(sharedPreferencePatch(patch)).length) channel?.postMessage(sharedPreferencePatch(getPreferences()));
+  if (Object.hasOwn(normalizePreferencePatch(patch), 'favoriteStyleIds')) favoriteStylesChannel?.postMessage([...preferences.favoriteStyleIds]);
   if (globalThis.scorebugDesktop) {
     try { acceptPreferences(await globalThis.scorebugDesktop.setPreferences(patch)); }
     catch (error) { console.warn('Could not save desktop preference:', error.message); }

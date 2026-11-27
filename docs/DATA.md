@@ -21,6 +21,14 @@ Not every league supplies a full box score or play-by-play. A tournament can app
 
 The cricket designs are selectable styles. A reliable live cricket feed is **not** included: the tested ESPN IPL route returned empty match objects, and the Cricinfo current-matches endpoint denied access. The app does not label sample cricket data as live.
 
+## College sports
+
+Find the college leagues under **College sports** in the league or favorite-team selector. College football includes ESPN's reported Division I games, both FBS and FCS. Men's and women's basketball include unranked Division I games as well as ranked teams. Football uses quarters, men's basketball uses two halves, and women's basketball uses four quarters. The clock, downs, possession, timeouts, player photos and box scores appear when the feed supplies them.
+
+Football uses ESPN's Division I group `90`; basketball uses group `50`. These are different filters. The scoreboard request keeps `limit=300`: during validation, setting the football limit to `1000` silently reduced a 58-game FBS schedule to 25 games. The Nov. 21, 2026 Division I check returned 116 distinct games, exactly the combined FBS and FCS lists with shared matchups counted once.
+
+Selecting a college league for favorite-team search loads its complete available team directory once, then searches locally as you type. Schools in different sports have separate favorites. ESPN's football directory also lists schools outside Division I; the football schedule covers Division I. College feeds use the same ESPN route fallbacks and clearly marked cached data described below.
+
 ## Formula 1 timing
 
 The public ESPN feed supplies scheduled weekend sessions and classification. Free historical OpenF1 data adds driver/team details, gaps, tyres, results and race-control history.
@@ -51,8 +59,15 @@ The WNBA team directory omits Connecticut during calendar 2026. A separate verif
 - [Official MLB team directory](https://statsapi.mlb.com/api/v1/teams?sportId=1&season=2026)
 - [ESPN MLB team identities](https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/teams?limit=1000)
 - [ESPN Connecticut Sun team details](https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/teams/18)
+- [ESPN Division I college football scoreboard](https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?limit=300&groups=90)
+- [ESPN Division I football group definition](https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/groups/90)
+- [ESPN men's Division I basketball scoreboard](https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?limit=300&groups=50)
+- [ESPN women's Division I basketball scoreboard](https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard?limit=300&groups=50)
+- [ESPN college football team directory](https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000)
+- [ESPN men's college basketball team directory](https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams?limit=1000)
+- [ESPN women's college basketball team directory](https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams?limit=1000)
 - [OpenF1 data documentation](https://openf1.org/docs/)
 - [OpenF1 access and rate limits](https://openf1.org/)
 - [OpenF1 authentication](https://openf1.org/auth.html)
 
-The complete ESPN route allowlist lives in `public/sports.js`. Test samples and their exact source URLs are recorded in `tests/fixtures/multisport/SOURCES.md`.
+The complete ESPN route allowlist lives in `public/sports.js`. Test samples and their exact source URLs are recorded in `tests/fixtures/multisport/SOURCES.md` and `tests/fixtures/college/SOURCES.md`.

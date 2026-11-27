@@ -1,8 +1,9 @@
 import { renderScorebug } from './scorebug.js';
-import { SCOREBUG_STYLES, getScorebugStyle, defaultStyleForSport, styleDescription } from './scorebug-styles.js';
+import { getScorebugStyle, defaultStyleForSport, styleDescription } from './scorebug-styles.js';
 import { referenceForLeague } from './sport-fixtures.js';
-import { LEAGUES, getLeague, normalizeLeague, sportFor } from './sports.js';
-import { normalizeFavorites, gameLeague, normalizeRacingRows, MIN_RACING_ROWS, MAX_RACING_ROWS } from './preferences-model.js';
+import { leagueGroups, getLeague, normalizeLeague, sportFor } from './sports.js';
+import { normalizeFavorites, normalizeFavoriteStyleIds, gameLeague, normalizeRacingRows, MIN_RACING_ROWS, MAX_RACING_ROWS } from './preferences-model.js';
+import { toggleFavoriteStyleIds, styleOptionGroups, filterScorebugStyles } from './style-favorites.js';
 import { localTeamLogo } from './team-assets.js';
 import { attachDetailsHover } from './details-hover.js';
 import { createGameActivity } from './game-activity.js';
@@ -21,6 +22,7 @@ let preferences = await initializePreferences();
 if (!getLeague(preferences.leagueId)) preferences = await updatePreferences({leagueId:'nfl',gameId:null});
 let snapshot = {data:null,error:null,loading:true}, currentSnapshot=snapshot, datedSnapshot=snapshot;
 let reference=false, demoReference=false, demoSequence=0, previewContext=null, pipWindow=null, toastTimer, renderedSvg='', lastFavorites='', galleryKey='';
+let favoriteStylesKey=null, galleryFavoritesKey='', styleFavoriteWrite=Promise.resolve();
 let directory=[], directoryLeague=null, favoriteLeague='all', favoriteAdding=false, favoriteResultsKey='';
 const directoryStore=createFavoriteDirectoryStore({onChange:directoryChanged});
 const directoryController={abort:()=>directoryStore.stop()};
@@ -37,7 +39,6 @@ function phaseLabel(game){return game?.isLive?'LIVE':({halftime:'HALFTIME',inter
 function updateActivity(){activity.setGame(reference?null:selectGame(snapshot.data?.games,preferences),preferences.date||'current',snapshot.data?.fetchedAt,{sourceId:snapshot.data?.sourceId,stale:snapshot.data?.stale,error:Boolean(snapshot.error)});}
 function floatingSize(){return widgetPopupSize(preferences);}
 function resizeFloatingWindow(){if(!pipWindow||pipWindow.closed)return;try{const size=floatingSize();pipWindow.resizeTo(size.width,size.height);}catch{}}
-function styleMatches(style,sport){return style.sport===sport||({NFL:'football',NBA:'basketball',MLB:'baseball',NHL:'hockey',F1:'racing',Soccer:'soccer','Formula 1':'racing','College football':'football','College basketball':'basketball',Tennis:'tennis',Cricket:'cricket',Rugby:'rugby',Golf:'golf',Volleyball:'volleyball'})[style.sport]===sport;}
 function defaultStyle(leagueId){const sport=getLeague(leagueId)?.sport;return defaultStyleForSport(sport);}
 function changeSelection(patch){
   reference=false;demoReference=false;animations.clearDemo();
@@ -53,6 +54,53 @@ function chooseStyle(styleId){
   const url=new URL(location.href);url.searchParams.set('style',styleId);
   try{history.replaceState(null,'',url);}catch{}
   return updatePreferences({styleId,styleAuto:false});
+}
+function toggleStyleFavorite(styleId, remove=false){
+  // Serialize rapid clicks, and update only the saved-style list. Watching a
+  // game, previewing a sample, and choosing a style are independent actions.
+  styleFavoriteWrite=styleFavoriteWrite.then(async()=>{
+    const current=normalizeFavoriteStyleIds(getPreferences().favoriteStyleIds);
+    const favoriteStyleIds=remove?current.filter(id=>id!==styleId):toggleFavoriteStyleIds(current,styleId);
+    await updatePreferences({favoriteStyleIds});
+    label('style-favorites-status',`${getScorebugStyle(styleId).name} ${favoriteStyleIds.includes(styleId)?'saved to':'removed from'} your favorite styles.`);
+  }).catch(()=>toast('Could not save your favorite styles. Please try again.'));
+}
+const starIcon='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.78 5.64L21 9.55l-4.5 4.39 1.06 6.2L12 17.21l-5.56 2.93 1.06-6.2L3 9.55l6.22-.91Z"/></svg>';
+function favoriteStyleButton(style,saved){
+  const button=document.createElement('button');button.type='button';button.className='style-favorite-button';button.innerHTML=starIcon;
+  setFavoriteStyleButton(button,style,saved);button.addEventListener('click',()=>toggleStyleFavorite(style.id));return button;
+}
+function setFavoriteStyleButton(button,style,saved){
+  button.setAttribute('aria-pressed',String(saved));button.setAttribute('aria-label',`Favorite ${style.name} style`);
+  button.title=`${saved?'Remove':'Add'} ${style.name} ${saved?'from':'to'} favorite styles`;
+}
+function renderStyleFavorites(){
+  const ids=normalizeFavoriteStyleIds(preferences.favoriteStyleIds),key=JSON.stringify(ids),selected=getScorebugStyle(preferences.styleId);
+  const current=$('favorite-current-style');if(!current.firstChild)current.innerHTML=starIcon;setFavoriteStyleButton(current,selected,ids.includes(selected.id));
+  if(key!==favoriteStylesKey){
+    favoriteStylesKey=key;
+    const select=$('style-select');select.replaceChildren();
+    for(const group of styleOptionGroups(ids)){
+      const optgroup=document.createElement('optgroup');optgroup.label=group.label;optgroup.dataset.styleGroup=group.id;
+      for(const style of group.styles)optgroup.append(new Option(style.name,style.id));select.append(optgroup);
+    }
+    const root=$('favorite-style-picks'),active=document.activeElement,wasFocused=root.contains(active),focusedStyle=active?.closest('[data-style-id]')?.dataset.styleId;
+    const oldIndex=[...root.children].findIndex(chip=>chip.dataset.styleId===focusedStyle),removing=active?.hasAttribute('data-remove-style');root.replaceChildren();
+    for(const id of ids){
+      const style=getScorebugStyle(id),chip=document.createElement('span');chip.className='favorite-style-chip';chip.dataset.styleId=id;
+      const pick=document.createElement('button');pick.type='button';pick.className='favorite-style-pick';pick.dataset.pickStyle=id;pick.textContent=style.name;pick.setAttribute('aria-label',`Use ${style.name} style`);pick.addEventListener('click',()=>chooseStyle(id));
+      const remove=document.createElement('button');remove.type='button';remove.className='favorite-style-remove';remove.dataset.removeStyle=id;remove.textContent='×';remove.setAttribute('aria-label',`Remove ${style.name} from favorite styles`);remove.addEventListener('click',()=>toggleStyleFavorite(id,true));
+      chip.append(pick,remove);root.append(chip);
+    }
+    $('favorite-styles-empty').hidden=ids.length>0;
+    if(wasFocused){
+      const chip=[...root.children].find(item=>item.dataset.styleId===focusedStyle)||root.children[Math.min(Math.max(0,oldIndex),root.children.length-1)];
+      (chip?.querySelector(removing?'[data-remove-style]':'[data-pick-style]')||current).focus({preventScroll:true});
+    }
+  }
+  for(const button of $('favorite-style-picks').querySelectorAll('[data-pick-style]')){
+    const active=button.dataset.pickStyle===selected.id;button.setAttribute('aria-pressed',String(active));button.parentElement.dataset.selected=String(active);
+  }
 }
 const chooseGame=game=>changeSelection({leagueId:gameLeague(game),gameId:game.id,date:null});
 const liveList=createLiveGameList($('live-games'),{onChoose:chooseGame,onFocusedGameRemoved:()=>$('other-games').querySelector('summary').focus({preventScroll:true})});
@@ -226,16 +274,40 @@ function renderGames(){
 }
 function renderStyleGallery(){
   if($('style-browser').hidden)return;
-  const query=$('style-search').value.trim().toLowerCase(),all=$('all-styles').checked;
-  const key=`${preferences.leagueId}|${preferences.styleId}|${query}|${all}`;if(key===galleryKey)return;galleryKey=key;
-  const game=sampleGame(),root=$('style-gallery');root.replaceChildren();
-  for(const style of SCOREBUG_STYLES.filter(style=>(all||styleMatches(style,league().sport))&&`${style.name} ${style.network} ${style.sport} ${style.era} ${style.description}`.toLowerCase().includes(query))){
-    const button=document.createElement('button');button.type='button';button.className='style-card';button.setAttribute('aria-pressed',String(style.id===preferences.styleId));
+  const query=$('style-search').value.trim(),all=$('all-styles').checked,favoritesOnly=$('favorite-styles-only').checked,ids=normalizeFavoriteStyleIds(preferences.favoriteStyleIds);
+  const key=JSON.stringify([preferences.leagueId,preferences.styleId,query,all,favoritesOnly]),savedKey=JSON.stringify(ids);
+  if(key===galleryKey&&savedKey===galleryFavoritesKey)return;
+  // A star changes one control, not the 83 SVG previews. Only a favorites-only
+  // view needs its card list rebuilt when saved styles change.
+  if(key===galleryKey&&!favoritesOnly){
+    galleryFavoritesKey=savedKey;
+    for(const card of $('style-gallery').querySelectorAll('.style-card'))setFavoriteStyleButton(card.querySelector('[data-style-action="favorite"]'),getScorebugStyle(card.dataset.styleId),ids.includes(card.dataset.styleId));
+    return;
+  }
+  galleryKey=key;galleryFavoritesKey=savedKey;
+  const game=sampleGame(),root=$('style-gallery'),active=document.activeElement,focusedCard=active?.closest('.style-card');
+  const wasFocused=root.contains(active),focusedStyle=focusedCard?.dataset.styleId,action=active?.dataset.styleAction,oldIndex=[...root.children].indexOf(focusedCard);root.replaceChildren();
+  const styles=filterScorebugStyles({favoriteStyleIds:ids,favoritesOnly,allSports:all,sport:league().sport,query});
+  for(const style of styles){
+    const card=document.createElement('div');card.className='style-card';card.dataset.styleId=style.id;card.dataset.selected=String(style.id===preferences.styleId);
+    const button=document.createElement('button');button.type='button';button.className='style-card-select';button.dataset.styleAction='choose';button.setAttribute('aria-pressed',String(style.id===preferences.styleId));button.setAttribute('aria-label',`Use ${style.name} style`);
     const preview=document.createElement('div');preview.className='style-card-preview';preview.setAttribute('aria-hidden','true');preview.innerHTML=renderScorebug(game,{idPrefix:`card-${style.id}`,styleId:style.id,orientation:'horizontal',interactive:false});
     const title=document.createElement('strong');title.textContent=style.name;const subtitle=document.createElement('small');subtitle.textContent=[style.network,style.era].filter(Boolean).join(' · ');
-    button.append(preview,title,subtitle);button.addEventListener('click',()=>chooseStyle(style.id));root.append(button);
+    button.append(preview,title);button.addEventListener('click',()=>chooseStyle(style.id));
+    const footer=document.createElement('div');footer.className='style-card-footer';const star=favoriteStyleButton(style,ids.includes(style.id));star.dataset.styleAction='favorite';footer.append(subtitle,star);card.append(button,footer);root.append(card);
   }
-  if(!root.children.length)root.textContent='No styles match that search.';
+  if(!styles.length){
+    const empty=document.createElement('div');empty.className='style-gallery-empty';
+    const title=document.createElement('strong'),copy=document.createElement('p'),reset=document.createElement('button');reset.type='button';reset.className='secondary-button';
+    const noFavorites=favoritesOnly&&!ids.length;title.textContent=noFavorites?'No favorite styles yet.':favoritesOnly?'No favorite styles match.':'No styles match.';
+    copy.textContent=noFavorites?'Star a look beside the selector or on any style card. It will be saved here.':'Try a different search, or include styles from all sports.';
+    reset.textContent=noFavorites?'Browse all styles':'Clear filters';reset.addEventListener('click',()=>{$('style-search').value='';$('all-styles').checked=true;if(noFavorites)$('favorite-styles-only').checked=false;renderStyleGallery();$('style-search').focus({preventScroll:true});});
+    empty.append(title,copy,reset);root.append(empty);
+  }
+  if(wasFocused){
+    const card=[...root.querySelectorAll('.style-card')].find(item=>item.dataset.styleId===focusedStyle)||root.querySelectorAll('.style-card')[Math.min(Math.max(0,oldIndex),styles.length-1)];
+    (card?.querySelector(`[data-style-action="${action==='favorite'?'favorite':'choose'}"]`)||$('favorite-styles-only')).focus({preventScroll:true});
+  }
 }
 function renderPreferences(){
   const scale=Number(preferences.scale)||1,vertical=preferences.orientation==='vertical';$('size-range').value=String(scale);label('size-value',`${Math.round(scale*100)}%`);
@@ -243,7 +315,7 @@ function renderPreferences(){
   $('scorebug-preview').style.width=`${(vertical?144:520)*scale}px`;$('preview-stage').dataset.orientation=vertical?'vertical':'horizontal';
   $('date-input').value=preferences.date?`${preferences.date.slice(0,4)}-${preferences.date.slice(4,6)}-${preferences.date.slice(6,8)}`:'';$('snap-checkbox').checked=preferences.snapEnabled!==false;$('lock-checkbox').checked=Boolean(preferences.locked);
   for(const button of $('anchor-grid').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.anchor===preferences.anchor));
-  $('league-select').value=preferences.leagueId;$('style-select').value=getScorebugStyle(preferences.styleId)?.id||'nfl-blades';
+  renderStyleFavorites();$('league-select').value=preferences.leagueId;$('style-select').value=getScorebugStyle(preferences.styleId)?.id||'nfl-blades';
   label('style-note',styleDescription(preferences.styleId,sampleGame())||'The selected look uses the current sport’s scores and information.');renderStyleGallery();
 }
 function renderSelectedFeed(state){snapshot=state;renderPreview();renderGames();renderLiveGames();renderHealth();updateActivity();}
@@ -260,16 +332,22 @@ onPreferences(next=>{
   renderPreferences();renderPreview();renderGames();renderLiveGames();renderHealth();updateActivity();if(sizeChanged)resizeFloatingWindow();
 });
 const previewDetails=attachDetailsHover($('scorebug-preview'),{enabled:()=>!reference&&!demoReference});
-for(const item of LEAGUES)$('league-select').add(new Option(item.name,item.id));
-const groups=new Map();for(const style of SCOREBUG_STYLES){const groupName=style.sport||'Other';let group=groups.get(groupName);if(!group){group=document.createElement('optgroup');group.label=groupName;groups.set(groupName,group);$('style-select').append(group);}group.append(new Option(style.name,style.id));}
+function addLeagueOptions(select){
+  for(const group of leagueGroups()){
+    const optgroup=document.createElement('optgroup');optgroup.label=group.label;optgroup.dataset.leagueGroup=group.id;
+    for(const item of group.leagues)optgroup.append(new Option(item.name,item.id));select.append(optgroup);
+  }
+}
+addLeagueOptions($('league-select'));
 $('league-select').addEventListener('change',event=>changeSelection({leagueId:normalizeLeague(event.target.value),gameId:null,date:null}));
 $('style-select').addEventListener('change',event=>chooseStyle(event.target.value));
+$('favorite-current-style').addEventListener('click',()=>toggleStyleFavorite(getScorebugStyle(preferences.styleId).id));
 $('style-browser-toggle').addEventListener('click',()=>{const open=$('style-browser').hidden;$('style-browser').hidden=!open;$('style-browser-toggle').setAttribute('aria-expanded',String(open));renderStyleGallery();});
-$('style-search').addEventListener('input',renderStyleGallery);$('all-styles').addEventListener('change',renderStyleGallery);
+$('style-search').addEventListener('input',renderStyleGallery);$('all-styles').addEventListener('change',renderStyleGallery);$('favorite-styles-only').addEventListener('change',renderStyleGallery);
 $('favorite-search').addEventListener('input',renderDirectory);
 $('favorite-search').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){const team=favoriteMatches().enterTeam;if(team){event.preventDefault();addFavoriteTeam(team);}}});
 const favoriteLeagueSelect=$('favorite-league-select');
-if(favoriteLeagueSelect){for(const item of LEAGUES)favoriteLeagueSelect.add(new Option(item.name,item.id));favoriteLeagueSelect.value=favoriteLeague;favoriteLeagueSelect.addEventListener('change',()=>{favoriteLeague=getLeague(favoriteLeagueSelect.value)?favoriteLeagueSelect.value:'all';directoryStore.retain([preferences.leagueId,favoriteLeague]);renderDirectory();if(favoriteLeague!=='all')loadDirectory(favoriteLeague);});}
+if(favoriteLeagueSelect){addLeagueOptions(favoriteLeagueSelect);favoriteLeagueSelect.value=favoriteLeague;favoriteLeagueSelect.addEventListener('change',()=>{favoriteLeague=getLeague(favoriteLeagueSelect.value)?favoriteLeagueSelect.value:'all';directoryStore.retain([preferences.leagueId,favoriteLeague]);renderDirectory();if(favoriteLeague!=='all')loadDirectory(favoriteLeague);});}
 $('favorite-retry')?.addEventListener('click',()=>loadDirectory(favoriteLeague==='all'?preferences.leagueId:favoriteLeague,{force:true}));
 $('favorite-editor').addEventListener('toggle',()=>{if($('favorite-editor').open){renderDirectory();loadDirectory(favoriteLeague==='all'?preferences.leagueId:favoriteLeague);}});
 $('follow-live').addEventListener('click',()=>changeSelection({gameId:null,date:null}));
