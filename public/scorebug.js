@@ -42,9 +42,17 @@ function logoImage(team, centerX, centerY, maxWidth, maxHeight) {
 }
 
 function teamLogo(team, side) {
-  const center = side === 'away' ? 99 : 498;
-  return logoImage(team, center, 38, 118, 62)
-    || `<text class="bug-abbreviation" x="${center}" y="54" text-anchor="middle">${escape(team.abbreviation || '—')}</text>`;
+  const center = side === 'away' ? 110 : 488;
+  return logoImage(team, center, 46, 106, 62)
+    || `<text class="bug-abbreviation" x="${center}" y="59" text-anchor="middle">${escape(team.abbreviation || '—')}</text>`;
+}
+
+function scoreNumber(value, centerX, baseline, vertical = false) {
+  const className = `bug-score${vertical ? ' bug-vertical-score' : ''}${value.length > 2 ? (vertical ? ' bug-vertical-score--long' : ' bug-score--long') : ''}`;
+  // Tomorrow's italic glyphs lean 10 degrees. The narrower broadcast numerals
+  // plus this small shear match the horizontal panels' roughly 12-degree edge.
+  // Each score keeps its own cell, including two- and three-digit results.
+  return `<text class="${className}" x="0" y="0" text-anchor="middle" transform="translate(${centerX} ${baseline}) skewX(-4.4) scale(.78 1)">${value}</text>`;
 }
 
 function quarter(period) {
@@ -99,7 +107,7 @@ function timeouts(team, { side, id, vertical = false, top = 0 }) {
   const remaining = timeoutCount(team);
   const label = `${team.name || team.abbreviation || 'Team'}: ${remaining === null ? 'timeouts unavailable' : `${remaining} ${remaining === 1 ? 'timeout' : 'timeouts'} remaining`}`;
   // Follow the existing outer panel edges; native hit regions and viewBoxes
-  // stay unchanged. Vertical marks stop above the possession football.
+  // stay unchanged. The central possession lane stays clear of these marks.
   const width = vertical ? 3.4 : 4.5;
   const inset = vertical ? 3 : 3.4;
   const edgeStart = vertical ? (side === 'away' ? 10 : 159) : (side === 'away' ? 24 : 595);
@@ -157,7 +165,6 @@ export function renderScorebug(game, options = {}) {
     stale ? 'Score updates are delayed. Showing the last received data.' : '',
     demo ? 'Design preview. These are sample scores, not a live game.' : '',
   ].filter(Boolean).join(' ');
-  const scoreClass = (value) => `bug-score${value.length > 2 ? ' bug-score--long' : ''}`;
   const awayPath = 'M24 4H303L285 88H6Z';
   const homePath = 'M308 4H595L577 88H290Z';
 
@@ -169,12 +176,12 @@ export function renderScorebug(game, options = {}) {
   ${teamGroupStart(away, 'away')}
     <path class="bug-team-panel" d="${awayPath}" fill="url(#${id}-away)" stroke="url(#${id}-bevel)"/>
     <path class="bug-panel-highlight" d="M25 6H301"/>
-    <g class="bug-team-contents" clip-path="url(#${id}-away-clip)">${teamLogo(away, 'away')}<text class="${scoreClass(awayScore)}" x="272" y="63" text-anchor="end">${awayScore}</text>${hasPossession(game, away) ? possession(237, 76, .95) : ''}${showTimeouts ? timeouts(away, { side: 'away', id }) : ''}</g>
+    <g class="bug-team-contents" clip-path="url(#${id}-away-clip)">${teamLogo(away, 'away')}${scoreNumber(awayScore, 241, 70)}${hasPossession(game, away) ? possession(185, 46, .8) : ''}${showTimeouts ? timeouts(away, { side: 'away', id }) : ''}</g>
   </g>
   ${teamGroupStart(home, 'home')}
     <path class="bug-team-panel" d="${homePath}" fill="url(#${id}-home)" stroke="url(#${id}-bevel)"/>
     <path class="bug-panel-highlight" d="M309 6H593"/>
-    <g class="bug-team-contents" clip-path="url(#${id}-home-clip)">${teamLogo(home, 'home')}<text class="${scoreClass(homeScore)}" x="323" y="63" text-anchor="start">${homeScore}</text>${hasPossession(game, home) ? possession(359, 76, .95) : ''}${showTimeouts ? timeouts(home, { side: 'home', id }) : ''}</g>
+    <g class="bug-team-contents" clip-path="url(#${id}-home-clip)">${teamLogo(home, 'home')}${scoreNumber(homeScore, 349, 70)}${hasPossession(game, home) ? possession(413, 46, .8) : ''}${showTimeouts ? timeouts(home, { side: 'home', id }) : ''}</g>
   </g>
   <path class="bug-situation-panel" d="M6 93H580L571 136H1Z" fill="url(#${id}-strip)"/>
   ${bottom.banner
@@ -196,12 +203,12 @@ function renderVerticalScorebug(game, options) {
   const panelPath = (top) => `M10 ${top + 2}H159L149 ${top + 121}H1Z`;
   const panels = [away, home].map((team, index) => {
     const top = index * 126, side = index ? 'home' : 'away';
-    const logo = logoImage(team, 80, top + 32.5, 108, 54), value = score(team.score);
+    const logo = logoImage(team, 82, top + 29, 104, 44), value = score(team.score);
     return `${teamGroupStart(team, side)}<path class="bug-team-panel" d="${panelPath(top)}" fill="url(#${id}-${side})" stroke="url(#${id}-bevel)"/><path class="bug-panel-highlight" d="M11 ${top + 4}H157"/>
       <g class="bug-team-contents" clip-path="url(#${id}-${side}-clip)">
-      ${logo || `<text class="bug-vertical-abbreviation" x="80" y="${top + 44}" text-anchor="middle">${escape(team.abbreviation || 'NFL')}</text>`}
-      <text class="bug-score bug-vertical-score${value.length > 2 ? ' bug-vertical-score--long' : ''}" x="76" y="${top + 100}" text-anchor="middle">${value}</text>
-      ${hasPossession(game, team) ? possession(136, top + 88, .8) : ''}${showTimeouts ? timeouts(team, { side, id, vertical: true, top }) : ''}</g></g>`;
+      ${logo || `<text class="bug-vertical-abbreviation" x="82" y="${top + 39}" text-anchor="middle">${escape(team.abbreviation || 'NFL')}</text>`}
+      ${scoreNumber(value, 73, top + 112, true)}
+      ${hasPossession(game, team) ? possession(80, top + 62, .68) : ''}${showTimeouts ? timeouts(team, { side, id, vertical: true, top }) : ''}</g></g>`;
   }).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--vertical${stale ? ' scorebug--stale' : ''}" data-orientation="vertical" viewBox="0 ${badge ? '-19' : '0'} 160 ${badge ? '367' : '348'}" role="group" aria-labelledby="${id}-title ${id}-description">
     <title id="${id}-title">${escape(title)}</title><desc id="${id}-description">Away team above home team. A football marks possession. Timeout marks follow the away team's left edge and the home team's right edge: bright means remaining, dim means used, and a question mark means unavailable. The centered game clock, down and distance, and ball position appear below.</desc>

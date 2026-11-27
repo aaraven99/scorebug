@@ -5,6 +5,7 @@ import { attachDetailsHover } from './details-hover.js';
 import { createGameActivity } from './game-activity.js';
 import { createScoreAnimations } from './score-animation.js';
 import { selectDemoPlayer } from './game-events.js';
+import { mountDesktopUpdates } from './desktop-updates.js';
 import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, ScoreboardPoller, feedIsStale, checkedAgo } from './score-client.js';
 
 const $ = (id) => document.getElementById(id);
@@ -218,9 +219,10 @@ if (desktop) {
   $('floating-hint').textContent = 'Pin it with PowerToys: Win + Ctrl + T. For automatic snapping, use the desktop app.';
 }
 if (!desktop) $('mode-label').textContent = 'Browser window';
+let disposeUpdates = mountDesktopUpdates($('desktop-updates'));
 renderPreferences(); activity.start(); poller.start();
 let healthTimer = setInterval(renderHealth, 1000);
-window.addEventListener('pagehide', () => { poller.stop(); activity.stop(); clearInterval(healthTimer); });
+window.addEventListener('pagehide', () => { poller.stop(); activity.stop(); clearInterval(healthTimer); disposeUpdates(); });
 window.addEventListener('pageshow', (event) => {
-  if (event.persisted) { activity.start(); poller.start(); clearInterval(healthTimer); healthTimer = setInterval(renderHealth, 1000); }
+  if (event.persisted) { disposeUpdates = mountDesktopUpdates($('desktop-updates')); activity.start(); poller.start(); clearInterval(healthTimer); healthTimer = setInterval(renderHealth, 1000); }
 });
