@@ -1,6 +1,7 @@
 import { createGameEventTracker as createFootballTracker, selectDemoPlayer as footballDemoPlayer } from './game-events.js';
 import { sportFor } from './sports.js';
-const event = (kind,title,points=null) => ({kind,title,points});
+const SESSION_EVENT_KINDS = new Set(['safety-car','virtual-safety-car','yellow-flag','red-flag','green-flag','checkered-flag']);
+const event = (kind,title,points=null) => ({kind,title,points,scope:SESSION_EVENT_KINDS.has(kind)?'session':'competitor'});
 export const SPORT_EVENTS = Object.freeze({
   football:[event('touchdown','TOUCHDOWN',6),event('field-goal','FIELD GOAL',3),event('safety','SAFETY',2),event('extra-point','EXTRA POINT',1),event('two-point','TWO-POINT CONVERSION',2),event('interception','INTERCEPTION'),event('fumble','FUMBLE RECOVERED'),event('big-play','BIG PLAY')],
   basketball:[event('three-pointer','THREE-POINTER',3),event('two-pointer','TWO POINTS',2),event('free-throw','FREE THROW',1),event('lead-change','LEAD CHANGE'),event('dunk','DUNK',2),event('block','BLOCK'),event('steal','STEAL')],
@@ -15,6 +16,11 @@ export const SPORT_EVENTS = Object.freeze({
   cricket:[event('six','SIX',6),event('four','FOUR',4),event('wicket','WICKET'),event('fifty','HALF CENTURY'),event('century','CENTURY')],
 });
 export function eventsForSport(sport) { return SPORT_EVENTS[sport] || [event('score','SCORE UPDATE')]; }
+/** Race-control notices apply to the session, including older unscoped payloads. */
+export function isSessionEvent(value,sport) {
+  const kind=typeof value==='string'?value:value?.kind;
+  return value?.scope==='session'||sport==='racing'&&SESSION_EVENT_KINDS.has(kind);
+}
 const array = value => Array.isArray(value) ? value : [];
 const n = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const identity = value => typeof value === 'string' && /^[\w:.-]{1,120}$/.test(value);
@@ -165,6 +171,7 @@ export function createMultiSportEventTracker({resumeGapMs=45000,eventMaxAgeMs=90
   return {update,reset};
 }
 export function selectSportDemoPlayer(details,teamId,kind,sport='football') {
+  if(isSessionEvent(kind,sport))return null;
   if(sport==='football')return footballDemoPlayer(details,teamId,kind);
   for(const p of array(details?.eventPlays))if((p.scoringTeamId||p.teamId)===teamId&&classify(p,sport)?.kind===kind)return player(p.player);
   return player(array(details?.players).find(p=>p.teamId===teamId));

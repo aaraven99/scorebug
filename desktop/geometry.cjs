@@ -77,12 +77,15 @@ function contentAlignmentForAnchor(anchor, previous = 'bottom') {
   return typeof anchor === 'string' && anchor.startsWith('top-') ? 'top' : 'bottom';
 }
 
-function widgetSize(scale = 1, orientation = 'horizontal', workArea = null) {
+function widgetSize(scale = 1, orientation = 'horizontal', workArea = null, dimensions = null) {
   const vertical = orientation === 'vertical';
   let width = Math.round((vertical ? 160 : 520) * scale);
   // Controls and the transparent margins use CSS pixels, so they must not shrink
   // with the scorebug. Reserve the feed-status badge even while it is absent.
-  const ratio = vertical ? 309 / 160 : 162 / 600;
+  const custom = dimensions && Number.isFinite(dimensions.width) && dimensions.width > 0
+    && Number.isFinite(dimensions.height) && dimensions.height > 0 && dimensions.height <= 2000
+    && Number.isFinite(dimensions.statusHeight) && dimensions.statusHeight >= 0;
+  const ratio = custom ? (dimensions.height + dimensions.statusHeight) / dimensions.width : vertical ? 309 / 160 : 162 / 600;
   if (workArea) {
     // A short, high-DPI work area may not fit a large vertical scorebug. Reduce
     // its width as well, instead of clipping a height whose SVG still uses the

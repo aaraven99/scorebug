@@ -1,7 +1,7 @@
 import { normalizePreferencePatch, normalizeFavorites, supportedGameId, gameLeague, matchesFavorite, validLeagueId, leagueOfId, validDate } from './preferences-model.js';
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
 
-export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', favorites: [], scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
+export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
 const KEY = 'scorebug.preferences.v1';
 export const SCOREBOARD_CACHE_KEY = 'scorebug.scoreboards.v1';
 export const SCOREBOARD_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -10,6 +10,7 @@ const FUTURE_TOLERANCE_MS = 60000;
 const preferencesEvents = new EventTarget();
 let preferences = { ...DEFAULT_PREFERENCES };
 let channel;
+let preferencesInitialized = false;
 
 export function isSupportedGameId(value) {
   return supportedGameId(value);
@@ -106,13 +107,34 @@ export function writeCachedScoreboard(date, data, { storage = browserStorage(), 
     return true;
   } catch { return false; }
 }
-try { preferences = { ...preferences, ...normalizePreferencePatch(JSON.parse(localStorage.getItem(KEY) || '{}')) }; } catch { /* private browsing or corrupt storage */ }
+try {
+  const stored = JSON.parse(localStorage.getItem(KEY) || '{}');
+  const saved = normalizePreferencePatch(stored);
+  // Versions before 2.0.1 saved the chosen style without an automatic-style
+  // flag. Preserve that choice; only a new profile starts in automatic mode.
+  if (saved.styleId && !Object.hasOwn(stored, 'styleAuto')) saved.styleAuto = false;
+  preferences = { ...preferences, ...saved };
+} catch { /* private browsing or corrupt storage */ }
 try { if (typeof window !== 'undefined') channel = new BroadcastChannel('scorebug.preferences.v1'); } catch { /* optional */ }
 
 export function getPreferences() { return { ...preferences, favorites: normalizeFavorites(preferences.favorites) }; }
+function syncPreferenceURL() {
+  if (!preferencesInitialized || !globalThis.location?.href || !globalThis.history?.replaceState) return;
+  try {
+    const url = new URL(globalThis.location.href), before = url.href;
+    // A pop-out's original style/rows must not override later choices on reload.
+    for (const [key, param] of [['leagueId','league'], ['styleId','style'], ['gameId','game'], ['date','date'], ['racingRows','rows']]) {
+      if (!url.searchParams.has(param)) continue;
+      if (preferences[key] == null) url.searchParams.delete(param);
+      else url.searchParams.set(param, String(preferences[key]));
+    }
+    if (url.href !== before) globalThis.history.replaceState(null, '', url.href);
+  } catch { /* Sandboxed or opaque windows still receive shared preferences. */ }
+}
 function acceptPreferences(next) {
   preferences = { ...preferences, ...normalizePreferencePatch(next) };
   try { localStorage.setItem(KEY, JSON.stringify(preferences)); } catch { /* storage is optional */ }
+  syncPreferenceURL();
   preferencesEvents.dispatchEvent(new CustomEvent('change', { detail: getPreferences() }));
 }
 if (channel) channel.onmessage = (event) => { if (event.data && typeof event.data === 'object') acceptPreferences(event.data); };
@@ -130,12 +152,16 @@ export async function initializePreferences() {
   const patch = {};
   if (validLeagueId(query.get('league'))) patch.leagueId = query.get('league');
   if (query.has('style')) Object.assign(patch, normalizePreferencePatch({styleId:query.get('style')}));
+  if (patch.styleId && patch.styleId !== preferences.styleId) patch.styleAuto = false;
+  if (query.has('rows') && /^\d{1,2}$/.test(query.get('rows'))) Object.assign(patch, normalizePreferencePatch({racingRows:Number(query.get('rows'))}));
   if (isSupportedGameId(query.get('game'))) patch.gameId = query.get('game');
   if (query.has('date')) patch.date = validDate(query.get('date')) ? query.get('date') : null;
   if (/^[A-Z]{2,4}$/.test(query.get('team') || '')) patch.team = query.get('team');
   if (patch.gameId) patch.leagueId ||= leagueOfId(patch.gameId);
   if (patch.leagueId && patch.leagueId !== preferences.leagueId && !Object.hasOwn(patch,'gameId')) patch.gameId = null;
   if (Object.keys(patch).length) acceptPreferences(patch);
+  preferencesInitialized = true;
+  syncPreferenceURL();
   return getPreferences();
 }
 

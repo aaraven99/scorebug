@@ -11,12 +11,14 @@ const { HoverIntent } = require('./hover.cjs');
 const { UpdateController } = require('./updates.cjs');
 const { DetailsLifecycle } = require('./details-lifecycle.cjs');
 const { FullscreenTransitions } = require('./fullscreen.cjs');
-const { cleanPatch, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
+const { cleanPatch, cleanSavedPreferences, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
 
 const DEFAULTS = Object.freeze({
   gameId: null,
   leagueId: 'nfl',
   styleId: 'nfl-blades',
+  styleAuto: true,
+  racingRows: 6,
   favorites: [],
   team: null,
   date: null,
@@ -70,6 +72,7 @@ let quitting = false;
 let quitCleanupDone = false;
 let updates = null;
 let smokeExitCode = 0;
+let scorebugDimensions, getLeague;
 
 app.setName('Scorebug');
 if (SMOKE_TEST) {
@@ -82,8 +85,8 @@ if (SMOKE_TEST) {
 if (process.platform === 'win32') app.setAppUserModelId('dev.aarav.scorebug');
 
 function publicPreferences() {
-  const { gameId, leagueId, styleId, favorites, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
-  return { gameId, leagueId, styleId, favorites: favorites.map((item) => ({ ...item })), team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
+  const { gameId, leagueId, styleId, styleAuto, racingRows, favorites, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
+  return { gameId, leagueId, styleId, styleAuto, racingRows, favorites: favorites.map((item) => ({ ...item })), team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
 }
 
 function orientationForAnchor(anchor) {
@@ -95,7 +98,7 @@ function readPreferences() {
   try {
     if (fs.statSync(preferencesPath).size > 64 * 1024) return;
     const saved = JSON.parse(fs.readFileSync(preferencesPath, 'utf8'));
-    preferences = { ...DEFAULTS, ...cleanPatch(saved) };
+    preferences = { ...DEFAULTS, ...cleanSavedPreferences(saved) };
     preferences.orientation = preferences.anchor ? orientationForAnchor(preferences.anchor) : saved.orientation === 'vertical' ? 'vertical' : 'horizontal';
     preferences.contentAlignment = contentAlignmentForAnchor(preferences.anchor, saved.contentAlignment);
     if (saved.bounds && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(saved.bounds[key]))) {
@@ -135,7 +138,9 @@ function publishUpdateState(value) {
 }
 
 function currentSize(workArea) {
-  return widgetSize(preferences.scale, preferences.orientation, workArea);
+  const league = getLeague?.(preferences.leagueId);
+  const dimensions = scorebugDimensions?.({ leagueId: preferences.leagueId, sport: league?.sport, kind: league?.kind }, preferences);
+  return widgetSize(preferences.scale, preferences.orientation, workArea, dimensions);
 }
 
 function preferredDisplay() {
@@ -166,7 +171,7 @@ function placeWidget(forceDisplay) {
 
 function setPreferences(patch) {
   const clean = cleanPatch(patch);
-  const needsPosition = Object.hasOwn(clean, 'scale') || Object.hasOwn(clean, 'anchor');
+  const needsPosition = ['scale', 'anchor', 'racingRows', 'leagueId', 'styleId'].some(key => Object.hasOwn(clean, key));
   const leagueChanged = clean.leagueId !== undefined && clean.leagueId !== preferences.leagueId;
   const styleChanged = clean.styleId !== undefined && clean.styleId !== preferences.styleId;
   preferences = { ...preferences, ...clean };
@@ -966,6 +971,8 @@ async function start() {
     onRestartCancelled: () => { if (!quitCleanupDone) quitting = false; }
   });
   const appRoot = app.isPackaged ? path.join(process.resourcesPath, 'scorebug') : path.resolve(__dirname, '..');
+  ({ scorebugDimensions } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-layout.js')).href));
+  ({ getLeague } = await import(pathToFileURL(path.join(appRoot, 'public', 'sports.js')).href));
   const { createScorebugServer } = await import(pathToFileURL(path.join(appRoot, 'server.mjs')).href);
   httpServer = createScorebugServer();
   await new Promise((resolve, reject) => {

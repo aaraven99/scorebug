@@ -69,7 +69,7 @@ function render() {
   const title = game ? isClassification ? game.name || game.sessionName || 'Event' : `${game.away.name} at ${game.home.name}` : snapshot.loading ? 'Finding your game…' : 'No game selected';
   text('center-title', title);
   document.title = game ? `${gameLabel(game)} — Game center` : 'Game center — Scorebug';
-  const board = game ? renderScorebug(game, { idPrefix: 'game-center', styleId:preferences.styleId, orientation: 'horizontal', interactive: false, stale: scoreDelayed || game.timingStale }) : `<p class="empty-note">${snapshot.loading ? 'Connecting to the live feed…' : snapshot.error ? 'Unable to reach the feed. Reconnecting automatically.' : 'Choose Automatic to find a current game.'}</p>`;
+  const board = game ? renderScorebug(game, { idPrefix: 'game-center', styleId:preferences.styleId, racingRows:preferences.racingRows, orientation: 'horizontal', interactive: false, stale: scoreDelayed || game.timingStale }) : `<p class="empty-note">${snapshot.loading ? 'Connecting to the live feed…' : snapshot.error ? 'Unable to reach the feed. Reconnecting automatically.' : 'Choose Automatic to find a current game.'}</p>`;
   updateMarkup($('center-scorebug'), board); animations.attach('horizontal');
   text('center-status', game ? [game.status, game.broadcast, game.venue].filter(Boolean).join(' · ') : 'The last received score stays visible if a feed is interrupted.');
   $('center-league-select').value = preferences.leagueId;
@@ -127,7 +127,7 @@ function choose(patch) {
 for(const league of LEAGUES)$('center-league-select').add(new Option(league.name,league.id));
 for(const style of SCOREBUG_STYLES)$('center-style-select').add(new Option(style.name,style.id));
 $('center-league-select').addEventListener('change',event=>choose({leagueId:event.target.value,gameId:null,date:null}));
-$('center-style-select').addEventListener('change',event=>choose({styleId:event.target.value}));
+$('center-style-select').addEventListener('change',event=>choose({styleId:event.target.value,styleAuto:false}));
 $('center-game-select').addEventListener('change', (event) => choose({ gameId: event.target.value || null }));
 $('center-automatic').addEventListener('click', () => choose({ gameId: null, date: null }));
 $('center-refresh').addEventListener('click', () => { poller.refresh(); summaries.refresh(); });

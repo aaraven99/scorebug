@@ -6,6 +6,7 @@ import { createScoreAnimations } from './score-animation.js';
 import { getLeague } from './sports.js';
 import { gameLabel } from './score-client.js';
 import { widgetPopupSize } from './widget-layout.js';
+import { scorebugDimensions, fitScorebugWidth } from './scorebug-layout.js';
 
 const desktop = Boolean(window.scorebugDesktop);
 if (desktop) document.body.dataset.desktop = 'true';
@@ -14,12 +15,12 @@ let snapshot = { data: null, error: null, loading: true };
 let rendered = '';
 const root = document.getElementById('widget-root');
 const toolbar = document.createElement('nav'); toolbar.className = 'widget-toolbar'; toolbar.setAttribute('aria-label', 'Scorebug controls');
-const refresh = document.createElement('button'); refresh.type = 'button'; refresh.title = 'Refresh now'; refresh.setAttribute('aria-label', 'Refresh now'); refresh.textContent = '↻';
+const refresh = document.createElement('button'); refresh.type = 'button'; refresh.title = 'Refresh now'; refresh.setAttribute('aria-label', 'Refresh now'); refresh.textContent = '↻'; refresh.className = 'widget-refresh-button';
 const settings = document.createElement('button'); settings.type = 'button'; settings.title = 'Settings'; settings.setAttribute('aria-label', 'Open scorebug settings'); settings.textContent = '⚙';
 const close = document.createElement('button'); close.type = 'button'; close.title = desktop ? 'Quit Scorebug' : 'Close window'; close.setAttribute('aria-label', close.title); close.textContent = '×';
 const detailsButton = document.createElement('button'); detailsButton.type = 'button'; detailsButton.title = 'Stats for the team with the ball'; detailsButton.setAttribute('aria-label', 'Show team stats'); detailsButton.className = 'widget-stats-button';
 detailsButton.innerHTML = '<span class="widget-stats-label">Stats</span><svg class="widget-stats-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 12V8m5 4V3m5 9V6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-const gameCenter = document.createElement('button'); gameCenter.type = 'button'; gameCenter.title = 'Full-screen game view'; gameCenter.setAttribute('aria-label', 'Open full-screen game view');
+const gameCenter = document.createElement('button'); gameCenter.type = 'button'; gameCenter.title = 'Full-screen game view'; gameCenter.setAttribute('aria-label', 'Open full-screen game view'); gameCenter.className = 'widget-game-center-button';
 gameCenter.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2H2v4m8-4h4v4M2 10v4h4m8-4v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 toolbar.append(refresh, detailsButton, gameCenter, settings, close);
 const layoutControls = document.createElement('div'); layoutControls.className = 'widget-layout-controls'; layoutControls.setAttribute('role', 'group'); layoutControls.setAttribute('aria-label', 'Scorebug layout');
@@ -51,7 +52,23 @@ function updateActivity() { activity.setGame(selectGame(snapshot.data?.games, pr
 let nativeDetailsSide = null;
 let nativeDetailsGameId, nativeDetailsLeagueId;
 let regionFrame = null;
+let boardDimensions = null;
 detailsButton.addEventListener('click', () => detailsHover.open());
+
+function fitBoard() {
+  if (!boardDimensions) return;
+  const padding = getComputedStyle(root);
+  const horizontalPadding = parseFloat(padding.paddingLeft) + parseFloat(padding.paddingRight);
+  const verticalPadding = parseFloat(padding.paddingTop) + parseFloat(padding.paddingBottom);
+  const availableWidth = root.clientWidth - horizontalPadding;
+  const availableHeight = root.clientHeight - verticalPadding;
+  const maximumWidth = desktop ? availableWidth : preferences.orientation === 'vertical'
+    ? widgetPopupSize(preferences).width - 16 : 900;
+  // Resize the host as well as the SVG: animation typography uses its width.
+  // Do not update scale or resize the window in response to a resize event.
+  const width = fitScorebugWidth(boardDimensions, {availableWidth, availableHeight, maximumWidth});
+  board.style.width = `${Math.max(0, width)}px`;
+}
 
 function render() {
   document.body.dataset.locked = String(Boolean(preferences.locked));
@@ -61,6 +78,9 @@ function render() {
   const topAligned = desktop && preferences.contentAlignment === 'top';
   document.body.dataset.contentAlignment = topAligned ? 'top' : 'bottom';
   const game = activity.getDisplayGame(selectGame(snapshot.data?.games, preferences));
+  const selectedLeague = getLeague(preferences.leagueId);
+  boardDimensions = scorebugDimensions(game || {leagueId:preferences.leagueId, sport:selectedLeague?.sport, kind:selectedLeague?.kind}, preferences);
+  fitBoard();
   const gameId = isSupportedGameId(game?.id) ? game.id : null;
   if (desktop && (gameId !== nativeDetailsGameId || preferences.leagueId !== nativeDetailsLeagueId)) {
     nativeDetailsGameId = gameId; nativeDetailsLeagueId = preferences.leagueId;
@@ -70,7 +90,7 @@ function render() {
     task?.catch(() => { if(nativeDetailsGameId===gameId)nativeDetailsGameId=undefined; });
   }
   if (game) {
-    const html = renderScorebug(game, { idPrefix: 'floating', styleId: preferences.styleId, orientation: preferences.orientation, statusPosition: topAligned ? 'below' : 'above', stale: feedIsStale(snapshot.data, Boolean(snapshot.error)) || game.timingStale });
+    const html = renderScorebug(game, { idPrefix: 'floating', styleId: preferences.styleId, racingRows: preferences.racingRows, orientation: preferences.orientation, statusPosition: topAligned ? 'below' : 'above', stale: feedIsStale(snapshot.data, Boolean(snapshot.error)) || game.timingStale });
     if (rendered !== html) { board.innerHTML = html; rendered = html; }
     animations.attach(preferences.orientation);
     const side = possessingSide();
@@ -103,13 +123,34 @@ function syncNativeRegions() {
         panels[side]={...bounds(path),points,fill:group?.dataset.teamFill||path.getAttribute('fill'),border:group?.dataset.teamBorder||path.getAttribute('stroke'),ink:group?.dataset.teamInk};
       }
     }
-    const shapes=Object.values(panels), artwork=shapes.length?{x:Math.min(...shapes.map(r=>r.x)),y:Math.min(...shapes.map(r=>r.y)),width:Math.max(...shapes.map(r=>r.x+r.width))-Math.min(...shapes.map(r=>r.x)),height:Math.max(...shapes.map(r=>r.y+r.height))-Math.min(...shapes.map(r=>r.y))}:null;
+    const shapes=Object.values(panels);
+    let artwork=shapes.length?{x:Math.min(...shapes.map(r=>r.x)),y:Math.min(...shapes.map(r=>r.y)),width:Math.max(...shapes.map(r=>r.x+r.width))-Math.min(...shapes.map(r=>r.x)),height:Math.max(...shapes.map(r=>r.y+r.height))-Math.min(...shapes.map(r=>r.y))}:null;
+    const svg=board.querySelector('svg[data-artwork-width][data-artwork-height]'), matrix=svg?.getScreenCTM();
+    if(svg&&matrix){
+      const width=Number(svg.dataset.artworkWidth),height=Number(svg.dataset.artworkHeight);
+      if(width>0&&height>0){
+        const top=new DOMPoint(0,0).matrixTransform(matrix),bottom=new DOMPoint(width,height).matrixTransform(matrix);
+        artwork={x:top.x,y:top.y,width:bottom.x-top.x,height:bottom.y-top.y};
+      }
+    }
     window.scorebugDesktop.setDetailsRegions({targets,panels,board:artwork,viewport:{width:innerWidth,height:innerHeight},styleId:preferences.styleId,legacyBlades:preferences.styleId==='nfl-blades'&&!board.querySelector('svg')?.classList.contains('scorebug--variant')}).catch(()=>{});
   });
 }
-window.addEventListener('resize',syncNativeRegions);
+window.addEventListener('resize',()=>{
+  fitBoard();
+  animations.attach(preferences.orientation);
+  syncNativeRegions();
+});
 const poller = new ScoreboardPoller({ leagueId: preferences.leagueId, date: preferences.date, onUpdate: (next) => { snapshot = next; render(); updateActivity(); } });
-onPreferences((next) => { const old = preferences; preferences = next; if (old.date !== next.date || old.leagueId !== next.leagueId) poller.setContext({date:next.date,leagueId:next.leagueId}); render(); updateActivity(); });
+onPreferences((next) => {
+  const old=preferences;preferences=next;
+  if(old.date!==next.date||old.leagueId!==next.leagueId)poller.setContext({date:next.date,leagueId:next.leagueId});
+  if(!desktop&&!document.body.hasAttribute('data-pip')&&window.opener&&['orientation','scale','racingRows','leagueId'].some(key=>old[key]!==next[key])){
+    const size=widgetPopupSize(next);
+    try{window.resizeTo(size.width+Math.max(0,outerWidth-innerWidth),size.height+Math.max(0,outerHeight-innerHeight));}catch{}
+  }
+  render();updateActivity();
+});
 refresh.addEventListener('click', () => { poller.refresh(); activity.refresh(); });
 settings.addEventListener('click', () => {
   if (desktop) window.scorebugDesktop.openSettings();

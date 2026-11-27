@@ -3,13 +3,9 @@ import { localTeamLogo, teamLogoPresentation } from './team-assets.js';
 import { getScorebugStyle } from './scorebug-styles.js';
 import { renderStyledScorebug } from './scorebug-variants.js';
 import { sportFor } from './sports.js';
+export { SCOREBUG_DIMENSIONS, scorebugDimensions } from './scorebug-layout.js';
 
 let nextId = 0;
-
-export const SCOREBUG_DIMENSIONS = Object.freeze({
-  horizontal: Object.freeze({ width: 600, height: 138, statusHeight: 24 }),
-  vertical: Object.freeze({ width: 160, height: 290, statusHeight: 19 }),
-});
 
 const escape = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -191,7 +187,9 @@ function comparisonTarget(path, clipId) {
  * Render one self-contained SVG. Team groups expose data-team-side and
  * data-team-id for team-specific details. The feed clock stays centered;
  * neither a simulated game clock nor an unreliable play clock is shown.
- * Normal viewBoxes: horizontal 600×138; vertical 160×290. Status flags add
+ * Head-to-head viewBoxes: horizontal 600×138; vertical 160×290. Racing height
+ * grows with racingRows; scorebugDimensions returns the shared layout size.
+ * Status flags add
  * 24 or 19 units respectively above the same, unmoved panel coordinates.
  * Top-docked widgets can place that badge space below with statusPosition.
  */
@@ -219,7 +217,7 @@ export function renderScorebug(game, options = {}) {
   const stripPath = 'M10.928571 93H575.928571L566.714286 136H1.714286Z';
   const awayPaint = teamPalette(away, 'away'), homePaint = teamPalette(home, 'home');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-league-id="${escape(game?.leagueId || 'nfl')}" data-style-id="nfl-blades" data-sport="football" data-orientation="horizontal"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-24' : '0'} 600 ${badge ? '162' : '138'}" role="group" aria-labelledby="${id}-title ${id}-description">
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-league-id="${escape(game?.leagueId || 'nfl')}" data-style-id="nfl-blades" data-sport="football" data-orientation="horizontal" data-artwork-width="600" data-artwork-height="138"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-24' : '0'} 600 ${badge ? '162' : '138'}" role="group" aria-labelledby="${id}-title ${id}-description">
   <title id="${id}-title">${escape(title)}</title>
   <desc id="${id}-description">Classic football scorebug. Away team on the left, home team on the right. ${bottom.banner ? 'Game status appears beneath the scores.' : 'Quarter and ball position at left, game clock in the center, and down and distance at right.'} A football marks possession. Three marks along each team's outer edge show timeouts: bright means remaining, dim means used, and a question mark means unavailable.</desc>
   <defs>${timeoutPaint(id)}<clipPath id="${id}-away-clip"><path d="${awayPath}"/></clipPath><clipPath id="${id}-home-clip"><path d="${homePath}"/></clipPath><clipPath id="${id}-strip-clip"><path d="${stripPath}"/></clipPath></defs>
@@ -268,7 +266,7 @@ function renderVerticalScorebug(game, options) {
       ${scoreNumber(value, 80, top + 93, true)}
       ${hasPossession(game, team) ? possession(84, top + 50, .55) : ''}${showTimeouts ? timeouts(team, { side, id, vertical: true, top }) : ''}</g>${interactive ? teamTarget(team, side, targets, `${id}-${side}-clip`) : ''}</g>`;
   }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--vertical${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-league-id="${escape(game?.leagueId || 'nfl')}" data-style-id="nfl-blades" data-sport="football" data-orientation="vertical"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-19' : '0'} 160 ${badge ? '309' : '290'}" role="group" aria-labelledby="${id}-title ${id}-description">
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--vertical${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-league-id="${escape(game?.leagueId || 'nfl')}" data-style-id="nfl-blades" data-sport="football" data-orientation="vertical" data-artwork-width="160" data-artwork-height="290"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-19' : '0'} 160 ${badge ? '309' : '290'}" role="group" aria-labelledby="${id}-title ${id}-description">
     <title id="${id}-title">${escape(title)}</title><desc id="${id}-description">Away team above home team. A football marks possession. Timeout marks follow the away team's left edge and the home team's right edge: bright means remaining, dim means used, and a question mark means unavailable. The centered game clock, down and distance, and ball position appear below.</desc>
     <defs>${timeoutPaint(id)}<clipPath id="${id}-away-clip"><path d="${panelPath(0)}"/></clipPath><clipPath id="${id}-home-clip"><path d="${panelPath(103)}"/></clipPath><clipPath id="${id}-strip-clip"><path d="${stripPath}"/></clipPath></defs>
     ${badge ? `<g class="bug-status-flag"${badgeBelow ? ' transform="translate(0 309)"' : ''}><path d="M10-17H159L157-2H8Z" fill="${stale ? '#b95518' : '#283739'}"/><text x="80" y="-6" text-anchor="middle" style="font-size:9px;letter-spacing:.6px">${badge}</text></g>` : ''}

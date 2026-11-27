@@ -1,4 +1,5 @@
 import { sportFor, formatPeriod, formatSituation, getLeague } from './sports.js';
+import { scorebugDimensions } from './scorebug-layout.js';
 
 const esc = (value) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const num = (value) => Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : null;
@@ -408,9 +409,11 @@ function timing(ctx) {
   const white=variant==='white-red',classic=variant==='classic',green=variant==='golf-mini';
   const base=white?'#ebedef':classic?'#343529':green?'#233f37':'#15181f',ink=white?'#17212a':'#f6f8fa';
   const accent=classic?'#e3dd81':variant==='golf-pylon'?'#d9f653':green?'#ccded2':variant==='stage'?'#55c7e2':'#e32936';
-  const width=vertical?160:600,height=vertical?290:138;
-  const headerH=vertical?46:35,footerH=vertical?24:20;
-  const count=vertical?9:6,rowH=(height-headerH-footerH-6)/(vertical?Math.max(3,Math.min(count,entries.length)):3);
+  const {width,height}=ctx.dimensions;
+  const headerH=ctx.dimensions.headerHeight??(vertical?46:35),footerH=ctx.dimensions.footerHeight??(vertical?24:20);
+  const count=ctx.dimensions.racingRows??(vertical?9:6);
+  const rowsPerColumn=ctx.dimensions.rowsPerColumn??(vertical?Math.max(3,Math.min(count,entries.length)):3);
+  const rowH=ctx.dimensions.rowHeight??((height-headerH-footerH-6)/rowsPerColumn);
   const columns=vertical?1:2,columnWidth=(width-8)/columns;
   const headerText=game?.sessionName||game?.name||'Choose a session';
   const status=ctx.v.banner||formatSituation(game||{})|| (game?.state==='in'?'LIVE':formatPeriod(game||{}));
@@ -422,33 +425,35 @@ function timing(ctx) {
   const shown=entries.slice(0,count);
   if(!shown.length)html+=label(game?.state==='pre'?'Classification available when reported':'Classification unavailable',width/2,headerH+(height-headerH-footerH)/2,vertical?11:17,{anchor:'middle',fill:ink,width:width-22});
   shown.forEach((entry,index)=> {
-    const col=vertical?0:Math.floor(index/3),row=vertical?index:index%3;
+    const col=vertical?0:Math.floor(index/rowsPerColumn),row=vertical?index:index%rowsPerColumn;
     const x=4+col*columnWidth,y=headerH+3+row*rowH,w=columnWidth-4;
     const color=safeColor(entry.team?.color||entry.color,'#697685');
     const position=entry.position??entry.rank??'—';
     const name=vertical?(entry.abbreviation||entry.athlete?.abbreviation||entry.shortName||String(entry.name||entry.athlete?.name||'—').split(' ').at(-1)):(entry.name||entry.athlete?.name||entry.abbreviation||entry.athlete?.abbreviation||'—');
     const value=golf?(entry.scoreDisplay??entry.score??entry.toPar??'—'):(entry.gap??entry.time??entry.status??'—');
     const rowShape=variant==='slanted'?'slant':['rounded','modern'].includes(variant)?'round':'rect';
-    html+=`<g class="variant-classification-row" data-entry-id="${esc(entry.id||'')}"><path d="${panelShape(x,y,w,rowH-2,rowShape)}" fill="${base}"/>`;
+    html+=`<g class="variant-classification-row" data-entry-id="${esc(entry.id||'')}" data-row-index="${index}" data-row-x="${x}" data-row-y="${y}"><path d="${panelShape(x,y,w,rowH-2,rowShape)}" fill="${base}"/>`;
     html+=`<path d="${rectPath(x+2,y+2,vertical?18:23,rowH-6,1)}" fill="${classic?accent:white?'#d32a3a':['slim','modern','full-name','stage','golf-mini'].includes(variant)?'#252e36':color}"/>`;
     if(['modern','slim','full-name','stage','golf-pylon'].includes(variant))html+=`<rect x="${x+24}" y="${y+3}" width="2" height="${rowH-8}" fill="${color}"/>`;
-    html+=label(position,x+(vertical?11:14),y+rowH*.67,vertical?10:12,{anchor:'middle',fill:classic?'#24271a':'#ffffff',weight:800,width:vertical?16:20});
-    html+=label(name,x+(vertical?26:34),y+rowH*.67,vertical?Math.min(15,rowH*.4):13,{fill:ink,width:vertical?67:162,weight:700});
-    html+=label(value,x+w-5,y+rowH*.67,vertical?Math.min(11,rowH*.34):12,{anchor:'end',fill:ink,width:vertical?48:78});
+    html+=label(position,x+(vertical?11:14),y+rowH*.67,vertical?11:12,{anchor:'middle',fill:classic?'#24271a':'#ffffff',weight:800,width:vertical?16:20});
+    html+=label(name,x+(vertical?26:34),y+rowH*.67,vertical?13:14,{fill:ink,width:vertical?67:162,weight:700});
+    html+=label(value,x+w-5,y+rowH*.67,vertical?11:12,{anchor:'end',fill:ink,width:vertical?48:78});
     html+='</g>';
   });
-  const footerText=entries.length>shown.length?`${entries.length} ${golf?'players':'drivers'} · hover for full ${golf?'standings':'timing'}`:golf?'Player statistics in Game Center':game?.dataQuality?.message||'Session details in Game Center';
+  const footerText=golf?(entries.length>shown.length?`${entries.length} players · hover for full standings`:'Player statistics in Game Center')
+    :!shown.length?'Waiting for reported timing':vertical?`${shown.length}${entries.length>shown.length?`/${entries.length}`:''} DRIVERS · DETAILS`
+    :entries.length>shown.length?`${shown.length} OF ${entries.length} DRIVERS · FULL TIMING IN GAME CENTER`:`${shown.length} DRIVERS REPORTED · SESSION DETAILS`;
   html+=`<path d="${rectPath(3,height-footerH,width-6,footerH-2,3)}" fill="${base}"/>`+label(footerText,width/2,height-8,vertical?8.5:10,{anchor:'middle',fill:ink,width:width-18});
   if(options.interactive!==false)html+=target('comparison',3,2,width-6,headerH-2);
   return html;
 }
 
 export function renderStyledScorebug(game,options,style,helpers) {
-  const verticalLayout=options.orientation==='vertical',width=verticalLayout?160:600,height=verticalLayout?290:138,statusHeight=verticalLayout?19:24;
+  const verticalLayout=options.orientation==='vertical',dimensions=scorebugDimensions(game,options),{width,height,statusHeight}=dimensions;
   const id=String(options.idPrefix||`style-${style.id}`).replace(/[^a-zA-Z0-9_-]/g,'')||'style';
   const badge=options.stale?'FEED DELAYED':options.demo?'DESIGN PREVIEW':'',below=options.statusPosition==='below';
   const contextTeam=(team)=>({...team,leagueId:team?.leagueId||game?.leagueId||'nfl',sport:team?.sport||sportFor(game)});
-  const ctx={game,options,style,helpers,v:view(game),teams:{away:contextTeam(game?.away||{}),home:contextTeam(game?.home||{})}};
+  const ctx={game,options,style,helpers,dimensions,v:view(game),teams:{away:contextTeam(game?.away||{}),home:contextTeam(game?.home||{})}};
   const leaderboard=game?.kind==='race'||game?.kind==='leaderboard'||['racing','golf'].includes(ctx.v.sport);
   let body;
   if(leaderboard)body=timing(ctx);
@@ -456,5 +461,6 @@ export function renderStyledScorebug(game,options,style,helpers) {
   else body=({blades:bladesAdapted,pods,banner,corner,columns,minimal:minimalist,diamond:diamondBox,sets,cricket,timing:corner}[style.family]||pods)(ctx);
   const gameDescription=leaderboard?`${game?.sessionName||game?.name||'Session'}. ${ctx.v.banner||ctx.v.period}. ${game?.entries?.length||0} classification entries.`:`${ctx.teams.away.name||ctx.teams.away.abbreviation||'Away'} ${scoreValue(ctx.teams.away,ctx.v.sport)}, ${ctx.teams.home.name||ctx.teams.home.abbreviation||'Home'} ${scoreValue(ctx.teams.home,ctx.v.sport)}. ${ctx.v.banner||`${ctx.v.period}, ${ctx.v.clock}, ${ctx.v.detail}`}.`;
   const badgeY=below?height+statusHeight:0;
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--variant scorebug--family-${style.family}${verticalLayout?' scorebug--vertical':''}${options.stale?' scorebug--stale':''}" data-style-id="${style.id}" data-style-variant="${style.variant}" data-sport="${ctx.v.sport}" data-league-id="${esc(game?.leagueId||'nfl')}" data-game-id="${esc(game?.id||'')}" data-orientation="${verticalLayout?'vertical':'horizontal'}"${below?' data-status-position="below"':''} viewBox="0 ${badge&&!below?-statusHeight:0} ${width} ${height+(badge?statusHeight:0)}" role="group" aria-labelledby="${id}-title ${id}-description"><title id="${id}-title">${esc(gameDescription)}</title><desc id="${id}-description">${esc(style.name)} inspired by ${esc(style.network)} ${esc(style.era)}. Information is adapted to ${ctx.v.sport}. ${leaderboard?'Hover the session header for the full timing table.':'Hover a team logo for its statistics, or the center game information to compare both sides.'}${options.stale?' Updates delayed; these are the last received values.':''}${options.demo?' Design preview only; these are sample values.':''}</desc>${badge?`<g class="bug-status-flag"${below?` transform="translate(0 ${badgeY})"`:''}><path d="${rectPath(verticalLayout?4:8,-statusHeight+2,verticalLayout?152:220,statusHeight-4,3)}" fill="${options.stale?'#b95518':'#283739'}"/>${label(badge,verticalLayout?80:18,-7,verticalLayout?9:11,{anchor:verticalLayout?'middle':'start',width:verticalLayout?138:203})}</g>`:''}${body}</svg>`;
+  const racingMetadata=dimensions.racingRows?` data-racing-rows="${dimensions.racingRows}" data-row-height="${dimensions.rowHeight}" data-header-height="${dimensions.headerHeight}" data-footer-height="${dimensions.footerHeight}"`:'';
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--variant scorebug--family-${style.family}${verticalLayout?' scorebug--vertical':''}${options.stale?' scorebug--stale':''}" data-style-id="${style.id}" data-style-variant="${style.variant}" data-sport="${ctx.v.sport}" data-league-id="${esc(game?.leagueId||'nfl')}" data-game-id="${esc(game?.id||'')}" data-orientation="${verticalLayout?'vertical':'horizontal'}" data-artwork-width="${width}" data-artwork-height="${height}"${racingMetadata}${below?' data-status-position="below"':''} viewBox="0 ${badge&&!below?-statusHeight:0} ${width} ${height+(badge?statusHeight:0)}" role="group" aria-labelledby="${id}-title ${id}-description"><title id="${id}-title">${esc(gameDescription)}</title><desc id="${id}-description">${esc(style.name)} inspired by ${esc(style.network)} ${esc(style.era)}. Information is adapted to ${ctx.v.sport}. ${leaderboard?'Hover the session header for the full timing table.':'Hover a team logo for its statistics, or the center game information to compare both sides.'}${options.stale?' Updates delayed; these are the last received values.':''}${options.demo?' Design preview only; these are sample values.':''}</desc>${badge?`<g class="bug-status-flag"${below?` transform="translate(0 ${badgeY})"`:''}><path d="${rectPath(verticalLayout?4:8,-statusHeight+2,verticalLayout?152:220,statusHeight-4,3)}" fill="${options.stale?'#b95518':'#283739'}"/>${label(badge,verticalLayout?80:18,-7,verticalLayout?9:11,{anchor:verticalLayout?'middle':'start',width:verticalLayout?138:203})}</g>`:''}${body}</svg>`;
 }
