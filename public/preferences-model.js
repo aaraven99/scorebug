@@ -1,6 +1,9 @@
+import { SCOREBUG_STYLES } from './scorebug-styles.js';
+
 const ID = /^(?:\d{1,15}|(?:thescore|fox)-\d{1,15}|[a-z][a-z0-9.-]{0,39}:[a-zA-Z0-9_-]{1,48})$/;
 const LEAGUE = /^[a-z][a-z0-9.-]{0,39}$/;
 const STYLE = /^[a-z][a-z0-9-]{0,79}$/;
+const STYLE_IDS = new Set(SCOREBUG_STYLES.map(style => style.id));
 const shortText = (value, length = 100) => typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, length) : '';
 export const DEFAULT_LEAGUE_ID = 'nfl';
 export const DEFAULT_RACING_ROWS = 6;
@@ -39,12 +42,22 @@ export function normalizeFavorites(value) {
   }
   return result;
 }
+export function normalizeFavoriteStyleIds(value) {
+  const result = [], seen = new Set();
+  for (const id of Array.isArray(value) ? value : []) {
+    if (typeof id !== 'string' || !STYLE_IDS.has(id) || seen.has(id)) continue;
+    seen.add(id); result.push(id);
+    if (result.length === STYLE_IDS.size) break;
+  }
+  return result;
+}
 export function normalizePreferencePatch(patch = {}) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return {};
   const result = {};
   if (Object.hasOwn(patch, 'leagueId') && validLeagueId(patch.leagueId)) result.leagueId = patch.leagueId;
   if (Object.hasOwn(patch, 'styleId') && typeof patch.styleId === 'string' && STYLE.test(patch.styleId)) result.styleId = patch.styleId;
   if (Object.hasOwn(patch, 'favorites')) result.favorites = normalizeFavorites(patch.favorites);
+  if (Object.hasOwn(patch, 'favoriteStyleIds')) result.favoriteStyleIds = normalizeFavoriteStyleIds(patch.favoriteStyleIds);
   if (Object.hasOwn(patch, 'gameId')) result.gameId = supportedGameId(patch.gameId) ? patch.gameId : null;
   if (Object.hasOwn(patch, 'date')) result.date = validDate(patch.date) ? patch.date : null;
   if (Object.hasOwn(patch, 'team')) result.team = typeof patch.team === 'string' && /^[A-Z]{2,4}$/.test(patch.team) ? patch.team : null;

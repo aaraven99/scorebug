@@ -21,22 +21,32 @@
       <div class="intro"><h1 id="page-title">Keep your game close.</h1><p>Pick your sport, choose a look, and keep the score above your other windows.</p></div>
       <section class="sport-controls" aria-label="Sport and scorebug style">
         <div><label for="league-select">Sport / league</label><select id="league-select" aria-describedby="coverage-note"></select></div>
-        <div class="style-choice"><label for="style-select">Scorebug style</label><select id="style-select" aria-describedby="style-note"></select></div>
+        <div class="style-choice"><label for="style-select">Scorebug style</label><div class="style-select-row"><select id="style-select" aria-describedby="style-note"></select><button type="button" id="favorite-current-style" class="style-favorite-button" aria-pressed="false" aria-label="Favorite this scorebug style" title="Add to favorite styles"></button></div></div>
         <button type="button" class="text-button" id="style-browser-toggle" aria-expanded="false" aria-controls="style-browser">Browse styles</button>
       </section>
       <p class="style-note" id="style-note"></p>
+      <section class="favorite-styles" aria-labelledby="favorite-styles-title">
+        <h2 id="favorite-styles-title">Favorite styles</h2>
+        <div id="favorite-style-picks" class="favorite-style-picks" aria-label="Favorite scorebug styles"></div>
+        <p id="favorite-styles-empty">Star a look to keep it here.</p>
+        <p id="style-favorites-status" class="sr-only" role="status" aria-live="polite"></p>
+      </section>
       <div id="racing-row-controls" class="racing-row-controls" hidden>
         <div class="size-row"><label for="racing-rows">Drivers shown</label><output id="racing-rows-value" for="racing-rows">6</output></div>
         <input id="racing-rows" type="range" min="3" max="22" step="1" value="6" aria-label="Drivers shown">
         <p id="racing-rows-note" class="small-note">Show the front runners or expand to the full field.</p>
       </div>
-      <div id="style-browser" class="style-browser" hidden><div class="style-browser-tools"><label for="style-search">Find a style</label><input id="style-search" type="search" placeholder="Blades, CBS, NBA, timing tower…"><label class="style-all-label"><input type="checkbox" id="all-styles" checked> All sports</label></div><div id="style-gallery" class="style-gallery" aria-label="Scorebug styles"></div><p class="small-note">Broadcast-inspired recreations adapted to this app. Network names identify the references; Scorebug is not affiliated with those broadcasters.</p></div>
+      <div id="style-browser" class="style-browser" hidden>
+        <div class="style-browser-tools"><label for="style-search">Find a style</label><input id="style-search" type="search" placeholder="Blades, CBS, NBA, timing tower…"><div class="style-browser-filters"><label class="style-filter-label"><input type="checkbox" id="all-styles" checked> All sports</label><label class="style-filter-label"><input type="checkbox" id="favorite-styles-only"> Favorites only</label></div></div>
+        <div id="style-gallery" class="style-gallery" aria-label="Scorebug styles"></div>
+        <p class="small-note">Broadcast-inspired recreations adapted to this app. Network names identify the references; Scorebug is not affiliated with those broadcasters.</p>
+      </div>
       <section class="favorites-section" aria-labelledby="favorites-title">
-        <div class="live-games-heading"><h2 id="favorites-title">Your favorites <span id="favorites-count"></span></h2></div>
-        <div id="favorite-chips" class="favorite-chips" aria-label="Saved favorites"></div>
+        <div class="live-games-heading"><h2 id="favorites-title">Favorite teams <span id="favorites-count"></span></h2></div>
+        <div id="favorite-chips" class="favorite-chips" aria-label="Saved favorite teams"></div>
         <p id="favorites-message" class="live-games-message" role="status">Add your teams for a shortcut when they’re playing.</p>
         <div id="favorite-games" class="live-games" aria-label="Favorite teams playing now"></div>
-        <details id="favorite-editor"><summary>Add a favorite</summary>
+        <details id="favorite-editor"><summary>Add a team or competitor</summary>
           <div class="favorite-editor-controls">
             <label>Search teams or competitors<input type="search" id="favorite-search" placeholder="Chicago Bears…" autocomplete="off" aria-controls="favorite-results"></label>
             <label>Search in<select id="favorite-league-select"><option value="all">All available teams</option></select></label>

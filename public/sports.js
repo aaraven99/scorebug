@@ -1,6 +1,7 @@
 /** One allowlist shared by the browser, local app and server. */
 export const DEFAULT_LEAGUE = 'nfl';
-const league = (id, name, sport, espnPath, extra = {}) => Object.freeze({ id, name, sport, espnPath, kind: 'match', ...extra });
+const collegeIds = new Set(['cfb', 'cbb', 'wcbb', 'ncaavb', 'ncaamvb']);
+const league = (id, name, sport, espnPath, extra = {}) => Object.freeze({ id, name, sport, espnPath, kind: 'match', group: collegeIds.has(id) ? 'college' : 'leagues', ...extra });
 export const LEAGUES = Object.freeze([
   league('nfl', 'NFL', 'football', 'football/nfl'),
   league('nba', 'NBA', 'basketball', 'basketball/nba'),
@@ -18,9 +19,9 @@ export const LEAGUES = Object.freeze([
   league('nwsl', 'NWSL', 'soccer', 'soccer/usa.nwsl'),
   league('wsl', "Women's Super League", 'soccer', 'soccer/eng.w.1'),
   league('worldcup', 'World Cup', 'soccer', 'soccer/fifa.world'),
-  league('cfb', 'College football', 'football', 'football/college-football'),
-  league('cbb', "Men's college basketball", 'basketball', 'basketball/mens-college-basketball', { regulationPeriods: 2 }),
-  league('wcbb', "Women's college basketball", 'basketball', 'basketball/womens-college-basketball'),
+  league('cfb', 'College football', 'football', 'football/college-football', { scoreboardGroup: '90' }),
+  league('cbb', "Men's college basketball", 'basketball', 'basketball/mens-college-basketball', { regulationPeriods: 2, scoreboardGroup: '50' }),
+  league('wcbb', "Women's college basketball", 'basketball', 'basketball/womens-college-basketball', { scoreboardGroup: '50' }),
   league('nascar', 'NASCAR Cup', 'racing', 'racing/nascar-premier', { kind: 'race' }),
   league('indycar', 'IndyCar', 'racing', 'racing/irl', { kind: 'race' }),
   league('atp', 'ATP tennis', 'tennis', 'tennis/atp'),
@@ -33,6 +34,11 @@ export const LEAGUES = Object.freeze([
   league('ncaavb', "Women's college volleyball", 'volleyball', 'volleyball/womens-college-volleyball'),
   league('ncaamvb', "Men's college volleyball", 'volleyball', 'volleyball/mens-college-volleyball'),
 ]);
+const groupedLeagues = Object.freeze([
+  Object.freeze({ id: 'leagues', label: 'Leagues & competitions', leagues: Object.freeze(LEAGUES.filter(entry => entry.group === 'leagues')) }),
+  Object.freeze({ id: 'college', label: 'College sports', leagues: Object.freeze(LEAGUES.filter(entry => entry.group === 'college')) }),
+]);
+export function leagueGroups() { return groupedLeagues; }
 const byId = new Map(LEAGUES.map((entry) => [entry.id, entry]));
 export function getLeague(id) { return byId.get(String(id ?? '')) || null; }
 export function normalizeLeague(id) { return getLeague(id)?.id || DEFAULT_LEAGUE; }
