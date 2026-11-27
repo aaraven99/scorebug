@@ -51,7 +51,11 @@ Each pass also covers favorite styles, team favorites, global search, saved sett
 
 Rapid real selections and immediate reloads also check the shared URL updater in settings, Game Center and pop-outs. The related unit tests cover Safari history throttling, explicit shared links and cache-quota recovery. User choices can evict only the disposable directory and scoreboard caches when an actual quota error occurs; blocked storage still reports a failed save.
 
+A delayed-navigation regression holds the actual Game Center reload response while the outgoing page finishes updating its URL. The reloaded page must keep the newest saved selection, including when more than one URL update happens during the delay. A fresh shared link must still open the selection in that link.
+
 An image-failure scenario aborts the actual remote logo requests, checks that the broken image is hidden and replaced by a readable abbreviation, then verifies that a fresh successful image load removes the fallback. The successful response in that scenario uses the app icon as a PNG fixture; it proves loading recovery, not the accuracy of an external crest. Bundled real logos are separately decoded. Contact-sheet reports record which external images loaded and which show text replacements.
+
+A separate favorite-removal check holds a real logo request until the pointer is down on Remove, then fails that request. The button must keep its exact bounds and the original pointer release must remove the favorite. The check also verifies a second removal and saved preferences after a reload; its diagnostics retain scroll and layout measurements if the gesture fails.
 
 The team-search corpus is in `tests/fixtures/directory-audit/`. The report lists the source coverage and number of available teams or competitors for each league. Every available name is searched globally and within its league using the real browser search module. The UI separately adds a representative favorite from each nonempty directory. An event entrant list is not called a complete worldwide athlete directory, and an empty provider directory is not filled with invented entrants for this coverage count.
 
