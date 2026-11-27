@@ -62,3 +62,12 @@ test('crossing to the other colored team switches the existing extension after a
   assert.equal(hover.update({ now: 260, overWidget: true, detailsOpen: true, side: 'away', activeSide: 'home' }), 'switch');
   assert.equal(hover.update({ now: 300, overWidget: false, overDetails: true, detailsOpen: true, activeSide: 'away' }), null);
 });
+
+test('the clock switches to comparison and moving onto score-only space closes a hover blade', () => {
+  const hover = new HoverIntent();
+  hover.opened();
+  assert.equal(hover.update({ now: 100, detailsOpen: true, overWidget: true, side: 'comparison', activeSide: 'away' }), null);
+  assert.equal(hover.update({ now: 260, detailsOpen: true, overWidget: true, side: 'comparison', activeSide: 'away' }), 'switch');
+  assert.equal(hover.update({ now: 300, detailsOpen: true, overWidget: false, side: null, activeSide: 'comparison' }), null);
+  assert.equal(hover.update({ now: 620, detailsOpen: true, overWidget: false, side: null, activeSide: 'comparison' }), 'close');
+});

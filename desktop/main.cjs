@@ -29,9 +29,13 @@ const SMOKE_TEST = !app.isPackaged && process.argv.includes('--smoke-test');
 
 let widget = null;
 let settings = null;
+let gameCenter = null;
+let restoreWidgetAfterGameCenter = false;
 let details = null;
 let detailsSide = null;
 let detailsPresentation = null;
+// The visible widget owns hover context independently of Automatic preferences.
+let detailsGameId = null;
 let pendingDetails = null;
 let defaultDetailsSide = 'home';
 let detailsExplicit = false;
@@ -143,14 +147,14 @@ function savePreferences() {
 
 function publishPreferences() {
   const value = publicPreferences();
-  for (const win of [widget, settings, details]) {
+  for (const win of [widget, settings, details, gameCenter]) {
     if (win && !win.isDestroyed()) win.webContents.send('scorebug:preferences:changed', value);
   }
   updateTray();
 }
 
 function publishUpdateState(value) {
-  for (const win of [widget, settings, details]) {
+  for (const win of [widget, settings, details, gameCenter]) {
     if (win && !win.isDestroyed()) win.webContents.send('scorebug:updates:changed', value);
   }
   updateTray();
@@ -232,6 +236,10 @@ function handleDisplayChange() {
     const display = screen.getDisplayMatching(settings.getBounds());
     settings.setBounds(clampBounds(settings.getBounds(), display.workArea));
   }
+  if (gameCenter && !gameCenter.isDestroyed() && !gameCenter.isFullScreen()) {
+    const display = screen.getDisplayMatching(gameCenter.getBounds());
+    gameCenter.setBounds(clampBounds(gameCenter.getBounds(), display.workArea));
+  }
 }
 
 function detailsVisible() {
@@ -243,12 +251,13 @@ function publishDetailsVisibility() {
 }
 
 function cleanDetailsSide(side) {
-  if (side !== 'home' && side !== 'away') throw new TypeError('Invalid details team');
+  if (!['home', 'away', 'comparison'].includes(side)) throw new TypeError('Invalid details panel');
   return side;
 }
 
 function publishDetailsSide() {
   if (!detailsSide) return;
+  if (details && !details.isDestroyed()) details.setTitle(detailsSide === 'comparison' ? 'Scorebug game comparison' : 'Scorebug team stats');
   for (const win of [widget, details]) {
     if (win && !win.isDestroyed()) win.webContents.send('scorebug:details:side', detailsSide);
   }
@@ -256,7 +265,16 @@ function publishDetailsSide() {
 
 function getDetailsPresentation() {
   if (!details || details.isDestroyed() || !detailsPresentation) return null;
-  return { ...detailsPresentation, phase: detailsLifecycle.phaseFor(details) };
+  return { ...detailsPresentation, gameId: detailsGameId, phase: detailsLifecycle.phaseFor(details) };
+}
+
+function setDetailsGameId(gameId) {
+  const clean = cleanPatch({ gameId });
+  if (detailsGameId !== clean.gameId) {
+    detailsGameId = clean.gameId;
+    publishDetailsPresentation();
+  }
+  return detailsGameId;
 }
 
 function publishDetailsPresentation() {
@@ -379,7 +397,7 @@ function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
   const win = new BrowserWindow({
     ...placement.bounds,
     parent: widget,
-    title: 'Scorebug team stats',
+    title: side === 'comparison' ? 'Scorebug game comparison' : 'Scorebug team stats',
     show: false,
     frame: false,
     thickFrame: false,
@@ -450,7 +468,7 @@ function monitorHoverDetails() {
   }
   const action = hoverIntent.update({
     now: Date.now(),
-    overWidget: open ? containsPoint(bounds, pointer) : Boolean(side),
+    overWidget: Boolean(side),
     overDetails,
     inTransit: containsPoint(hoverBridge(bounds, panel), pointer),
     detailsOpen: open,
@@ -466,7 +484,7 @@ function monitorHoverDetails() {
 function isLocalPage(url) {
   try {
     const parsed = new URL(url);
-    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html'].includes(parsed.pathname);
+    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html', '/game.html'].includes(parsed.pathname);
   } catch { return false; }
 }
 
@@ -492,8 +510,9 @@ function secureWindow(win) {
       if (new URL(url).pathname === '/widget.html') showWidget();
       else if (new URL(url).pathname === '/details.html') {
         const side = new URL(url).searchParams.get('side');
-        showDetails({ focus: true, side: side === 'home' || side === 'away' ? side : defaultDetailsSide });
+        showDetails({ focus: true, side: ['home', 'away', 'comparison'].includes(side) ? side : defaultDetailsSide });
       }
+      else if (new URL(url).pathname === '/game.html') openGameCenter();
       else openSettings();
     } else openAllowedExternal(url);
     return { action: 'deny' };
@@ -502,6 +521,7 @@ function secureWindow(win) {
     win.webContents.send('scorebug:preferences:changed', publicPreferences());
     if (updates) win.webContents.send('scorebug:updates:changed', updates.getState());
     if (win === details) { publishDetailsSide(); publishDetailsPresentation(); }
+    if (win === gameCenter) publishGameCenterState();
   });
 }
 
@@ -597,6 +617,104 @@ function createWidget() {
   widget.loadURL(`${origin}/widget.html?desktop=1`).catch(showStartupError);
 }
 
+function getGameCenterState() {
+  const open = Boolean(gameCenter && !gameCenter.isDestroyed());
+  return { open, fullscreen: open && gameCenter.isFullScreen() };
+}
+
+function publishGameCenterState() {
+  const state = getGameCenterState();
+  for (const win of [widget, settings, gameCenter]) {
+    if (win && !win.isDestroyed()) win.webContents.send('scorebug:game-center:changed', state);
+  }
+}
+
+function restoreFloatingWidget() {
+  const restore = restoreWidgetAfterGameCenter;
+  restoreWidgetAfterGameCenter = false;
+  if (restore && !quitting) showWidget();
+}
+
+function setGameCenterFullscreen(fullscreen) {
+  if (typeof fullscreen !== 'boolean') throw new TypeError('Fullscreen must be true or false');
+  if (!gameCenter || gameCenter.isDestroyed()) return getGameCenterState();
+  if (fullscreen && widget && !widget.isDestroyed() && widget.isVisible()) {
+    restoreWidgetAfterGameCenter = true;
+    widget.hide();
+  }
+  gameCenter.setFullScreen(fullscreen);
+  return getGameCenterState();
+}
+
+function openGameCenter() {
+  if (!origin || quitting) return getGameCenterState();
+  closeDetails({ immediate: true });
+  if (gameCenter && !gameCenter.isDestroyed()) {
+    if (gameCenter.isMinimized()) gameCenter.restore();
+    gameCenter.show();
+    setGameCenterFullscreen(true);
+    gameCenter.focus();
+    return getGameCenterState();
+  }
+  const area = widget && !widget.isDestroyed()
+    ? screen.getDisplayMatching(widget.getBounds()).workArea
+    : screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const width = Math.min(1440, area.width), height = Math.min(960, area.height);
+  const win = new BrowserWindow({
+    x: Math.round(area.x + (area.width - width) / 2),
+    y: Math.round(area.y + (area.height - height) / 2),
+    width, height,
+    minWidth: Math.min(680, area.width),
+    minHeight: Math.min(500, area.height),
+    title: 'Scorebug — Game Center',
+    icon: path.join(__dirname, 'assets', 'icon.png'),
+    backgroundColor: '#101512',
+    autoHideMenuBar: true,
+    show: false,
+    fullscreenable: true,
+    webPreferences: webPreferences()
+  });
+  gameCenter = win;
+  win.setMenu(null);
+  secureWindow(win);
+  win.once('ready-to-show', () => {
+    if (gameCenter !== win || win.isDestroyed() || quitting) return;
+    win.show();
+    setGameCenterFullscreen(true);
+    win.focus();
+    publishGameCenterState();
+  });
+  win.on('enter-full-screen', () => {
+    if (widget && !widget.isDestroyed() && widget.isVisible()) {
+      restoreWidgetAfterGameCenter = true;
+      widget.hide();
+    }
+    closeDetails({ immediate: true });
+    publishGameCenterState();
+  });
+  win.on('leave-full-screen', () => { restoreFloatingWidget(); publishGameCenterState(); });
+  win.on('closed', () => {
+    if (gameCenter === win) gameCenter = null;
+    restoreFloatingWidget();
+    publishGameCenterState();
+  });
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'Escape' && win.isFullScreen()) {
+      event.preventDefault();
+      setGameCenterFullscreen(false);
+    } else if (input.key === 'F11' && !input.isAutoRepeat) {
+      event.preventDefault();
+      setGameCenterFullscreen(!win.isFullScreen());
+    }
+  });
+  win.loadURL(`${origin}/game.html?desktop=1`).catch((error) => {
+    console.warn(`Scorebug Game Center could not open: ${error.message}`);
+    if (!win.isDestroyed()) win.close();
+  });
+  return getGameCenterState();
+}
+
 function openSettings() {
   if (!origin) return;
   if (settings && !settings.isDestroyed()) {
@@ -640,8 +758,10 @@ function buildMenu() {
   return Menu.buildFromTemplate([
     { label: `Scorebug ${app.getVersion()}`, enabled: false },
     { label: 'Choose game & settings', click: openSettings, accelerator: 'CommandOrControl+Alt+Shift+S' },
+    { label: 'Full-screen game view', click: openGameCenter },
     { label: 'Show scorebug', click: showWidget },
     { label: 'Current team stats', click: () => showDetails({ focus: true }) },
+    { label: 'Compare teams', click: () => showDetails({ focus: true, side: 'comparison' }) },
     { type: 'separator' },
     {
       label: 'Position',
@@ -713,13 +833,14 @@ function trustedEvent(event) {
   const frame = event.senderFrame;
   const mainFrame = event.sender.mainFrame;
   if (!frame || frame.routingId !== mainFrame.routingId || frame.processId !== mainFrame.processId || !isLocalPage(frame.url)) return false;
-  return [widget, settings, details].some((win) => win && !win.isDestroyed() && win.webContents === event.sender);
+  return [widget, settings, details, gameCenter].some((win) => win && !win.isDestroyed() && win.webContents === event.sender);
 }
 
-function addHandler(channel, callback, { widgetOnly = false } = {}) {
+function addHandler(channel, callback, { widgetOnly = false, gameCenterOnly = false } = {}) {
   ipcMain.handle(channel, (event, ...args) => {
     if (!trustedEvent(event)) throw new Error('Request denied');
     if (widgetOnly && (!widget || widget.isDestroyed() || event.sender !== widget.webContents)) throw new Error('Request denied');
+    if (gameCenterOnly && (!gameCenter || gameCenter.isDestroyed() || event.sender !== gameCenter.webContents)) throw new Error('Request denied');
     return callback(...args);
   });
 }
@@ -740,14 +861,24 @@ function installIpc() {
     bounds: widget && !widget.isDestroyed() ? widget.getBounds() : preferences.bounds,
     detailsVisible: detailsVisible(),
     detailsSide,
+    detailsGameId,
     detailsPresentation: getDetailsPresentation(),
+    gameCenter: getGameCenterState(),
     platform: process.platform
   }));
   addHandler('scorebug:settings', openSettings);
+  addHandler('scorebug:game-center:open', openGameCenter);
+  addHandler('scorebug:game-center:get', getGameCenterState);
+  addHandler('scorebug:game-center:fullscreen', setGameCenterFullscreen, { gameCenterOnly: true });
+  addHandler('scorebug:game-center:close', () => { setTimeout(() => gameCenter?.close(), 0); }, { gameCenterOnly: true });
   addHandler('scorebug:details:presentation:get', getDetailsPresentation);
   addHandler('scorebug:details:show', (side) => showDetails({ focus: true, side: side === undefined ? defaultDetailsSide : cleanDetailsSide(side) }));
   addHandler('scorebug:details:default-side', (side) => { defaultDetailsSide = cleanDetailsSide(side); }, { widgetOnly: true });
-  addHandler('scorebug:details:hide', () => { setTimeout(() => closeDetails({ dismissed: true }), 0); });
+  addHandler('scorebug:details:game-id', setDetailsGameId, { widgetOnly: true });
+  addHandler('scorebug:details:hide', () => { setTimeout(() => {
+    if (detailsExplicit && details?.isFocused() && widget && !widget.isDestroyed()) widget.focus();
+    closeDetails({ dismissed: true });
+  }, 0); });
   addHandler('scorebug:quit', () => { setTimeout(() => app.quit(), 0); });
 }
 
@@ -807,7 +938,7 @@ async function start() {
   savePreferences();
   if (SMOKE_TEST) {
     const { runNativeSmoke } = require('./smoke.cjs');
-    await runNativeSmoke({ widget, screen, origin, getSettings: () => settings, getDetails: () => details, preferencesPath });
+    await runNativeSmoke({ widget, screen, origin, getSettings: () => settings, getDetails: () => details, getGameCenter: () => gameCenter, preferencesPath });
     app.quit();
   }
 }
