@@ -216,7 +216,7 @@ test('concurrent details readers share a short cache, and a total outage returns
   assert.equal(results[0], results[1]);
   await service({ gameId: '12345' });
   assert.equal(calls, 1);
-  time += 10001;
+  time += 1001;
   fail = true;
   const cached = await service({ gameId: '12345' });
   assert.equal(calls, 4, 'All three endpoints are tried before using old stats.');
@@ -258,11 +258,11 @@ test('summary fails over to the fixed mirror, retains its identity during cooldo
   assert.equal(backup.feedStatus, 'backup');
   assert.equal(backup.stale, false);
   assert.equal(backup.gameId, '12345');
-  time += 10001;
+  time += 1001;
   assert.equal((await service({ gameId: '12345' })).sourceId, 'espn-web');
   assert.equal(urls.filter((url) => url.includes('site.api.espn.com')).length, 1);
   assert.equal(urls.filter((url) => url === backup.sourceUrl).length, 2);
-  time += 20000; primaryFails = false;
+  time += 3000; primaryFails = false;
   const recovered = await service({ gameId: '12345' });
   assert.equal(recovered.sourceId, 'espn-site');
   assert.equal(recovered.feedStatus, 'primary');

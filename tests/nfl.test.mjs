@@ -231,7 +231,7 @@ test('dates must be real YYYYMMDD calendar dates', () => {
   }
 });
 
-test('concurrent readers share one request and warm cache expires after five seconds', async () => {
+test('concurrent readers share one request and warm cache expires after one second', async () => {
   let requests = 0;
   let now = Date.parse('2026-11-26T19:00:00Z');
   let release;
@@ -243,7 +243,7 @@ test('concurrent readers share one request and warm cache expires after five sec
   const [a, b] = await Promise.all([first, second]);
   assert.equal(requests, 1);
   assert.equal(a, b);
-  now += 4_999;
+  now += 999;
   assert.equal(await get(), a);
   assert.equal(requests, 1);
   now += 1;
@@ -310,10 +310,10 @@ test('scoreboard automatically uses the mirror, then retries the primary after i
   assert.equal(backup.sourceId, 'espn-web');
   assert.equal(backup.feedStatus, 'backup');
   assert.equal(backup.stale, false);
-  now += 5001;
+  now += 1001;
   await get();
   assert.equal(calls.filter((url) => url.startsWith('https://site.api.')).length, 1);
-  primaryFails = false; now += 30000;
+  primaryFails = false; now += 3000;
   assert.equal((await get()).sourceId, 'espn-site');
   assert.equal((await get()).feedStatus, 'primary');
 });

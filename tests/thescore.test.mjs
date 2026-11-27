@@ -99,10 +99,10 @@ test('day ranges honor both DST transitions and current-week rollover at Tuesday
   for (const value of ['20260230', '20261301', '2026-11-26', '../events', '', null]) assert.throws(() => theScoreDateRange(value), TypeError);
 });
 
-test('source uses a bounded date query with a seven-second budget and keeps the queried week across a fetch-time rollover', () => {
+test('source uses a bounded date query with a six-second budget and keeps the queried week across a fetch-time rollover', () => {
   const source = createTheScoreSource({ now: () => Date.parse('2026-12-01T04:59:59Z') });
   assert.equal(source.id, 'thescore');
-  assert.equal(source.timeoutMs, 7000);
+  assert.equal(source.timeoutMs, 6000);
   const url = new URL(source.url('current'));
   assert.equal(url.origin, 'https://api.thescore.com');
   assert.equal(url.pathname, '/nfl/events');
