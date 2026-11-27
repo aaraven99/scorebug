@@ -1,4 +1,4 @@
-name: Build Windows and Mac desktop apps
+name: Verify Scorebug and build desktop apps
 
 on:
   workflow_dispatch:
@@ -13,16 +13,6 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths:
-      - 'desktop/**'
-      - 'public/**'
-      - 'lib/**'
-      - 'api/**'
-      - 'server.mjs'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scripts/**'
-      - '.github/workflows/desktop.yml'
 
 permissions:
   contents: read
@@ -32,6 +22,43 @@ concurrency:
   cancel-in-progress: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') && (github.event_name != 'workflow_dispatch' || !inputs.publish_release) }}
 
 jobs:
+  browser-qa:
+    name: Browser QA · ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            suite: all
+          - browser: webkit
+            suite: flows
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Install the actual browser and system libraries
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Test all leagues and styles and repeated user workflows
+        run: node scripts/qa-scorebug.mjs --suite ${{ matrix.suite }} --passes 3 --browser ${{ matrix.browser }}
+      - name: Preserve QA results and visual evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Scorebug-Browser-QA-${{ matrix.browser }}
+          path: test-results/qa/
+          if-no-files-found: error
+          retention-days: 30
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 20
@@ -180,7 +207,7 @@ jobs:
     if: >-
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
       (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main')
-    needs: [windows, macos]
+    needs: [browser-qa, windows, macos]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
