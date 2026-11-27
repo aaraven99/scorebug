@@ -328,8 +328,8 @@ test('the final ESPN CDN route unwraps its scoreboard after other routes fail', 
   const result = await get();
   assert.equal(result.sourceId, 'espn-cdn');
   assert.equal(result.games[0].downDistance, '4th & 6');
-  assert.equal(calls.length, 4);
-  assert.equal(calls[3], 'https://cdn.espn.com/core/nfl/scoreboard?xhr=1');
+  assert.equal(calls.length, 5);
+  assert.ok(calls.includes('https://cdn.espn.com/core/nfl/scoreboard?xhr=1'));
 });
 
 test('the CDN scoreboard is never used for a date it cannot honor', async () => {

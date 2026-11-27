@@ -149,3 +149,34 @@ test('an aged HTTP summary with a proven newer provider frame replaces an older 
   assert.equal(updated.sourceId, 'backup'); assert.equal(updated.stale, true);
   assert.equal((await read('current')).teamStats[0].away, '180');
 });
+
+test('multi-part adapters cannot exceed two requests or leave their fixed HTTPS origin', async () => {
+  for (const foreign of [false, true]) {
+    const calls = [];
+    const read = service({ sources: [{ id: 'bounded', url: () => 'https://bounded.example/main',
+      async load({ requestJson }) {
+        if (foreign) return { payload: await requestJson('https://unexpected.example/data') };
+        await requestJson('https://bounded.example/metadata', { metadata: true });
+        await requestJson('https://bounded.example/frame');
+        return { payload: await requestJson('https://bounded.example/third') };
+      },
+    }], fetchImpl: async (url) => { calls.push(url); return json(payload()); } });
+    await assert.rejects(read('current'), { code: 'INVALID' });
+    assert.equal(calls.length, foreign ? 0 : 2);
+  }
+});
+
+test('a failed part of an adapter aborts its other pending request', async () => {
+  let secondAborted = false;
+  const read = service({ sources: [{ id: 'bounded', url: () => 'https://bounded.example/main',
+    async load({ requestJson }) {
+      const [metadata, frame] = await Promise.all([requestJson('https://bounded.example/metadata', { metadata: true }), requestJson('https://bounded.example/frame')]);
+      return { payload: { metadata, frame } };
+    },
+  }], fetchImpl: async (url, { signal }) => {
+    if (url.endsWith('metadata')) return json({}, { status: 503 });
+    return new Promise((_resolve, reject) => signal.addEventListener('abort', () => { secondAborted = true; reject(signal.reason); }, { once: true }));
+  } });
+  await assert.rejects(read('current'), { code: 'UNAVAILABLE' });
+  assert.equal(secondAborted, true);
+});
