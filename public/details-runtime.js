@@ -2,10 +2,60 @@ import { initializePreferences, onPreferences, selectGame, ScoreboardPoller, fee
 import { GameDetailsPoller } from './game-details-client.js';
 import { localTeamLogo } from './team-assets.js';
 import { teamColor } from './scorebug.js';
+import { bladeOutline, BLADE_OPEN_MS } from './details-blade.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 let side = params.get('side') === 'away' ? 'away' : 'home';
+let presentation = { side, direction: params.get('direction') || (side === 'away' ? 'left' : 'right'), orientation: params.get('orientation') || 'horizontal', phase: 'closed' };
+let presentationRevision = 0, renderReady = false;
+const presentationKeys = ['joinTop','joinBottom','joinTopX','joinBottomX','joinLeft','joinRight','joinY'];
+for (const key of presentationKeys) if (params.has(key)) presentation[key] = Number(params.get(key));
+function drawBlade() {
+  const outline = bladeOutline(innerWidth, innerHeight, presentation);
+  document.querySelector('.blade-frame').setAttribute('viewBox', `0 0 ${outline.width} ${outline.height}`);
+  $('blade-outline').setAttribute('d', outline.path);
+  document.querySelector('.team-details').style.clipPath = outline.clip;
+  const { top,right,bottom,left } = outline.inset;
+  document.querySelector('.blade-content').style.inset = `${top}px ${right}px ${bottom}px ${left}px`;
+}
+function applyPresentation(value) {
+  if (!value || typeof value !== 'object') return;
+  const next = { ...presentation };
+  if (value.side === 'away' || value.side === 'home') next.side = value.side;
+  if (['left','right','up','down'].includes(value.direction)) next.direction = value.direction;
+  if (['horizontal','vertical'].includes(value.orientation)) next.orientation = value.orientation;
+  if (['closed','opening','open','closing'].includes(value.phase)) next.phase = value.phase;
+  for (const key of presentationKeys) if (Number.isFinite(value[key])) next[key] = value[key];
+  if (typeof value.teamColor === 'string' && /^#[\da-f]{6}$/i.test(value.teamColor)) next.teamColor = value.teamColor;
+  const wasClosed = presentation.phase === 'closed';
+  presentation = next; side = next.side;
+  document.body.dataset.direction = next.direction;
+  document.body.dataset.orientation = next.orientation;
+  drawBlade();
+  // Resolve the collapsed style before its first reveal. Subsequent changes
+  // reverse the same transition, including rapid re-entry during retraction.
+  if (wasClosed && next.phase !== 'closed') document.querySelector('.blade-reveal').getBoundingClientRect();
+  document.body.dataset.phase = next.phase;
+  document.querySelector('.blade-content').inert = ['closed','closing'].includes(next.phase);
+  if (next.teamColor) document.documentElement.style.setProperty('--team-color', next.teamColor);
+  if (renderReady) render();
+}
+applyPresentation(presentation);
+window.addEventListener('resize', drawBlade);
+const nativePresentation = window.scorebugDesktop?.onDetailsPresentationChanged?.((value) => { presentationRevision += 1; applyPresentation(value); });
+if (window.scorebugDesktop?.getDetailsPresentation) {
+  const revision = presentationRevision;
+  window.scorebugDesktop.getDetailsPresentation().then((value) => { if (revision === presentationRevision) applyPresentation(value); }).catch(() => {});
+} else if (!params.has('embedded')) {
+  applyPresentation({ phase:'opening' });
+  setTimeout(() => { if (presentation.phase === 'opening') applyPresentation({phase:'open'}); }, BLADE_OPEN_MS);
+}
+window.addEventListener('message', (event) => {
+  if (event.source !== window.parent || event.origin !== new URL(document.baseURI).origin) return;
+  if (event.data?.type === 'scorebug:details-presentation') { presentationRevision += 1; applyPresentation(event.data.presentation); }
+  else if (event.data?.type === 'scorebug:details-side') setSide(event.data.side);
+});
 let preferences = await initializePreferences();
 let snapshot = { data: null, error: null, loading: true };
 let summaryState = { data: null, error: null, loading: false };
@@ -17,7 +67,7 @@ function render() {
   const game = currentGame, team = game?.[side];
   const summary = summaryState.data?.gameId === game?.id ? summaryState.data : null;
   document.body.dataset.side = side;
-  const color = team ? teamColor(team, side) : '#33483b';
+  const color = presentation.teamColor || (team ? teamColor(team, side) : '#33483b');
   document.documentElement.style.setProperty('--team-color', color);
   $('details-name').textContent = `${side === 'away' ? 'AWAY' : 'HOME'} · TEAM STATS`;
   $('details-match').textContent = team ? `${team.abbreviation} · ${team.score ?? '—'}` : snapshot.loading ? 'Connecting…' : 'No game';
@@ -31,12 +81,11 @@ function render() {
   for (const [key, label] of STAT_ROWS) {
     const stat = rows.find((row) => row.key === key);
     const tr = document.createElement('tr'), th = document.createElement('th'), td = document.createElement('td');
-    th.scope = 'row'; th.textContent = label; td.textContent = stat?.[side] ?? '—';
+    tr.setAttribute('role','row'); th.scope = 'row'; th.setAttribute('role','rowheader'); td.setAttribute('role','cell'); th.textContent = label; td.textContent = stat?.[side] ?? '—';
     tr.append(th, td); fragment.append(tr);
   }
   $('stats-body').replaceChildren(fragment);
-  const possession = game && [game.away, game.home].find((candidate) => candidate.id === game.possessionTeamId);
-  $('field-position').textContent = game?.fieldPosition ? `${possession?.abbreviation || 'Ball'} · ${game.fieldPosition}` : game?.phase === 'final' ? 'Final' : game?.phase === 'halftime' ? 'Halftime' : 'Position unavailable';
+  $('field-position').textContent = game?.fieldPosition ? `Ball at ${game.fieldPosition}` : game?.phase === 'final' ? 'Final' : game?.phase === 'halftime' ? 'Halftime' : 'Position unavailable';
   $('field-down').textContent = game?.state === 'in' ? game.downDistance || '' : '';
   const play = game?.lastPlay || summary?.lastPlay?.text || (game?.state === 'pre' ? 'Team totals appear after kickoff.' : 'Waiting for a reported play.');
   $('details-play').textContent = play; $('details-play').title = play;
@@ -50,14 +99,11 @@ const summaries = new GameDetailsPoller({ onUpdate: (next) => { summaryState = n
 function update() { render(); summaries.setGame(currentGame?.detailsGameId === null ? null : currentGame?.detailsGameId || currentGame?.id || null); }
 const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (next) => { snapshot = next; update(); } });
 onPreferences((next) => { const oldDate = preferences.date; preferences = next; if (oldDate !== next.date) poller.setDate(next.date); update(); });
-function setSide(value) { if (value === 'away' || value === 'home') { side = value; render(); } }
+function setSide(value) { if (value === 'away' || value === 'home') { side = value; presentation.side = value; if (renderReady) render(); } }
 window.scorebugDesktop?.onDetailsSideChanged?.(setSide);
 if (window.scorebugDesktop?.getState) {
   try { setSide((await window.scorebugDesktop.getState()).detailsSide); } catch { /* The URL remains the initial side if the window is closing. */ }
 }
-window.addEventListener('message', (event) => {
-  if (event.source === window.parent && event.origin === new URL(document.baseURI).origin && event.data?.type === 'scorebug:details-side') setSide(event.data.side);
-});
 function start() { summaries.start(); poller.start(); clearInterval(ageTimer); ageTimer = setInterval(render, 1000); }
 function stop() { summaries.stop(); poller.stop(); clearInterval(ageTimer); }
 function closeDetails() {
@@ -70,4 +116,4 @@ document.addEventListener('keydown', (event) => { if (event.key === 'Escape') cl
 document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else start(); });
 window.addEventListener('pagehide', stop);
 window.addEventListener('pageshow', (event) => { if (event.persisted) start(); });
-render(); start();
+renderReady = true; render(); start();
