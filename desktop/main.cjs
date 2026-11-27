@@ -55,7 +55,7 @@ function cleanPatch(patch) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new TypeError('Preferences must be an object');
   const clean = {};
   if (Object.hasOwn(patch, 'gameId')) {
-    if (patch.gameId !== null && (typeof patch.gameId !== 'string' || !/^\d{1,15}$/.test(patch.gameId))) {
+    if (patch.gameId !== null && (typeof patch.gameId !== 'string' || !/^(?:\d{1,15}|thescore-\d{1,15})$/.test(patch.gameId))) {
       throw new TypeError('Invalid game ID');
     }
     clean.gameId = patch.gameId;
