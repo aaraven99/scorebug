@@ -16,7 +16,7 @@ async function fixture(t) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'scorebug-analytics-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const root = pathToFileURL(`${directory}${path.sep}`);
-  await Promise.all(['index.html', 'widget.html', 'details.html'].map(name => writeFile(new URL(name, root), '<!doctype html><html><head></head><body></body></html>')));
+  await Promise.all(['index.html', 'widget.html', 'game.html', 'details.html'].map(name => writeFile(new URL(name, root), '<!doctype html><html><head></head><body></body></html>')));
   return root;
 }
 
@@ -24,7 +24,7 @@ test('local and preview builds do not inject or copy analytics', async t => {
   for (const environment of [{}, { VERCEL_ENV: 'development' }, { VERCEL_ENV: 'preview' }]) {
     const output = await fixture(t);
     assert.equal(await addWebAnalytics(output, environment), false);
-    assert.doesNotMatch(await readFile(new URL('index.html', output), 'utf8'), /analytics/);
+    for (const page of ['index.html', 'widget.html', 'game.html']) assert.doesNotMatch(await readFile(new URL(page, output), 'utf8'), /analytics/);
     await assert.rejects(access(new URL('web-analytics/', output)), { code: 'ENOENT' });
   }
 });
@@ -34,7 +34,7 @@ test('production builds add the official SDK once to public pages only', async t
   const environment = { VERCEL_ENV: 'production' };
   await addWebAnalytics(output, environment);
   await addWebAnalytics(output, environment);
-  for (const page of ['index.html', 'widget.html']) {
+  for (const page of ['index.html', 'widget.html', 'game.html']) {
     const html = await readFile(new URL(page, output), 'utf8');
     assert.equal(html.match(/src="\/web-analytics\/start.js"/g)?.length, 1);
   }
@@ -54,6 +54,7 @@ test('the browser guard excludes local, desktop, non-public and preview sessions
     ...['localhost', 'test.localhost', 'scorebug.local', '127.0.0.1', '192.168.1.2', '[::1]'].map(hostname => ({ location: { ...publicLocation, hostname } })),
     { location: { ...publicLocation, pathname: '/details.html' } },
     { location: publicLocation, scorebugDesktop: {} },
+    { location: { ...publicLocation, pathname: '/game.html' }, scorebugDesktop: {} },
     { location: publicLocation, navigator: { userAgent: 'Chrome/1 Electron/45.5.0' } }
   ];
   for (const browser of cases) assert.equal(startWebAnalytics(inject, { environment: 'production' }, browser), false);
@@ -64,13 +65,16 @@ test('the browser guard excludes local, desktop, non-public and preview sessions
   assert.equal(calls, 0);
 });
 
-test('a production page initializes once, with production mode enforced', () => {
-  const browser = { location: publicLocation };
+test('each public production page initializes once, with production mode enforced', () => {
   const calls = [];
   const configuration = { environment: 'production', options: { mode: 'development', debug: true } };
-  assert.equal(startWebAnalytics(options => calls.push(options), configuration, browser), true);
-  assert.equal(startWebAnalytics(options => calls.push(options), configuration, browser), false);
-  assert.deepEqual(calls, [{ mode: 'production', debug: false }]);
+  const pages = ['/', '/index.html', '/widget.html', '/game.html'];
+  for (const pathname of pages) {
+    const browser = { location: { ...publicLocation, pathname } };
+    assert.equal(startWebAnalytics(options => calls.push(options), configuration, browser), true);
+    assert.equal(startWebAnalytics(options => calls.push(options), configuration, browser), false);
+  }
+  assert.deepEqual(calls, pages.map(() => ({ mode: 'production', debug: false })));
 });
 
 test('built bootstrap runs the real SDK with same-origin Vercel paths and no duplicate script', async t => {

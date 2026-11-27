@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { renderScorebug, teamColor, teamGradientStops } from '../public/scorebug.js';
+import { renderScorebug, teamColor, teamPalette } from '../public/scorebug.js';
 import { bladeGradientSpace, bladeOutline } from '../public/details-blade.js';
 import { placeDetailsBlade } from '../public/details-hover.js';
 import geometry from '../desktop/geometry.cjs';
@@ -48,12 +48,6 @@ function boundingBox(points) {
   return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
 }
 
-function stopsFromMarkup(markup, side) {
-  const gradient = new RegExp(`<linearGradient id="gradient-test-${side}"[^>]*>(.*?)</linearGradient>`).exec(markup)[1];
-  return [...gradient.matchAll(/<stop offset="([^"]+)" stop-color="([^"]+)"\/>/g)]
-    .map(([, offset, color]) => ({ offset, color }));
-}
-
 function assertContinuation(frame, presentation, sourcePoints) {
   const source = boundingBox(sourcePoints);
   const space = bladeGradientSpace(frame.width, frame.height, presentation);
@@ -78,16 +72,20 @@ function assertContinuation(frame, presentation, sourcePoints) {
   }
 }
 
-test('blades share the exact SF-gold/KC-red palette and all four original stops', () => {
+test('scoreboard and expanding blades use the same solid SF-gold/KC-red palette', () => {
   assert.equal(teamColor(game.away, 'away'), '#b3995d');
   for (const orientation of ['horizontal', 'vertical']) {
     const markup = renderScorebug(game, { orientation, idPrefix: 'gradient-test' });
     for (const side of ['away', 'home']) {
-      const stops = teamGradientStops(game[side], side);
-      assert.deepEqual(stops.map(({ offset }) => offset), ['0', '.37', '.58', '1']);
-      assert.deepEqual(stops, stopsFromMarkup(markup, side));
-      assert.deepEqual(teamGradientStops({ color: teamColor(game[side], side) }, side), stops, 'the blade consumes the resolved source color without retinting it');
+      const palette = teamPalette(game[side], side);
+      assert.deepEqual(teamPalette({ color: palette.fill }, side), palette);
+      const group = new RegExp(`data-team-side="${side}"([^>]*)>[\\s\\S]*?<path class="bug-team-panel"[^>]*fill="([^"]+)"[^>]*stroke="([^"]+)"`).exec(markup);
+      assert.ok(group, 'team panel exposes solid paint');
+      assert.equal(group[2], palette.fill);
+      assert.equal(group[3], palette.border);
+      assert.ok(group[1].includes(`data-team-ink="${palette.ink}"`));
     }
+    assert.doesNotMatch(markup, /linearGradient id="gradient-test-(?:away|home|strip)"/);
   }
 });
 
@@ -164,28 +162,20 @@ test('top-corner downward necks leave delayed/sample badges visible and retain r
   }
 });
 
-test('only downward necks blend the information strip bottom into the continued team fill', () => {
-  const markup = renderScorebug(game, { idPrefix: 'gradient-test' });
-  const strip = /<linearGradient id="gradient-test-strip"[^>]*>(.*?)<\/linearGradient>/.exec(markup)[1];
-  const stripBottom = [...strip.matchAll(/stop-color="([^"]+)"/g)].at(-1)[1];
-  const down = bladeOutline(284, 216, { direction: 'down', joinY: 1.5, neckHeight: 46 });
-  assert.equal(down.connector.color, stripBottom);
+test('downward necks extend the solid body without a separate tint or restarted gradient', () => {
+  const down = bladeOutline(320, 344, { direction: 'down', joinY: 1.5, neckHeight: 46 });
   assert.equal(down.connector.start, 1.5);
   assert.equal(down.connector.end, down.inset.top - 9);
-  assert.ok(down.connector.end >= 47.5, 'the blend ends with the extended neck');
-  for (const direction of ['left', 'right', 'up']) assert.equal(bladeOutline(284, 216, { direction }).connector, null);
+  assert.ok(down.connector.end >= 47.5);
+  assert.equal(down.connector.color, undefined);
+  for (const direction of ['left', 'right', 'up']) assert.equal(bladeOutline(320, 344, { direction }).connector, null);
 });
 
-test('only the outer blade perimeter gets a metal stroke in every opening direction', () => {
-  const parse = (path) => [...path.matchAll(/[ML]([\d.-]+) ([\d.-]+)/g)].map(([, x, y]) => [Number(x), Number(y)]);
+test('the complete stats blade gets a closed team-colored outline in every opening direction', () => {
   for (const direction of ['left', 'right', 'up', 'down']) {
-    const outline = bladeOutline(284, 216, { direction, joinTop: 50, joinBottom: 130, joinTopX: direction === 'left' ? 280 : 15, joinBottomX: direction === 'left' ? 265 : 1, joinLeft: 60, joinRight: 220, joinY: direction === 'up' ? 215 : 1 });
-    assert.ok(outline.path.endsWith('Z'), 'the gradient fill stays closed');
-    assert.ok(!outline.borderPath.endsWith('Z'), 'the join has no second outline');
-    const fill = parse(outline.path), border = parse(outline.borderPath);
-    assert.equal(fill.length, border.length, 'all external corners keep their bevel');
-    const expectedJoin = direction === 'up' ? [fill[5], fill[4]] : direction === 'down' ? [fill[1], fill[0]] : [fill[0], fill.at(-1)];
-    assert.deepEqual([border[0], border.at(-1)], expectedJoin);
+    const outline = bladeOutline(320, 344, { direction, joinTop: 50, joinBottom: 130, joinTopX: direction === 'left' ? 316 : 15, joinBottomX: direction === 'left' ? 301 : 1, joinLeft: 60, joinRight: 220, joinY: direction === 'up' ? 343 : 1 });
+    assert.ok(outline.path.endsWith('Z'));
+    assert.equal(outline.borderPath, outline.path, 'outline follows every edge of the filled shape');
   }
 });
 
@@ -196,8 +186,9 @@ test('gradient transforms preserve nonuniform source scaling and standalone fall
     assert.equal(bladeGradientSpace(284, 216, invalid).transform, 'translate(0 0) scale(284 216)');
   }
   const markup = await readFile(new URL('../public/details.html', import.meta.url), 'utf8');
-  assert.match(markup, /id="blade-outline" fill="url\(#blade-fill\)"\/>/);
-  assert.match(markup, /id="blade-border" fill="none" stroke="url\(#blade-bevel\)"/);
+  assert.match(markup, /id="blade-outline" fill="#[a-f0-9]{6}"\/>/);
+  assert.match(markup, /id="blade-border" fill="none" stroke="#[a-f0-9]{6}"/);
+  assert.doesNotMatch(markup, /linearGradient/);
   const css = await readFile(new URL('../public/details.css', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /stop-color\s*:/, 'CSS must not override the source SVG stop colors');
 });
