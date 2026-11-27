@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { selectGame, feedIsStale, gameLabel, ScoreboardPoller } from '../public/score-client.js';
+import { selectGame, feedIsStale, gameLabel, ScoreboardPoller, isSupportedGameId, reconcileGameIdentity, readCachedScoreboard, writeCachedScoreboard, SCOREBOARD_CACHE_KEY, SCOREBOARD_CACHE_MAX_AGE_MS, initializePreferences, getPreferences, updatePreferences } from '../public/score-client.js';
 
 const NOW = Date.parse('2026-11-26T19:00:00Z');
+const TEAM_IDS = { CHI: '3', DET: '8', PHI: '21', DAL: '6', KC: '12', BUF: '2', SF: '25', GB: '9' };
 function game(id, { away = 'CHI', home = 'DET', phase = 'live', startTime = '2026-11-26T18:00:00Z' } = {}) {
   return {
     id,
-    away: { abbreviation: away, score: 0 },
-    home: { abbreviation: home, score: 3 },
+    away: { id: TEAM_IDS[away], abbreviation: away, score: 0 },
+    home: { id: TEAM_IDS[home], abbreviation: home, score: 3 },
     phase,
     state: phase === 'scheduled' ? 'pre' : phase === 'final' ? 'post' : 'in',
     isLive: phase === 'live',
@@ -106,7 +107,7 @@ test('stopping an in-flight poller and restarting it resumes successful updates'
         return { ok: true, json: async () => payload };
       } },
     });
-    poller = new ScoreboardPoller({ onUpdate: (update) => updates.push(update) });
+    poller = new ScoreboardPoller({ onUpdate: (update) => updates.push(update), now: () => NOW });
     poller.start();
     poller.stop();
     poller.start();
@@ -124,4 +125,210 @@ test('stopping an in-flight poller and restarting it resumes successful updates'
       else delete globalThis[name];
     }
   }
+});
+
+const turn = () => new Promise((resolve) => setImmediate(resolve));
+const response = (data) => ({ ok: true, json: async () => data });
+function memoryStorage() {
+  const values = new Map();
+  return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) };
+}
+function snapshot(games = [game('401873081')], extra = {}) {
+  return { games, fetchedAt: new Date(NOW).toISOString(), source: 'ESPN', sourceId: 'espn-site', feedStatus: 'primary', stale: false, ...extra };
+}
+
+test('provider aliases preserve either pinned ID through backup and recovery without mutating source snapshots', () => {
+  const primary = game('401873081');
+  const backup = { ...game('thescore-140742'), detailsGameId: null };
+  const next = reconcileGameIdentity([backup], [primary]);
+  assert.deepEqual(next[0].idAliases, ['401873081']);
+  assert.equal(next[0].id, 'thescore-140742');
+  assert.equal(next[0].detailsGameId, null);
+  assert.equal(selectGame(next, { gameId: '401873081' }), next[0]);
+  const recovered = reconcileGameIdentity([primary], next);
+  assert.deepEqual(recovered[0].idAliases, ['thescore-140742']);
+  assert.equal(selectGame(recovered, { gameId: 'thescore-140742' }), recovered[0]);
+  assert.equal(selectGame(recovered, { gameId: '401873081' }), recovered[0]);
+  assert.equal(Object.hasOwn(primary, 'idAliases'), false);
+  assert.equal(Object.hasOwn(backup, 'idAliases'), false);
+});
+
+test('aliases require the exact home/away IDs and a unique kickoff match within five minutes', () => {
+  const original = game('401873081');
+  const changed = [
+    game('thescore-1', { away: 'DET', home: 'CHI' }),
+    game('thescore-2', { away: 'PHI', home: 'DAL' }),
+    game('thescore-3', { startTime: '2026-12-03T18:00:00Z' }),
+    game('thescore-4', { startTime: '2026-11-26T18:05:01Z' }),
+    { ...game('thescore-5'), startTime: null },
+    { ...game('thescore-6'), away: { abbreviation: 'CHI' } },
+  ];
+  for (const candidate of changed) {
+    const result = reconcileGameIdentity([candidate], [original]);
+    assert.equal(selectGame(result, { gameId: original.id }), null);
+  }
+  const within = reconcileGameIdentity([game('thescore-7', { startTime: '2026-11-26T18:05:00Z' })], [original]);
+  assert.equal(selectGame(within, { gameId: original.id }), within[0]);
+  const ambiguous = reconcileGameIdentity([game('thescore-8')], [original, game('401873082')]);
+  assert.equal(selectGame(ambiguous, { gameId: original.id }), null);
+  const duplicateIncoming = reconcileGameIdentity([game('thescore-8'), game('thescore-9')], [original]);
+  assert.equal(selectGame(duplicateIncoming, { gameId: original.id }), null);
+  const ambiguousAliases = [game('thescore-10'), game('thescore-11')].map((value) => ({ ...value, idAliases: [original.id] }));
+  assert.equal(selectGame(ambiguousAliases, { gameId: original.id }), null);
+});
+
+test('aliases are bounded and reject unsupported IDs and the game’s own ID', () => {
+  const source = { ...game('thescore-12'), idAliases: ['thescore-12', '401', '401', 'thescore-13', 'https://evil.example', 'espn-99', 'thescore-abc', '402', '403', '404'] };
+  const [result] = reconcileGameIdentity([source]);
+  assert.deepEqual(result.idAliases, ['401', 'thescore-13', '402', '403']);
+  assert.equal(isSupportedGameId('thescore-140742'), true);
+  assert.equal(isSupportedGameId('401873081'), true);
+  for (const id of ['thescore-', 'thescore-abc', 'thescore-1234567890123456', '../401873081', 401873081]) assert.equal(isSupportedGameId(id), false);
+});
+
+test('query preferences accept a bounded provider ID and reject unrelated namespaces', async () => {
+  const prior = getPreferences(), original = Object.getOwnPropertyDescriptor(globalThis, 'location');
+  try {
+    Object.defineProperty(globalThis, 'location', { configurable: true, value: { search: '?game=thescore-140742&date=20261126' } });
+    let next = await initializePreferences();
+    assert.equal(next.gameId, 'thescore-140742');
+    assert.equal(next.date, '20261126');
+    globalThis.location.search = '?game=other-provider-140742';
+    next = await initializePreferences();
+    assert.equal(next.gameId, 'thescore-140742');
+  } finally {
+    await updatePreferences(prior);
+    if (original) Object.defineProperty(globalThis, 'location', original); else delete globalThis.location;
+  }
+});
+
+test('fresh backups are healthy while explicit stale/cached flags override a recent timestamp', () => {
+  assert.equal(feedIsStale(snapshot([], { sourceId: 'thescore', feedStatus: 'backup' }), false, NOW), false);
+  assert.equal(feedIsStale(snapshot([], { stale: true }), false, NOW), true);
+  assert.equal(feedIsStale(snapshot([], { feedStatus: 'cached' }), false, NOW), true);
+  assert.equal(feedIsStale(snapshot([], { fetchedAt: new Date(NOW + 60001).toISOString() }), false, NOW), true);
+});
+
+test('browser restoration is date-isolated, always stale, and retains source, aliases, and original fetchedAt', () => {
+  const storage = memoryStorage();
+  const data = snapshot([{ ...game('thescore-140742'), idAliases: ['401873081'], detailsGameId: null }], { sourceId: 'thescore', source: 'theScore', feedStatus: 'backup' });
+  assert.equal(writeCachedScoreboard('20261126', data, { storage, now: NOW }), true);
+  const restored = readCachedScoreboard('20261126', { storage, now: NOW + 15000 });
+  assert.equal(restored.fetchedAt, data.fetchedAt);
+  assert.equal(restored.sourceId, 'thescore');
+  assert.equal(restored.stale, true);
+  assert.equal(restored.feedStatus, 'cached');
+  assert.equal(restored.cacheOrigin, 'browser');
+  assert.equal(selectGame(restored.games, { gameId: '401873081' }).id, 'thescore-140742');
+  assert.equal(readCachedScoreboard('20261127', { storage, now: NOW }), null);
+  assert.equal(readCachedScoreboard(null, { storage, now: NOW }), null);
+  assert.equal(readCachedScoreboard('invalid', { storage, now: NOW }), null);
+  assert.equal(data.stale, false);
+});
+
+test('local snapshots expire after six hours based on fetchedAt, even when repeatedly saved as cached', () => {
+  const storage = memoryStorage();
+  const data = snapshot();
+  writeCachedScoreboard(null, data, { storage, now: NOW });
+  const almostExpired = { ...data, stale: true, feedStatus: 'cached', checkedAt: new Date(NOW + SCOREBOARD_CACHE_MAX_AGE_MS - 1).toISOString() };
+  writeCachedScoreboard(null, almostExpired, { storage, now: NOW + SCOREBOARD_CACHE_MAX_AGE_MS - 1 });
+  assert.equal(readCachedScoreboard(null, { storage, now: NOW + SCOREBOARD_CACHE_MAX_AGE_MS }).fetchedAt, data.fetchedAt);
+  assert.equal(readCachedScoreboard(null, { storage, now: NOW + SCOREBOARD_CACHE_MAX_AGE_MS + 1 }), null);
+  assert.equal(writeCachedScoreboard(null, data, { storage, now: NOW + SCOREBOARD_CACHE_MAX_AGE_MS + 1 }), false);
+});
+
+test('storage keeps only eight dates and a late cached server response cannot overwrite newer saved scores', () => {
+  const storage = memoryStorage();
+  for (let index = 0; index < 9; index++) {
+    const clock = NOW + index * 1000;
+    assert.equal(writeCachedScoreboard(`202611${10 + index}`, snapshot([game(String(index + 1))], { fetchedAt: new Date(clock).toISOString() }), { storage, now: clock }), true);
+  }
+  assert.equal(JSON.parse(storage.getItem(SCOREBOARD_CACHE_KEY)).entries.length, 8);
+  assert.equal(readCachedScoreboard('20261110', { storage, now: NOW + 9000 }), null);
+  const newest = readCachedScoreboard('20261118', { storage, now: NOW + 9000 });
+  assert.equal(writeCachedScoreboard('20261118', snapshot([game('99')], { feedStatus: 'cached', stale: true }), { storage, now: NOW + 10000 }), false);
+  assert.equal(readCachedScoreboard('20261118', { storage, now: NOW + 10000 }).fetchedAt, newest.fetchedAt);
+  assert.equal(readCachedScoreboard('20261118', { storage, now: NOW + 10000 }).games[0].id, '9');
+});
+
+test('corrupt, blocked, oversized, or unavailable browser storage cannot break score polling', async () => {
+  const corrupt = { getItem: () => '{bad JSON', setItem: () => { throw new Error('Quota exceeded'); } };
+  const blocked = { getItem: () => { throw new Error('Storage disabled'); }, setItem: () => { throw new Error('Storage disabled'); } };
+  const oversized = { getItem: () => 'x'.repeat(750001), setItem: () => { throw new Error('Quota exceeded'); } };
+  for (const storage of [null, corrupt, blocked, oversized]) {
+    assert.equal(readCachedScoreboard(null, { storage, now: NOW }), null);
+    assert.equal(writeCachedScoreboard(null, snapshot(), { storage, now: NOW }), false);
+    const poller = new ScoreboardPoller({ storage, now: () => NOW, fetcher: async () => response(snapshot()) });
+    try { poller.start(); await turn(); assert.equal(poller.data.games[0].id, '401873081'); assert.equal(poller.error, null); }
+    finally { poller.stop(); }
+  }
+});
+
+test('a local restoration is published as loading/stale and never as a successful network check', async () => {
+  const storage = memoryStorage(), updates = [];
+  const saved = snapshot([game('401873081')], { fetchedAt: new Date(NOW - 120000).toISOString() });
+  writeCachedScoreboard(null, saved, { storage, now: NOW });
+  let rejectRequest;
+  const poller = new ScoreboardPoller({ storage, now: () => NOW, onUpdate: (value) => updates.push(value), fetcher: () => new Promise((_resolve, reject) => { rejectRequest = reject; }) });
+  try {
+    poller.start();
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].loading, true);
+    assert.equal(updates[0].data.stale, true);
+    assert.equal(updates[0].data.fetchedAt, saved.fetchedAt);
+    rejectRequest(new Error('Offline')); await turn();
+    assert.equal(updates.at(-1).loading, false);
+    assert.equal(updates.at(-1).error.message, 'Offline');
+    assert.equal(updates.at(-1).data.fetchedAt, saved.fetchedAt);
+  } finally { poller.stop(); }
+});
+
+test('primary failure, cached response, independent backup, and primary recovery preserve accurate freshness and pins', async () => {
+  const storage = memoryStorage(); let clock = NOW;
+  const primary = snapshot();
+  const cached = snapshot([game('401873081')], { fetchedAt: new Date(NOW - 60000).toISOString(), feedStatus: 'cached', stale: true });
+  const backup = snapshot([{ ...game('thescore-140742'), detailsGameId: null }], { fetchedAt: new Date(NOW + 5000).toISOString(), sourceId: 'thescore', source: 'theScore', feedStatus: 'backup' });
+  const recovered = snapshot([game('401873081')], { fetchedAt: new Date(NOW + 10000).toISOString() });
+  const pending = [primary, new Error('Upstream offline'), cached, backup, recovered];
+  const poller = new ScoreboardPoller({ storage, now: () => clock, fetcher: async () => { const next = pending.shift(); if (next instanceof Error) throw next; return response(next); } });
+  try {
+    poller.start(); await turn(); assert.equal(poller.failures, 0);
+    await poller.refresh(); assert.equal(poller.failures, 1); assert.equal(poller.data.stale, true); assert.equal(poller.error.message, 'Upstream offline');
+    await poller.refresh(); assert.equal(poller.failures, 2); assert.equal(poller.error, null); assert.equal(poller.data.feedStatus, 'cached');
+    assert.equal(poller.data.fetchedAt, primary.fetchedAt, 'An older server cache cannot replace the newer known snapshot');
+    clock += 5000; await poller.refresh(); assert.equal(poller.failures, 0); assert.equal(poller.error, null); assert.equal(feedIsStale(poller.data, false, clock), false);
+    assert.equal(poller.data.sourceId, 'thescore'); assert.equal(selectGame(poller.data.games, { gameId: '401873081' }).id, 'thescore-140742');
+    clock += 5000; await poller.refresh(); assert.equal(poller.data.sourceId, 'espn-site'); assert.equal(selectGame(poller.data.games, { gameId: 'thescore-140742' }).id, '401873081');
+    const restored = readCachedScoreboard(null, { storage, now: clock });
+    assert.equal(selectGame(restored.games, { gameId: 'thescore-140742' }).id, '401873081'); assert.equal(restored.fetchedAt, recovered.fetchedAt);
+    assert.equal(primary.stale, false, 'Marking retained data stale must not mutate a received snapshot');
+  } finally { poller.stop(); }
+});
+
+test('a cached response on first load remains stale with a retry pending, then a fresh backup recovers', async () => {
+  let request = 0;
+  const cached = snapshot([], { fetchedAt: new Date(NOW - 60000).toISOString(), stale: true, feedStatus: 'cached' });
+  const healthy = snapshot([], { sourceId: 'espn-web', feedStatus: 'backup' });
+  const poller = new ScoreboardPoller({ storage: memoryStorage(), now: () => NOW, fetcher: async () => response(request++ ? healthy : cached) });
+  try {
+    poller.start(); await turn();
+    assert.equal(poller.error, null); assert.equal(poller.failures, 1); assert.equal(poller.data.fetchedAt, cached.fetchedAt); assert.equal(poller.data.stale, true); assert.ok(poller.timer);
+    await poller.refresh(); assert.equal(poller.failures, 0); assert.equal(poller.data.stale, false); assert.equal(poller.data.feedStatus, 'backup');
+  } finally { poller.stop(); }
+});
+
+test('switching dates restores only that date and discards a late old-date response even when it ignores abort', async () => {
+  const storage = memoryStorage(), requests = [], updates = [];
+  writeCachedScoreboard('20261126', snapshot([game('1')]), { storage, now: NOW });
+  writeCachedScoreboard('20261127', snapshot([game('2', { away: 'KC', home: 'BUF' })]), { storage, now: NOW });
+  const poller = new ScoreboardPoller({ date: '20261126', storage, now: () => NOW, onUpdate: value => updates.push(value), fetcher: (url, options) => new Promise(resolve => requests.push({ url, options, resolve })) });
+  try {
+    poller.start(); assert.equal(updates.at(-1).data.games[0].id, '1');
+    poller.setDate('20261127'); assert.equal(updates.at(-1).data.games[0].id, '2'); assert.equal(updates.at(-1).data.stale, true);
+    assert.equal(requests[0].options.signal.aborted, true);
+    assert.equal(requests[1].url.searchParams.get('date'), '20261127');
+    requests[0].resolve(response(snapshot([game('99')]))); await turn(); assert.equal(poller.data.games[0].id, '2');
+    requests[1].resolve(response(snapshot([game('2', { away: 'KC', home: 'BUF' })]))); await turn(); assert.equal(poller.data.stale, false); assert.equal(poller.data.games[0].id, '2');
+    poller.stop(); poller.setDate('20261128'); assert.equal(poller.data, null); assert.equal(updates.at(-1).loading, true);
+  } finally { poller.stop(); }
 });

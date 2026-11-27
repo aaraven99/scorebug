@@ -37,7 +37,7 @@ function harness(t) {
     activity, requests, events, resets,
     get now() { return now; },
     at(elapsed) { now = NOW + elapsed; },
-    set(current, context = 'current', stamp = now) { activity.setGame(current, context, stamp === null ? null : iso(stamp)); },
+    set(current, context = 'current', stamp = now, feed = {}) { activity.setGame(current, context, stamp === null ? null : iso(stamp), feed); },
     async resolve(index, plays = [], id = '401873081') {
       requests[index].resolve({ ok: true, json: async () => ({ gameId: id, fetchedAt: iso(now), teamStats: [], eventPlays: plays }) });
       await turn();
@@ -139,5 +139,62 @@ test('changing date context reseeds even when the selected event ID remains the 
   h.at(1000); h.set(game(7), 'current');
   h.activity.refresh(); await h.resolve(1, [touchdown(200, 7, h.now)]);
   h.at(15000); h.set(game(7), 'current');
+  assert.deepEqual(h.events, []);
+});
+
+test('demo player data is available only from a fresh successful summary for the selected game', async (t) => {
+  const h = harness(t); h.activity.start(); h.set(game());
+  assert.equal(h.activity.getDetails(), null);
+  await h.resolve(0);
+  assert.equal(h.activity.getDetails().gameId, '401873081');
+  h.at(1000); h.activity.refresh(); await h.fail(1);
+  assert.equal(h.activity.getDetails(), null);
+  h.activity.refresh(); await h.resolve(2);
+  assert.equal(h.activity.getDetails().gameId, '401873081');
+  h.at(47000);
+  assert.equal(h.activity.getDetails(), null);
+  h.set(game(7, '401873080'));
+  assert.equal(h.activity.getDetails(), null);
+  await h.resolve(3, [], '401873080');
+  assert.equal(h.activity.getDetails().gameId, '401873080');
+  h.activity.stop();
+  assert.equal(h.activity.getDetails(), null);
+});
+
+test('feed switches and cached-score recovery reset celebrations without replaying old points', async (t) => {
+  const h = harness(t); h.activity.start(); h.set(game()); await h.resolve(0);
+  h.at(1000); h.set(game(7), 'current', h.now, { sourceId: 'espn-web' });
+  h.activity.refresh(); await h.resolve(1, [touchdown(200, 7, h.now)]);
+  h.at(14000); h.set(game(7), 'current', h.now, { sourceId: 'espn-web' });
+  assert.deepEqual(h.events, []);
+  h.at(15000); h.set(game(14), 'current', h.now, { sourceId: 'espn-web' });
+  h.activity.refresh(); await h.resolve(2, [touchdown(300, 14, h.now)]);
+  assert.deepEqual(h.events.map((event) => event.kind), ['touchdown', 'extra-point']);
+  h.at(16000); h.set(game(14), 'current', h.now, { sourceId: 'espn-web', stale: true });
+  assert.equal(h.activity.getDetails(), null);
+  h.activity.refresh(); await h.resolve(3, [touchdown(400, 21, h.now)]);
+  h.at(18000); h.set(game(21), 'current', h.now, { sourceId: 'espn-web' });
+  h.at(32000); h.set(game(21), 'current', h.now, { sourceId: 'espn-web' });
+  assert.equal(h.events.length, 2, 'Recovery establishes a new baseline instead of replaying outage scores');
+  h.at(33000); h.set(game(21), 'current', h.now, { sourceId: 'espn-site' });
+  h.at(47000); h.set(game(21));
+  assert.equal(h.events.length, 2);
+});
+
+test('an independent provider ID never gets sent to the ESPN summary endpoint', async (t) => {
+  const h = harness(t); h.activity.start();
+  h.set({ ...game(7, 'thescore-140741'), detailsGameId: null }, 'current', h.now, { sourceId: 'thescore' });
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.activity.getDetails(), null);
+  h.at(1000); h.set(game(7)); await h.resolve(0);
+  assert.equal(h.requests[0].url.searchParams.get('id'), '401873081');
+  assert.deepEqual(h.events, []);
+});
+
+test('a cached summary cannot supply demo portraits or new play celebrations', async (t) => {
+  const h = harness(t); h.activity.start(); h.set(game());
+  h.requests[0].resolve({ ok: true, json: async () => ({ gameId: '401873081', fetchedAt: iso(h.now), stale: true, teamStats: [], eventPlays: [touchdown(200, 7)] }) });
+  await turn();
+  assert.equal(h.activity.getDetails(), null);
   assert.deepEqual(h.events, []);
 });

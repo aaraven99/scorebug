@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { normalizeGameDetails, createGameDetailsService, validateGameId, GameDetailsError } from '../lib/details.mjs';
 import gameHandler from '../api/game.js';
+
+const liveFixture = JSON.parse(readFileSync(new URL('./fixtures/espn-live-v121.json', import.meta.url)));
 
 function fixture() {
   return {
@@ -153,6 +156,44 @@ test('player leaders retain names and published display values without fabricate
   assert.equal(result.leaders[1].away, null);
 });
 
+test('actual PHI–DAL scoring captions resolve the receiver and separate PAT kicker through the boxscore', () => {
+  const details = normalizeGameDetails(liveFixture.summary);
+  const turpin = details.eventPlays.find((play) => play.id === '401873080943');
+  const smith = details.eventPlays.find((play) => play.id === '4018730801853');
+  const fieldGoal = details.eventPlays.find((play) => play.id === '4018730802937');
+  assert.equal(turpin.player.name, 'KaVontae Turpin');
+  assert.equal(turpin.conversionPlayer.name, 'Brandon Aubrey');
+  assert.equal(smith.player.name, 'DeVonta Smith');
+  assert.equal(smith.conversionPlayer.name, 'Jake Elliott');
+  assert.equal(fieldGoal.player.name, 'Brandon Aubrey');
+  assert.equal(details.situation, null, 'The actual summary has no current situation; historical play ends stay historical.');
+  const rosterSmith = details.players.find((player) => player.id === '4241478');
+  assert.equal(rosterSmith.teamId, '21');
+  assert.equal(rosterSmith.position, 'WR');
+  assert.ok(rosterSmith.statCategories.includes('receiving'));
+  assert.equal(details.players.filter((player) => player.id === '4241478').length, 1);
+});
+
+test('summary roster remains bounded and rejects players from unrelated or unidentified teams', () => {
+  const payload = fixture();
+  payload.boxscore.players = [
+    { team: { id: '3' }, statistics: [{ name: 'receiving', athletes: Array.from({ length: 150 }, (_, index) => ({ athlete: { id: String(index + 1), displayName: `Player ${index}` } })) }] },
+    { team: { id: '999' }, statistics: [{ name: 'kicking', athletes: [{ athlete: { id: '9999', displayName: 'Unrelated player' } }] }] },
+  ];
+  const players = normalizeGameDetails(payload).players;
+  assert.equal(players.length, 128);
+  assert.equal(players.every((player) => player.teamId === '3' && player.headshot === null), true);
+  assert.equal(players.some((player) => player.id === '9999'), false);
+});
+
+test('a real summary current situation uses the same validated long-text down formatting', () => {
+  const payload = fixture();
+  payload.header.competitions[0].situation = { possession: '3', downDistanceText: '3rd & 15 at CHI 20' };
+  assert.equal(normalizeGameDetails(payload).situation.downDistance, '3rd & 15');
+  payload.header.competitions[0].situation = { possession: '3', down: -1, distance: 0 };
+  assert.equal(normalizeGameDetails(payload).situation.downDistance, null);
+});
+
 test('invalid or mismatched event payloads fail rather than showing a different game', () => {
   for (const id of [undefined, null, '1&event=2', 'abc', '', '12345678901234567', 12345]) assert.throws(() => validateGameId(id), { code: 'INVALID_GAME_ID' });
   assert.equal(validateGameId('12345'), '12345');
@@ -160,7 +201,7 @@ test('invalid or mismatched event payloads fail rather than showing a different 
   assert.throws(() => normalizeGameDetails({}), GameDetailsError);
 });
 
-test('concurrent details readers share a short cache, and expired failure never returns old stats as fresh', async () => {
+test('concurrent details readers share a short cache, and a total outage returns explicitly stale stats with their original time', async () => {
   let calls = 0;
   let time = Date.parse('2026-11-26T18:51:00Z');
   let fail = false;
@@ -177,8 +218,15 @@ test('concurrent details readers share a short cache, and expired failure never 
   assert.equal(calls, 1);
   time += 10001;
   fail = true;
-  await assert.rejects(() => service({ gameId: '12345' }), { statusCode: 503 });
-  assert.equal(calls, 2);
+  const cached = await service({ gameId: '12345' });
+  assert.equal(calls, 4, 'All three endpoints are tried before using old stats.');
+  assert.equal(cached.stale, true);
+  assert.equal(cached.feedStatus, 'cached');
+  assert.equal(cached.fetchedAt, results[0].fetchedAt);
+  assert.equal(cached.checkedAt, new Date(time).toISOString());
+  assert.equal(cached.lastPlay.id, results[0].lastPlay.id);
+  await service({ gameId: '12345' });
+  assert.equal(calls, 4, 'Failed feeds cool down instead of being hammered.');
 });
 
 test('service rejects unsafe IDs before fetch, routes the fixed summary URL, and fails safely on bad upstream responses', async () => {
@@ -188,10 +236,78 @@ test('service rejects unsafe IDs before fetch, routes the fixed summary URL, and
   assert.equal(seen, undefined);
   await service({ gameId: '12345' });
   assert.equal(seen, 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=12345');
-  for (const response of [new Response('<html>error</html>'), new Response('{broken', { headers: { 'Content-Type': 'application/json' } }), new Response('{}', { headers: { 'Content-Type': 'application/json', 'Content-Length': String(5 * 1024 * 1024) } })]) {
-    const failing = createGameDetailsService({ fetchImpl: async () => response });
+  for (const response of [() => new Response('<html>error</html>'), () => new Response('{broken', { headers: { 'Content-Type': 'application/json' } }), () => new Response('{}', { headers: { 'Content-Type': 'application/json', 'Content-Length': String(5 * 1024 * 1024) } })]) {
+    const failing = createGameDetailsService({ fetchImpl: async () => response() });
     await assert.rejects(() => failing({ gameId: '12345' }), { code: 'INVALID_DETAILS' });
   }
+});
+
+test('summary fails over to the fixed mirror, retains its identity during cooldown, and returns to primary', async () => {
+  let time = Date.parse('2026-11-26T18:51:00Z'), primaryFails = true;
+  const urls = [];
+  const service = createGameDetailsService({ now: () => time, fetchImpl: async (url) => {
+    urls.push(url);
+    if (url.includes('site.api.espn.com') && primaryFails) return jsonResponse({}, { status: 503 });
+    if (url.includes('cdn.espn.com')) return jsonResponse({}, { status: 503 });
+    return jsonResponse(fixture());
+  } });
+  const backup = await service({ gameId: '12345' });
+  assert.equal(urls[0], 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=12345');
+  assert.ok(urls.includes('https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=12345'));
+  assert.equal(backup.sourceId, 'espn-web');
+  assert.equal(backup.feedStatus, 'backup');
+  assert.equal(backup.stale, false);
+  assert.equal(backup.gameId, '12345');
+  time += 10001;
+  assert.equal((await service({ gameId: '12345' })).sourceId, 'espn-web');
+  assert.equal(urls.filter((url) => url.includes('site.api.espn.com')).length, 1);
+  assert.equal(urls.filter((url) => url === backup.sourceUrl).length, 2);
+  time += 20000; primaryFails = false;
+  const recovered = await service({ gameId: '12345' });
+  assert.equal(recovered.sourceId, 'espn-site');
+  assert.equal(recovered.feedStatus, 'primary');
+  assert.equal(recovered.stale, false);
+});
+
+test('the CDN fallback selects gamepackageJSON and validates the requested game before exposing players or plays', async () => {
+  const urls = [];
+  const service = createGameDetailsService({ fetchImpl: async (url) => {
+    urls.push(url);
+    if (!url.includes('cdn.espn.com')) return jsonResponse({}, { status: 503 });
+    return jsonResponse({ gamepackageJSON: liveFixture.summary, content: { unrelated: true } });
+  } });
+  const data = await service({ gameId: '401873080' });
+  assert.equal(urls.length, 3);
+  assert.equal(urls.at(-1), 'https://cdn.espn.com/core/nfl/game?xhr=1&gameId=401873080');
+  assert.equal(data.sourceId, 'espn-cdn');
+  assert.equal(data.feedStatus, 'backup');
+  assert.equal(data.players.some((player) => player.name === 'DeVonta Smith'), true);
+  const wrong = createGameDetailsService({ fetchImpl: async (url) => jsonResponse(url.includes('cdn.espn.com') ? { gamepackageJSON: liveFixture.summary } : liveFixture.summary) });
+  await assert.rejects(() => wrong({ gameId: '99999' }), { code: 'INVALID_DETAILS' });
+});
+
+test('an upstream HTTP stale-cache warning triggers backup while original source timestamps remain intact', async () => {
+  for (const headers of [{ Age: '600' }, { Warning: '110 proxy "Response is stale"' }]) {
+    const service = createGameDetailsService({ fetchImpl: async (url) => {
+      if (url.includes('site.api.espn.com')) return jsonResponse(fixture(), { headers: { 'Content-Type': 'application/json', ...headers } });
+      if (url.includes('cdn.espn.com')) return jsonResponse({}, { status: 503 });
+      return jsonResponse(fixture());
+    } });
+    const data = await service({ gameId: '12345' });
+    assert.equal(data.sourceId, 'espn-web');
+    assert.equal(data.feedStatus, 'backup');
+    assert.equal(data.sourceUpdatedAt, '2026-11-26T18:50:03.000Z');
+  }
+});
+
+test('a cold all-feed failure stays an error and a cached response older than six hours is not reused', async () => {
+  let time = Date.parse('2026-11-26T18:51:00Z'), fails = false;
+  const service = createGameDetailsService({ now: () => time, fetchImpl: async () => fails ? jsonResponse({}, { status: 503 }) : jsonResponse(fixture()) });
+  await service({ gameId: '12345' });
+  fails = true; time += 6 * 60 * 60 * 1000 + 1;
+  await assert.rejects(() => service({ gameId: '12345' }), { code: 'DETAILS_UNAVAILABLE', statusCode: 503 });
+  const cold = createGameDetailsService({ fetchImpl: async () => { throw new TypeError('private connection detail'); } });
+  await assert.rejects(() => cold({ gameId: '12345' }), (error) => error instanceof GameDetailsError && error.statusCode === 502 && !error.message.includes('private'));
 });
 
 test('API rejects missing, duplicate and malformed IDs, rejects writes, and HEAD errors have no body', async () => {
