@@ -16,7 +16,7 @@ async function fixture(t) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'scorebug-analytics-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const root = pathToFileURL(`${directory}${path.sep}`);
-  await Promise.all(['index.html', 'widget.html', 'game.html', 'details.html'].map(name => writeFile(new URL(name, root), '<!doctype html><html><head></head><body></body></html>')));
+  await Promise.all(['index.html', 'widget.html', 'game.html', 'standby.html', 'details.html'].map(name => writeFile(new URL(name, root), '<!doctype html><html><head></head><body></body></html>')));
   return root;
 }
 
@@ -24,7 +24,7 @@ test('local and preview builds do not inject or copy analytics', async t => {
   for (const environment of [{}, { VERCEL_ENV: 'development' }, { VERCEL_ENV: 'preview' }]) {
     const output = await fixture(t);
     assert.equal(await addWebAnalytics(output, environment), false);
-    for (const page of ['index.html', 'widget.html', 'game.html']) assert.doesNotMatch(await readFile(new URL(page, output), 'utf8'), /analytics/);
+    for (const page of ['index.html', 'widget.html', 'game.html', 'standby.html']) assert.doesNotMatch(await readFile(new URL(page, output), 'utf8'), /analytics/);
     await assert.rejects(access(new URL('web-analytics/', output)), { code: 'ENOENT' });
   }
 });
@@ -34,7 +34,7 @@ test('production builds add the official SDK once to public pages only', async t
   const environment = { VERCEL_ENV: 'production' };
   await addWebAnalytics(output, environment);
   await addWebAnalytics(output, environment);
-  for (const page of ['index.html', 'widget.html', 'game.html']) {
+  for (const page of ['index.html', 'widget.html', 'game.html', 'standby.html']) {
     const html = await readFile(new URL(page, output), 'utf8');
     assert.equal(html.match(/src="\/web-analytics\/start.js"/g)?.length, 1);
   }
@@ -68,7 +68,7 @@ test('the browser guard excludes local, desktop, non-public and preview sessions
 test('each public production page initializes once, with production mode enforced', () => {
   const calls = [];
   const configuration = { environment: 'production', options: { mode: 'development', debug: true } };
-  const pages = ['/', '/index.html', '/widget.html', '/game.html'];
+  const pages = ['/', '/index.html', '/widget.html', '/game.html', '/standby.html'];
   for (const pathname of pages) {
     const browser = { location: { ...publicLocation, pathname } };
     assert.equal(startWebAnalytics(options => calls.push(options), configuration, browser), true);
