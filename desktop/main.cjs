@@ -10,6 +10,7 @@ const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displa
 const { HoverIntent } = require('./hover.cjs');
 const { UpdateController } = require('./updates.cjs');
 const { DetailsLifecycle } = require('./details-lifecycle.cjs');
+const { FullscreenTransitions } = require('./fullscreen.cjs');
 const { cleanPatch, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
 
 const DEFAULTS = Object.freeze({
@@ -35,6 +36,7 @@ const SMOKE_TEST = process.argv.includes('--smoke-test') && (!app.isPackaged || 
 let widget = null;
 let settings = null;
 let gameCenter = null;
+let gameCenterFullscreen = null;
 let restoreWidgetAfterGameCenter = false;
 let details = null;
 let detailsSide = null;
@@ -71,6 +73,9 @@ let smokeExitCode = 0;
 
 app.setName('Scorebug');
 if (SMOKE_TEST) {
+  // Hosted Intel Mac runners have no usable GPU. Keep real native windows and
+  // sandboxing, but use CPU compositing for their screenshot-based smoke run.
+  if (process.env.SCOREBUG_SMOKE_SOFTWARE_RENDERING === '1') app.disableHardwareAcceleration();
   const temporaryUserData = process.env.SCOREBUG_SMOKE_USER_DATA || fs.mkdtempSync(path.join(os.tmpdir(), 'scorebug-smoke-'));
   app.setPath('userData', temporaryUserData);
 }
@@ -293,6 +298,9 @@ function setDetailsGameId(gameId) {
 function setDetailsRegions(value) {
   if (!widget || widget.isDestroyed()) return;
   const viewport = widget.getContentBounds();
+  // A measured frame can arrive after the OS has already resized the window.
+  // The next renderer resize frame replaces it; old dimensions are not trusted.
+  if (value?.viewport && (value.viewport.width !== viewport.width || value.viewport.height !== viewport.height)) return;
   renderedDetailsLayout = cleanDetailsRegions(value, viewport);
   placeDetails();
 }
@@ -648,7 +656,7 @@ function createWidget() {
 
 function getGameCenterState() {
   const open = Boolean(gameCenter && !gameCenter.isDestroyed());
-  return { open, fullscreen: open && gameCenter.isFullScreen() };
+  return { open, fullscreen: open && Boolean(gameCenterFullscreen?.value) };
 }
 
 function publishGameCenterState() {
@@ -667,11 +675,7 @@ function restoreFloatingWidget() {
 function setGameCenterFullscreen(fullscreen) {
   if (typeof fullscreen !== 'boolean') throw new TypeError('Fullscreen must be true or false');
   if (!gameCenter || gameCenter.isDestroyed()) return getGameCenterState();
-  if (fullscreen && widget && !widget.isDestroyed() && widget.isVisible()) {
-    restoreWidgetAfterGameCenter = true;
-    widget.hide();
-  }
-  gameCenter.setFullScreen(fullscreen);
+  gameCenterFullscreen.request(fullscreen);
   return getGameCenterState();
 }
 
@@ -704,6 +708,13 @@ function openGameCenter() {
     webPreferences: webPreferences()
   });
   gameCenter = win;
+  gameCenterFullscreen = new FullscreenTransitions((fullscreen) => {
+    if (fullscreen && widget && !widget.isDestroyed() && widget.isVisible()) {
+      restoreWidgetAfterGameCenter = true;
+      widget.hide();
+    }
+    win.setFullScreen(fullscreen);
+  });
   win.setMenu(null);
   secureWindow(win);
   win.once('ready-to-show', () => {
@@ -714,6 +725,8 @@ function openGameCenter() {
     publishGameCenterState();
   });
   win.on('enter-full-screen', () => {
+    if (gameCenter !== win || win.isDestroyed()) return;
+    gameCenterFullscreen.settled(true);
     if (widget && !widget.isDestroyed() && widget.isVisible()) {
       restoreWidgetAfterGameCenter = true;
       widget.hide();
@@ -721,20 +734,25 @@ function openGameCenter() {
     closeDetails({ immediate: true });
     publishGameCenterState();
   });
-  win.on('leave-full-screen', () => { restoreFloatingWidget(); publishGameCenterState(); });
+  win.on('leave-full-screen', () => {
+    if (gameCenter !== win || win.isDestroyed()) return;
+    gameCenterFullscreen.settled(false);
+    if (!gameCenterFullscreen.target) restoreFloatingWidget();
+    publishGameCenterState();
+  });
   win.on('closed', () => {
-    if (gameCenter === win) gameCenter = null;
+    if (gameCenter === win) { gameCenter = null; gameCenterFullscreen = null; }
     restoreFloatingWidget();
     publishGameCenterState();
   });
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
-    if (input.key === 'Escape' && win.isFullScreen()) {
+    if (input.key === 'Escape' && (gameCenterFullscreen?.value || gameCenterFullscreen?.target)) {
       event.preventDefault();
       setGameCenterFullscreen(false);
     } else if (input.key === 'F11' && !input.isAutoRepeat) {
       event.preventDefault();
-      setGameCenterFullscreen(!win.isFullScreen());
+      setGameCenterFullscreen(!gameCenterFullscreen.target);
     }
   });
   win.loadURL(`${origin}/game.html?desktop=1`).catch((error) => {

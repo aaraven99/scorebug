@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node --test geometry.test.cjs hover.test.cjs details-lifecycle.test.cjs updates.test.cjs preferences.test.cjs",
+    "test": "node --test geometry.test.cjs hover.test.cjs details-lifecycle.test.cjs fullscreen.test.cjs updates.test.cjs preferences.test.cjs",
     "test:smoke": "node smoke-launcher.cjs",
     "dist:win": "electron-builder --win --x64 --publish never",
     "build:mac-helper": "node build-macos.cjs",
@@ -32,6 +32,7 @@
       "geometry.cjs",
       "hover.cjs",
       "details-lifecycle.cjs",
+      "fullscreen.cjs",
       "updates.cjs",
       "assets/**/*",
       "package.json",

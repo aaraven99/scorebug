@@ -109,7 +109,7 @@ $hit = [ScorebugWindowHit]::WindowFromPoint($point)
 async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, getGameCenter, preferencesPath, packaged = false }) {
   const evidenceDir = process.env.SCOREBUG_SMOKE_EVIDENCE || path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
-  const summary = { passed: false, platform: process.platform, arch: process.arch, packaged, version: require('./package.json').version, electron: process.versions.electron, feedRequired: false, checks: [] };
+  const summary = { passed: false, platform: process.platform, arch: process.arch, packaged, softwareRendering: process.env.SCOREBUG_SMOKE_SOFTWARE_RENDERING === '1', version: require('./package.json').version, electron: process.versions.electron, feedRequired: false, checks: [] };
   let deadline;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
@@ -562,7 +562,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         await evaluate('window.scorebugDesktop.openGameCenter()');
         await waitFor('Full-screen Game Center opens', async () => {
           const center = getGameCenter();
-          return center && !center.isDestroyed() && center.isVisible() && center.isFullScreen() && await center.webContents.executeJavaScript('Boolean(window.scorebugDesktop?.setGameCenterFullscreen && document.body?.childElementCount)');
+          return center && !center.isDestroyed() && center.isVisible() && center.isFullScreen() && await center.webContents.executeJavaScript('(async () => Boolean(window.scorebugDesktop?.setGameCenterFullscreen && document.body?.childElementCount && (await window.scorebugDesktop.getGameCenterState()).fullscreen))()');
         }, 8000);
         const center = getGameCenter();
         const centerEvaluate = (code) => center.webContents.executeJavaScript(code, true);
@@ -581,17 +581,19 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         await evaluate('window.scorebugDesktop.openGameCenter()');
         assert.equal(getGameCenter(), center, 'Opening the game again should reuse its window');
         await assert.rejects(() => centerEvaluate('window.scorebugDesktop.setGameCenterFullscreen("yes")'), /Fullscreen must be true or false/);
+        center.focus();
         center.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
         center.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
-        await waitFor('Escape exits fullscreen and restores the floating scorebug', () => !center.isFullScreen() && widget.isVisible(), 3000);
+        await waitFor('Escape exits fullscreen and restores the floating scorebug', async () => !center.isFullScreen() && widget.isVisible() && !(await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
         assert.deepEqual(widget.getBounds(), compactBounds, 'Exiting fullscreen moved the floating scorebug');
         await centerEvaluate('document.querySelector("#center-fullscreen").click(); void 0;');
-        await waitFor('Visible fullscreen control can enter fullscreen again', () => center.isFullScreen() && !widget.isVisible(), 3000);
+        await waitFor('Visible fullscreen control can enter fullscreen again', async () => center.isFullScreen() && !widget.isVisible() && (await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
+        center.focus();
         center.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'F11' });
         center.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'F11' });
-        await waitFor('F11 in Game Center exits fullscreen', () => !center.isFullScreen() && widget.isVisible(), 3000);
+        await waitFor('F11 in Game Center exits fullscreen', async () => !center.isFullScreen() && widget.isVisible() && !(await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
         await centerEvaluate('window.scorebugDesktop.setGameCenterFullscreen(true)');
-        await waitFor('Game Center is fullscreen before closing', () => center.isFullScreen() && !widget.isVisible(), 3000);
+        await waitFor('Game Center is fullscreen before closing', async () => center.isFullScreen() && !widget.isVisible() && (await centerEvaluate('window.scorebugDesktop.getGameCenterState()')).fullscreen, 6000);
         await centerEvaluate('document.querySelector("#center-close").click(); void 0;');
         await waitFor('Closing Game Center restores the floating scorebug', () => !getGameCenter() && widget.isVisible(), 3000);
         assert.deepEqual(widget.getBounds(), compactBounds);
