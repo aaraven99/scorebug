@@ -23,13 +23,15 @@ If a download does not start, [open the latest release](https://github.com/aarav
 ## Start watching
 
 1. **Choose a sport or league.** Leave **Automatic** selected to follow a live game, or click a game to keep watching that one.
-2. **Add your favorites.** Open **Add a favorite**, find a team, and add it. When it plays live, the game appears in **Your favorites** and stays in its league’s **Live now** list. Automatic prefers a live favorite in the selected league. Favorites are saved on this device.
-3. **Pick a style.** Choose a name such as **NFL-Blades**, **NBA-NBC Pods**, or **F1-Rounded Tower**. **Browse styles** shows the options visually. You can use a style from another sport; the scores and statistics still belong to the sport you selected.
+2. **Add your favorites.** Open **Add a favorite**, type a team name, and click its result. You can find the Bears while watching another sport. When a favorite plays live, its game appears in **Your favorites** and stays in its league’s **Live now** list. Automatic prefers a live favorite in the selected league. Favorites are saved on this device.
+3. **Pick a style.** Choose a name such as **NFL-Blades**, **NBA-NBC Pods**, or **F1-Rounded Tower**. **Browse styles** shows the options visually. Your chosen style stays selected when you change sports or reopen the app. For example, NBA in NFL-Blades still shows basketball scores and stats.
 4. **Place the scorebug.** Drag the desktop app to an edge and release to snap it. Side positions use a compact vertical layout. On the website, choose **Normal** or **Side**, then **Float in browser**.
 
 Hover a team logo or its timeout marks for that team’s stats. Hover the middle clock area to compare the teams and see the reported field position. The field stays in the middle panel. Racing layouts use the session header for the classification and timing details.
 
 For a larger view, open **Game center**. It puts the available score, team or driver standings, statistics, player details, and play history together. The **Try an animation** controls preview events without changing the live score.
+
+For Formula 1, use **Drivers shown** beneath the style controls to show a few drivers or the full field. The floating window grows with the list and fits it within your screen. Driver names appear on their own line in animations; safety car, VSC, and race-control flags apply to the whole session and do not name a driver.
 
 ## Sports and styles
 
