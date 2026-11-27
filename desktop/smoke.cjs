@@ -121,7 +121,32 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
   let deadline;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
-  const readScorebugLayout = (options = {}) => evaluate(`(async () => {
+  const readScorebugLayout = async (options = {}) => {
+    const nativeBounds = widget.getBounds();
+    const nativePreferences = await evaluate('window.scorebugDesktop.getPreferences()');
+    // A native resize can update innerWidth before the renderer's resize
+    // handler replaces its explicit fitted board width. Wait for both, then
+    // measure the fixture synchronously. The empty-feed board has a separate
+    // CSS max-width, so inspect the stored fit rather than its temporary box.
+    await waitFor('Native viewport and fitted scorebug are ready for geometry measurement', async () => {
+      const layout = await evaluate(`(async () => {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return {
+          width: innerWidth, height: innerHeight,
+          orientation: document.body.dataset.orientation,
+          alignment: document.body.dataset.contentAlignment,
+          fittedWidth: parseFloat(document.querySelector('.widget-board')?.style.width)
+        };
+      })()`);
+      assert.equal(layout.width, nativeBounds.width, 'Renderer width has not reached the native window');
+      assert.equal(layout.height, nativeBounds.height, 'Renderer height has not reached the native window');
+      assert.equal(layout.orientation, nativePreferences.orientation, 'Renderer orientation has not reached the native preference');
+      assert.equal(layout.alignment, nativePreferences.contentAlignment, 'Renderer alignment has not reached the native preference');
+      assert.ok(Math.abs(layout.fittedWidth - (nativeBounds.width - 16)) < 0.51,
+        `Fitted board width ${layout.fittedWidth} has not reached native content width ${nativeBounds.width - 16}`);
+      return true;
+    }, 5000);
+    return evaluate(`(async () => {
     const [{ renderScorebug }, { referenceGame }] = await Promise.all([import('/scorebug.js'), import('/fixtures.js')]);
     const board = document.querySelector('.widget-board');
     const saved = [...board.childNodes];
@@ -147,7 +172,8 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         home: rect(svg.querySelector('.bug-team--home .bug-team-panel'))
       };
     } finally { board.replaceChildren(...saved); }
-  })()`);
+    })()`);
+  };
   const readDragRegions = () => evaluate(`(() => {
     const existing = document.querySelector('.widget-board .bug-team');
     let probe;

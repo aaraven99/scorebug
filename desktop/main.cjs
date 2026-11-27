@@ -68,6 +68,7 @@ let boundsGuardTimer = null;
 let moveTimer = null;
 let nativeMoveInProgress = false;
 let moveReleasePending = false;
+let macManualMove = false;
 let quitting = false;
 let quitCleanupDone = false;
 let updates = null;
@@ -194,6 +195,7 @@ function setPreferences(patch) {
 }
 
 function finishMove({ snap = true } = {}) {
+  macManualMove = false;
   if (!widget || widget.isDestroyed() || applyingBounds || nativeMoveInProgress || preferences.locked) return;
   clearTimeout(moveTimer);
   moveReleasePending = false;
@@ -227,6 +229,7 @@ function watchMacDragRelease() {
     if (macMoveWatcher === watcher) macMoveWatcher = null;
     if (quitting || !widget || widget.isDestroyed()) return;
     nativeMoveInProgress = false;
+    macManualMove = false;
     // If the OS query fails, retain free placement. Never snap while a held
     // drag might still be in progress. The menu's explicit positions still work.
     if (success) finishNativeMove();
@@ -238,6 +241,7 @@ function watchMacDragRelease() {
 
 function finishNativeMove() {
   nativeMoveInProgress = false;
+  macManualMove = false;
   if (applyingBounds || !widget || widget.isDestroyed() || preferences.locked) return;
   moveReleasePending = true;
   clearTimeout(moveTimer);
@@ -624,14 +628,20 @@ function createWidget() {
     if (preferences.locked) event.preventDefault();
     else {
       if (process.platform === 'win32') nativeMoveInProgress = true;
-      if (process.platform === 'darwin') watchMacDragRelease();
+      if (process.platform === 'darwin') {
+        // Electron emits will-move only for manual movement. Keep a fallback
+        // for an unavailable helper, without treating Dock/Spaces moves as drags.
+        macManualMove = true;
+        watchMacDragRelease();
+      }
       closeDetails({ immediate: true });
     }
   });
   widget.on('move', () => {
-    // Windows also emits move while first showing or positioning the HWND.
-    // Only its explicit drag-release path may change the chosen anchor.
-    if (process.platform === 'win32' || applyingBounds || nativeMoveInProgress || moveReleasePending) return;
+    // Passive HWND, Dock and Spaces notifications must preserve the anchor.
+    // Mac manual drags normally finish through the physical-release helper;
+    // only a real will-move may enable its free-placement fallback below.
+    if (process.platform === 'win32' || (process.platform === 'darwin' && !macManualMove) || applyingBounds || nativeMoveInProgress || moveReleasePending) return;
     closeDetails({ immediate: true });
     clearTimeout(moveTimer);
     // Save free placement on other platforms. Windows snapping is deferred until
