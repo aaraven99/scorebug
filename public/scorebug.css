@@ -45,3 +45,25 @@
 .scorebug .bug-vertical-banner{font-size:13px;letter-spacing:-.4px}
 .scorebug .bug-vertical-banner--long{font-size:9px;letter-spacing:-.3px}
 @media(prefers-reduced-motion:reduce){.scorebug,.scorebug *{animation:none!important;transition:none!important}}
+
+/* Atlas variants keep their own broadcast geometry and upright typography.
+   Team marks retain original colors; statistical text is fitted to its cell. */
+.scorebug--variant text.variant-text{font-family:Arial,Helvetica,sans-serif;font-style:normal;font-weight:700;letter-spacing:0;paint-order:stroke fill;stroke:none}
+.scorebug--variant .variant-score{font-family:Arial,Helvetica,sans-serif;font-weight:900;letter-spacing:-1px}
+.scorebug--variant .variant-open-score{paint-order:stroke fill;stroke:#0004;stroke-width:1.2;filter:drop-shadow(0 1px 1px #0005)}
+.scorebug--variant .bug-team-panel{stroke-width:2;stroke-linejoin:round}
+.scorebug--variant .bug-situation-panel{stroke-width:1;stroke-linejoin:round}
+.scorebug--variant .bug-team-logo{filter:drop-shadow(0 .8px .8px #0005)}
+.scorebug--variant .bug-details-target:focus-visible .bug-hover-region{stroke:#fff2ac;stroke-width:2;stroke-dasharray:4 3}
+.scorebug--variant .variant-classification-row{pointer-events:none}
+.scorebug--family-blades .variant-score{font-family:"Scorebug Tomorrow",Arial,sans-serif!important;font-style:italic!important}
+.scorebug--family-minimal .variant-score{letter-spacing:-2px}
+.scorebug--variant[data-style-variant="classic"] text.variant-text{font-family:Arial,Helvetica,sans-serif;letter-spacing:.2px}
+.scorebug--variant[data-style-variant="nba-pods"] .variant-score,.scorebug--variant[data-style-variant="school"] .variant-score{font-stretch:condensed;letter-spacing:-1.5px}
+
+/* Keep same-color originals readable on every team panel. This overrides the
+   generic variant shadow without recoloring the source logo. */
+.scorebug--variant .bug-team-logo--contrast{filter:drop-shadow(.65px 0 .2px #fffe) drop-shadow(-.65px 0 .2px #fffe) drop-shadow(0 .65px .2px #fffe) drop-shadow(0 -.65px .2px #fffe) drop-shadow(0 1px 1px #0006)}
+@font-face{font-family:"Scorebug Condensed";src:url('/fonts/BarlowCondensed-Bold.ttf') format('truetype');font-style:normal;font-weight:700;font-display:swap}
+@font-face{font-family:"Scorebug Condensed";src:url('/fonts/BarlowCondensed-ExtraBold.ttf') format('truetype');font-style:normal;font-weight:800 900;font-display:swap}
+.scorebug--variant[data-style-variant="nba-pods"] .variant-score,.scorebug--variant[data-style-variant="large"] .variant-score,.scorebug--variant[data-style-variant="school"] .variant-score,.scorebug--variant[data-style-variant="college-dark"] .variant-score,.scorebug--variant[data-style-variant="cbb-center"] .variant-score,.scorebug--variant[data-style-variant="gridiron"] .variant-score,.scorebug--variant[data-style-variant="compact-pill"] .variant-score{font-family:"Scorebug Condensed",Arial,sans-serif;letter-spacing:0}

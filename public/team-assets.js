@@ -1,3 +1,4 @@
+import { MULTISPORT_LOGO_ARTWORK } from './team-logo-artwork.js';
 // The bundled originals and their sources are documented in docs/ASSETS.md.
 const NFL_TEAMS = new Set([
   'ARI', 'ATL', 'BAL', 'BUF', 'CAR', 'CHI', 'CIN', 'CLE',
@@ -45,6 +46,15 @@ const LOGO_ARTWORK = {
 };
 const CONTRAST_OUTLINE = new Set(['NYG', 'NYJ']);
 
+function usesNFLArtwork(team) {
+  if (team?.leagueId) return team.leagueId === 'nfl';
+  if (team?.sport && team.sport !== 'football') return false;
+  // Existing NFL snapshots predate league metadata. A non-NFL CDN path must
+  // still win over an overlapping abbreviation such as CHI, DAL or SF.
+  if (team?.logo && /\/teamlogos\/(?!nfl\/)/i.test(team.logo)) return false;
+  return true;
+}
+
 function teamAbbreviation(team) {
   const raw = String(team?.abbreviation || '').trim().toUpperCase();
   return ALIASES.get(raw) || raw;
@@ -53,11 +63,11 @@ function teamAbbreviation(team) {
 /** Original image geometry and selective contour separation for team panels. */
 export function teamLogoPresentation(team) {
   const abbreviation = teamAbbreviation(team);
-  const artwork = LOGO_ARTWORK[abbreviation];
+  const artwork = usesNFLArtwork(team) ? LOGO_ARTWORK[abbreviation] : MULTISPORT_LOGO_ARTWORK[`${team?.leagueId}:${String(team?.abbreviation || '').toUpperCase()}`];
   return {
     size: artwork?.size || [1, 1],
     bounds: artwork?.bounds || [0, 0, 1, 1],
-    outline: CONTRAST_OUTLINE.has(abbreviation),
+    outline: usesNFLArtwork(team) ? CONTRAST_OUTLINE.has(abbreviation) : Boolean(artwork),
   };
 }
 
@@ -65,10 +75,12 @@ export function teamLogoPresentation(team) {
 /** Prefer bundled team artwork so live scorebugs do not depend on image-CDN access. */
 export function localTeamLogo(team) {
   const abbreviation = teamAbbreviation(team);
-  if (NFL_TEAMS.has(abbreviation)) return `/logos/${abbreviation.toLowerCase()}.png`;
+  if (usesNFLArtwork(team) && NFL_TEAMS.has(abbreviation)) return `/logos/${abbreviation.toLowerCase()}.png`;
+  const bundled = MULTISPORT_LOGO_ARTWORK[`${team?.leagueId}:${String(team?.abbreviation || '').toUpperCase()}`];
+  if (bundled) return bundled.file;
   try {
     const url = new URL(String(team?.logo || ''));
-    if (url.protocol === 'https:' && !url.username && !url.password && /(^|\.)espncdn\.com$/i.test(url.hostname)) {
+    if (url.protocol === 'https:' && !url.username && !url.password && url.hostname === 'a.espncdn.com') {
       return url.href;
     }
   } catch {

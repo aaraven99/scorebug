@@ -3,6 +3,8 @@ import { initializePreferences, onPreferences, updatePreferences, isSupportedGam
 import { attachDetailsHover } from './details-hover.js';
 import { createGameActivity } from './game-activity.js';
 import { createScoreAnimations } from './score-animation.js';
+import { getLeague } from './sports.js';
+import { gameLabel } from './score-client.js';
 import { widgetPopupSize } from './widget-layout.js';
 
 const desktop = Boolean(window.scorebugDesktop);
@@ -39,15 +41,16 @@ const layoutButtons = ['horizontal', 'vertical'].map((orientation) => {
 });
 if (!desktop) toolbar.prepend(layoutControls);
 const board = document.createElement('div'); board.className = 'widget-board';
-const hint = document.createElement('span'); hint.className = 'widget-hint'; hint.textContent = 'SCOREBUG / LIVE NFL';
+const hint = document.createElement('span'); hint.className = 'widget-hint'; hint.textContent = 'SCOREBUG / LIVE SPORTS';
 root.append(toolbar, hint, board);
-function possessingSide() { const game = selectGame(snapshot.data?.games, preferences); return game?.possessionTeamId === game?.away.id ? 'away' : 'home'; }
+function possessingSide() { const game = selectGame(snapshot.data?.games, preferences); return ['race','leaderboard'].includes(game?.kind) ? 'comparison' : game?.possessionTeamId && game?.possessionTeamId === game?.away?.id ? 'away' : 'home'; }
 const detailsHover = attachDetailsHover(board, { native: desktop, defaultSide: possessingSide });
 const animations = createScoreAnimations(board);
-const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear() });
+const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear(), onDetails: () => render() });
 function updateActivity() { activity.setGame(selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt, { sourceId: snapshot.data?.sourceId, stale: snapshot.data?.stale, error: Boolean(snapshot.error) }); }
 let nativeDetailsSide = null;
-let nativeDetailsGameId;
+let nativeDetailsGameId, nativeDetailsLeagueId;
+let regionFrame = null;
 detailsButton.addEventListener('click', () => detailsHover.open());
 
 function render() {
@@ -57,31 +60,56 @@ function render() {
   layoutButtons.forEach((button, index) => button.setAttribute('aria-pressed', String((preferences.orientation === 'vertical') === Boolean(index))));
   const topAligned = desktop && preferences.contentAlignment === 'top';
   document.body.dataset.contentAlignment = topAligned ? 'top' : 'bottom';
-  const game = selectGame(snapshot.data?.games, preferences);
+  const game = activity.getDisplayGame(selectGame(snapshot.data?.games, preferences));
   const gameId = isSupportedGameId(game?.id) ? game.id : null;
-  if (desktop && gameId !== nativeDetailsGameId) {
-    nativeDetailsGameId = gameId;
-    window.scorebugDesktop.setDetailsGameId?.(gameId).catch(() => {
-      if (nativeDetailsGameId === gameId) nativeDetailsGameId = undefined;
-    });
+  if (desktop && (gameId !== nativeDetailsGameId || preferences.leagueId !== nativeDetailsLeagueId)) {
+    nativeDetailsGameId = gameId; nativeDetailsLeagueId = preferences.leagueId;
+    const task = window.scorebugDesktop.setDetailsContext
+      ? window.scorebugDesktop.setDetailsContext({gameId,leagueId:preferences.leagueId})
+      : window.scorebugDesktop.setDetailsGameId?.(gameId);
+    task?.catch(() => { if(nativeDetailsGameId===gameId)nativeDetailsGameId=undefined; });
   }
   if (game) {
-    const html = renderScorebug(game, { idPrefix: 'floating', orientation: preferences.orientation, statusPosition: topAligned ? 'below' : 'above', stale: feedIsStale(snapshot.data, Boolean(snapshot.error)) });
+    const html = renderScorebug(game, { idPrefix: 'floating', styleId: preferences.styleId, orientation: preferences.orientation, statusPosition: topAligned ? 'below' : 'above', stale: feedIsStale(snapshot.data, Boolean(snapshot.error)) || game.timingStale });
     if (rendered !== html) { board.innerHTML = html; rendered = html; }
     animations.attach(preferences.orientation);
     const side = possessingSide();
     if (desktop && side !== nativeDetailsSide) { nativeDetailsSide = side; window.scorebugDesktop.setDefaultDetailsSide?.(side); }
-    document.title = `${game.away.abbreviation} ${game.away.score ?? '–'} · ${game.home.abbreviation} ${game.home.score ?? '–'} — Scorebug`;
-    hint.textContent = `${game.away.abbreviation} @ ${game.home.abbreviation} / ${feedIsStale(snapshot.data, Boolean(snapshot.error)) ? 'FEED DELAYED' : snapshot.data?.feedStatus === 'backup' ? 'BACKUP FEED' : 'LIVE FEED'}`;
+    document.title = `${gameLabel(game)} — Scorebug`;
+    hint.textContent = `${game.away && game.home ? `${game.away.abbreviation} @ ${game.home.abbreviation}` : game.name || game.sessionName || 'Session'} / ${feedIsStale(snapshot.data, Boolean(snapshot.error)) || game.timingStale ? 'FEED DELAYED' : snapshot.data?.feedStatus === 'backup' ? 'BACKUP FEED' : 'LIVE FEED'}`;
   } else {
     rendered = '';
     const message = document.createElement('div'); message.className = `empty-scorebug${snapshot.error ? ' error' : ''}`;
-    message.textContent = snapshot.loading ? 'Connecting to the NFL feed…' : snapshot.error ? 'Feed unavailable · reconnecting…' : preferences.gameId ? 'Selected game unavailable' : 'No NFL games on this date';
+    message.textContent = snapshot.loading ? `Connecting to ${getLeague(preferences.leagueId)?.name || 'the feed'}…` : snapshot.error ? 'Feed unavailable · reconnecting…' : preferences.gameId ? 'Selected game unavailable' : 'No events on this date';
     const help = document.createElement('small'); help.textContent = 'Hover here for settings'; message.append(help); board.replaceChildren(message);
   }
+  syncNativeRegions();
 }
-const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (next) => { snapshot = next; render(); updateActivity(); } });
-onPreferences((next) => { const oldDate = preferences.date; preferences = next; if (oldDate !== next.date) poller.setDate(next.date); render(); updateActivity(); });
+function syncNativeRegions() {
+  if(!desktop || !window.scorebugDesktop.setDetailsRegions)return;
+  if(regionFrame!==null)cancelAnimationFrame(regionFrame);
+  regionFrame=requestAnimationFrame(()=>{
+    regionFrame=null;
+    const bounds=node=>{const r=node.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};};
+    const targets=[...board.querySelectorAll('.bug-details-target[data-details-side]')].slice(0,32).map(node=>({side:node.dataset.detailsSide,...bounds(node)}));
+    const panels={};
+    for(const side of ['away','home','comparison']){
+      const group=board.querySelector(`[data-team-side="${side}"]`);
+      const path=side==='comparison'?board.querySelector('.bug-situation-panel'):group?.querySelector('.bug-team-panel');
+      if(path){
+        const match=/^M([\d.-]+)\s+([\d.-]+)H([\d.-]+)L([\d.-]+)\s+([\d.-]+)H([\d.-]+)Z$/.exec(path.getAttribute('d')||'');
+        const matrix=path.getScreenCTM();
+        const points=match&&matrix?(()=>{const[,x1,y1,x2,x3,y3,x4]=match.map(Number);return [[x1,y1],[x2,y1],[x3,y3],[x4,y3]].map(([x,y])=>{const p=new DOMPoint(x,y).matrixTransform(matrix);return [p.x,p.y];});})():undefined;
+        panels[side]={...bounds(path),points,fill:group?.dataset.teamFill||path.getAttribute('fill'),border:group?.dataset.teamBorder||path.getAttribute('stroke'),ink:group?.dataset.teamInk};
+      }
+    }
+    const shapes=Object.values(panels), artwork=shapes.length?{x:Math.min(...shapes.map(r=>r.x)),y:Math.min(...shapes.map(r=>r.y)),width:Math.max(...shapes.map(r=>r.x+r.width))-Math.min(...shapes.map(r=>r.x)),height:Math.max(...shapes.map(r=>r.y+r.height))-Math.min(...shapes.map(r=>r.y))}:null;
+    window.scorebugDesktop.setDetailsRegions({targets,panels,board:artwork,styleId:preferences.styleId,legacyBlades:preferences.styleId==='nfl-blades'&&!board.querySelector('svg')?.classList.contains('scorebug--variant')}).catch(()=>{});
+  });
+}
+window.addEventListener('resize',syncNativeRegions);
+const poller = new ScoreboardPoller({ leagueId: preferences.leagueId, date: preferences.date, onUpdate: (next) => { snapshot = next; render(); updateActivity(); } });
+onPreferences((next) => { const old = preferences; preferences = next; if (old.date !== next.date || old.leagueId !== next.leagueId) poller.setContext({date:next.date,leagueId:next.leagueId}); render(); updateActivity(); });
 refresh.addEventListener('click', () => { poller.refresh(); activity.refresh(); });
 settings.addEventListener('click', () => {
   if (desktop) window.scorebugDesktop.openSettings();

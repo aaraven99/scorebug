@@ -1,3 +1,5 @@
+import { sportFor, formatPeriod } from './sports.js';
+import { statPriority } from './sport-stats.js';
 import { localTeamLogo } from './team-assets.js';
 
 export const escapeHTML = (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -24,8 +26,9 @@ export function latestPlayText(game, summary) {
 
 export function comparisonMarkup(game, insights, { compact = false } = {}) {
   const raw = list(insights?.rows);
-  const core = CORE_STATS.map((key) => raw.find((row) => row.key === key)).filter(Boolean);
-  const rows = compact ? core : [...core, ...raw.filter((row) => !CORE_STATS.includes(row.key))];
+  const priorities = statPriority(game);
+  const core = priorities.map((key) => raw.find((row) => row.key === key)).filter(Boolean);
+  const rows = compact ? [...core,...raw.filter(row=>!priorities.includes(row.key))].slice(0,sportFor(game)==='football'?6:8) : [...core, ...raw.filter((row) => !priorities.includes(row.key))];
   if (!rows.length) return '<p class="empty-note">Team comparisons appear when the feed reports game totals.</p>';
   return `<table class="comparison-table"><thead><tr><th scope="col">Stat</th><th scope="col">${teamLabel(game?.away)}</th><th scope="col" class="operator"><span class="sr-only">Comparison</span></th><th scope="col">${teamLabel(game?.home)}</th></tr></thead><tbody>${rows.map((row) => `<tr><th scope="row"${row.note ? ` title="${e(row.note)}"` : ''}>${e(row.label)}${row.direction === 'lower' ? '<span class="lower-note">fewer is better</span>' : ''}</th><td class="${row.betterSide === 'away' ? 'stat-better' : ''}">${shown(row.away)}</td><td class="operator" aria-label="${row.comparison === '>' ? 'greater than' : row.comparison === '<' ? 'less than' : row.comparison === '=' ? 'equal to' : 'not comparable'}">${shown(row.comparison)}</td><td class="${row.betterSide === 'home' ? 'stat-better' : ''}">${shown(row.home)}</td></tr>`).join('')}</tbody></table>`;
 }
@@ -35,7 +38,7 @@ function metricPair(game, metric, { probability = false } = {}) {
   const suffix = probability ? '%' : '';
   const away = Number(metric.away), home = Number(metric.home);
   if (![away, home].every(Number.isFinite)) return '<p class="metric-empty">Waiting for game data.</p>';
-  return `<div class="metric-pair"><span>${e(game?.away?.abbreviation || 'Away')} <strong>${away}${suffix}</strong></span><span><strong>${home}${suffix}</strong> ${e(game?.home?.abbreviation || 'Home')}</span></div><div class="metric-meter" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, away))}%"></span></div>`;
+  return `<div class="metric-pair"><span>${e(game?.away?.abbreviation || 'Away')} <strong>${away}${suffix}</strong></span><span><strong>${home}${suffix}</strong> ${e(game?.home?.abbreviation || 'Home')}</span>${Number.isFinite(metric.draw)?`<span class="draw-estimate">Draw <strong>${metric.draw}%</strong></span>`:''}</div><div class="metric-meter" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, away))}%"></span></div>`;
 }
 
 export function insightsMarkup(game, insights, { compact = false } = {}) {
@@ -48,11 +51,12 @@ export function insightsMarkup(game, insights, { compact = false } = {}) {
 
 export function quarterMarkup(game, summary) {
   const periods = list(summary?.quarterScores);
-  if (!periods.length) return '<p class="empty-note">Quarter scores have not been reported.</p>';
+  if (!periods.length) return '<p class="empty-note">Period scores have not been reported.</p>';
   return `<table class="quarter-table"><thead><tr><th scope="col"><span class="sr-only">Team</span></th>${periods.map((q) => `<th scope="col">${e(q.label)}</th>`).join('')}<th scope="col">Total</th></tr></thead><tbody>${['away', 'home'].map((side) => `<tr><th scope="row">${teamLabel(game?.[side])}</th>${periods.map((q) => `<td>${shown(q[side])}</td>`).join('')}<td><strong>${shown(game?.[side]?.score)}</strong></td></tr>`).join('')}</tbody></table>`;
 }
 
-export function periodClock(period, clock) {
+export function periodClock(period, clock, game) {
+  if(game) return [formatPeriod({...game,phase:'live',period}),clock].filter(Boolean).join(' · ');
   const p = Number(period);
   return [p > 4 ? (p === 5 ? 'OT' : `OT${p - 4}`) : p > 0 ? `Q${p}` : '', clock].filter(Boolean).join(' · ');
 }
@@ -65,7 +69,7 @@ export function playsMarkup(plays, game, { scoring = false } = {}) {
     const position = play.start?.downDistance ? [play.start.downDistance, play.start.fieldPosition].filter(Boolean).join(' · ') : play.start?.fieldPosition;
     const kind = playKind(play);
     const scores = play.scoringPlay && play.scores ? `${game?.away?.abbreviation || 'Away'} ${play.scores.away ?? '—'} – ${play.scores.home ?? '—'} ${game?.home?.abbreviation || 'Home'}` : '';
-    return `<li data-play-id="${e(play.id)}" class="${play.scoringPlay ? 'scoring-play' : play.isTurnover ? 'turnover-play' : ''}"><div class="play-meta"><span>${e(periodClock(play.period, play.clock))}${team ? ` · ${e(team.abbreviation)}` : ''}</span>${kind ? `<strong>${e(kind)}</strong>` : ''}</div>${position ? `<p class="play-position">${e(position)}</p>` : ''}<p>${e(play.text || 'Play details unavailable.')}</p>${scores ? `<div class="play-score">${e(scores)}</div>` : ''}</li>`;
+    return `<li data-play-id="${e(play.id)}" class="${play.scoringPlay ? 'scoring-play' : play.isTurnover ? 'turnover-play' : ''}"><div class="play-meta"><span>${e(periodClock(play.period, play.clock, game))}${team ? ` · ${e(team.abbreviation)}` : ''}</span>${kind ? `<strong>${e(kind)}</strong>` : ''}</div>${position ? `<p class="play-position">${e(position)}</p>` : ''}<p>${e(play.text || 'Play details unavailable.')}</p>${scores ? `<div class="play-score">${e(scores)}</div>` : ''}</li>`;
   }).join('')}</ol>`;
 }
 
@@ -93,7 +97,7 @@ export function gameInfoMarkup(game, summary) {
   const rawUnit = String(weather?.unit || '').replace(/^°/, '').toLowerCase();
   const unit = ['f', 'fahrenheit'].includes(rawUnit) ? '°F' : ['c', 'celsius'].includes(rawUnit) ? '°C' : weather?.unit ? ` ${weather.unit}` : ' (unit not supplied)';
   const rows = [
-    ['Kickoff', Number.isFinite(time.getTime()) ? time.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : null],
+    [sportFor(game)==='football'?'Kickoff':'Start', Number.isFinite(time.getTime()) ? time.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : null],
     ['Venue', [venue?.name || game?.venue, venue?.city, venue?.state].filter(Boolean).join(', ')],
     ['Broadcast', list(info.broadcasts).join(', ') || game?.broadcast],
     ['Season', [info.season?.year, info.season?.label, info.week ? `Week ${info.week}` : null].filter(Boolean).join(' · ')],

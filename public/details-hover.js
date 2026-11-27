@@ -1,6 +1,7 @@
 /** Joined team blades. Windows uses the same renderer in a transparent surface. */
 import { bladeOutline, BLADE_SIZE, COMPARISON_BLADE_SIZE, BLADE_OPEN_MS, BLADE_CLOSE_MS } from './details-blade.js';
 import { isSupportedGameId } from './score-client.js';
+import { normalizeLeague } from './sports.js';
 
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 let nextPanel = 0;
@@ -25,7 +26,7 @@ function teamAnchor(target, side) {
   const svg = path.closest('svg'), orientation = svg?.dataset.orientation === 'vertical' ? 'vertical' : 'horizontal';
   const points = pathCorners(path), strip = pathCorners(svg?.querySelector('.bug-situation-panel'));
   const matrix = svg?.getScreenCTM();
-  const statusEnd = orientation === 'horizontal' && svg?.dataset.statusPosition === 'below' && matrix
+  const statusEnd = (!svg?.dataset.styleId || svg.dataset.styleId === 'nfl-blades') && !svg?.classList.contains('scorebug--variant') && orientation === 'horizontal' && svg?.dataset.statusPosition === 'below' && matrix
     ? new DOMPoint(232, 162).matrixTransform(matrix) : null;
   // Reserve the full badge even while absent, so a delayed feed does not move
   // an open blade. Its narrow neck passes to the right before widening below.
@@ -37,11 +38,12 @@ function teamAnchor(target, side) {
     team, points, lowerEdge: strip ? [strip[3], strip[2]] : [points[3], points[2]],
     belowStatus, controlsBottom, orientation,
     gameId: isSupportedGameId(svg?.dataset.gameId) ? svg.dataset.gameId : null,
+    leagueId: normalizeLeague(svg?.dataset.leagueId),
     teamFill: solid(team?.dataset.teamFill || path.getAttribute('fill')),
     teamBorder: solid(team?.dataset.teamBorder || path.getAttribute('stroke')),
     teamInk: solid(team?.dataset.teamInk)
   };
-  if (comparison && matrix) {
+  if (comparison && matrix && (!svg?.dataset.styleId || svg.dataset.styleId === 'nfl-blades') && !svg?.classList.contains('scorebug--variant')) {
     const span = orientation === 'vertical' ? [22, 135] : [228, 358];
     const y = orientation === 'vertical' ? 2 : 4;
     result.upEdge = span.map((x) => new DOMPoint(x, y).matrixTransform(matrix));
@@ -123,6 +125,7 @@ export function placeDetailsBlade(anchor, side, viewport = { width: innerWidth, 
   const presentation = {
     side, direction, orientation: anchor.orientation,
     gameId: isSupportedGameId(anchor.gameId) ? anchor.gameId : null,
+    leagueId: normalizeLeague(anchor.leagueId),
     teamFill: anchor.teamFill, teamBorder: anchor.teamBorder, teamInk: anchor.teamInk,
     gradientX: source.x - x, gradientY: source.y - y, gradientWidth: source.width, gradientHeight: source.height
   };
