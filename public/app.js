@@ -106,7 +106,8 @@ function renderFavorites(){
     lastFavorites=encoded;const root=$('favorite-chips');root.replaceChildren();
     for(const item of favorites){
       const chip=document.createElement('span');chip.className='favorite-chip';
-      if(item.logo){const img=document.createElement('img');img.src=item.logo;img.alt='';img.addEventListener('error',()=>img.hidden=true,{once:true});chip.append(img);}
+      // Preserve the logo slot so Remove cannot move during a pointer gesture.
+      if(item.logo){const img=document.createElement('img');img.src=item.logo;img.alt='';img.addEventListener('error',()=>img.style.visibility='hidden',{once:true});chip.append(img);}
       chip.append(document.createTextNode(item.name||item.abbreviation||item.teamId));
       const small=document.createElement('small');small.textContent=getLeague(item.leagueId)?.name||item.leagueId;chip.append(small);
       const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',`Remove ${item.name||item.teamId} from favorites`);remove.addEventListener('click',()=>{updatePreferences({favorites:preferences.favorites.filter(v=>!(v.leagueId===item.leagueId&&v.teamId===item.teamId))});$('favorite-editor').querySelector('summary').focus({preventScroll:true});});chip.append(remove);root.append(chip);
