@@ -30,9 +30,11 @@ detailsButton.addEventListener('click', () => detailsHover.open());
 function render() {
   document.body.dataset.locked = String(Boolean(preferences.locked));
   document.body.dataset.orientation = preferences.orientation === 'vertical' ? 'vertical' : 'horizontal';
+  const topAligned = desktop && preferences.contentAlignment === 'top';
+  document.body.dataset.contentAlignment = topAligned ? 'top' : 'bottom';
   const game = selectGame(snapshot.data?.games, preferences);
   if (game) {
-    const html = renderScorebug(game, { idPrefix: 'floating', orientation: preferences.orientation, stale: feedIsStale(snapshot.data, Boolean(snapshot.error)) });
+    const html = renderScorebug(game, { idPrefix: 'floating', orientation: preferences.orientation, statusPosition: topAligned ? 'below' : 'above', stale: feedIsStale(snapshot.data, Boolean(snapshot.error)) });
     if (rendered !== html) { board.innerHTML = html; rendered = html; }
     animations.attach(preferences.orientation);
     const side = possessingSide();
