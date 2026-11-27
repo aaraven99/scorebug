@@ -1,6 +1,6 @@
 import { normalizePreferencePatch, normalizeFavorites, normalizeFavoriteStyleIds, supportedGameId, gameLeague, matchesFavorite, validLeagueId, leagueOfId, validDate } from './preferences-model.js';
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
-import { createPreferenceURLSync } from './preference-url.js';
+import { createPreferenceURLSync, URL_PREFERENCE_FIELDS } from './preference-url.js';
 import { saveUserState } from './user-state-storage.js';
 
 export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], favoriteStyleIds: Object.freeze([]), scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
@@ -20,7 +20,8 @@ let preferences = { ...DEFAULT_PREFERENCES };
 let channel;
 let favoriteStylesChannel;
 let preferencesInitialized = false;
-const preferenceURL = createPreferenceURLSync({readPreferences:()=>preferences});
+let migratePreferences = false;
+const preferenceURL = createPreferenceURLSync({readPreferences:()=>preferences,readSavedPreferences:confirmedSavedPreferences});
 globalThis.addEventListener?.('pagehide',()=>preferenceURL.pause());
 globalThis.addEventListener?.('pageshow',()=>{if(preferencesInitialized)preferenceURL.resume();});
 
@@ -127,7 +128,9 @@ try {
   // flag. Preserve that choice; only a new profile starts in automatic mode.
   if (saved.styleId && !Object.hasOwn(stored, 'styleAuto')) saved.styleAuto = false;
   preferences = { ...preferences, ...saved };
-  if (current === null) persistPreferences();
+  // Apply a usable explicit URL before creating a new shared record. Otherwise
+  // a leftover reload marker could mistake newly saved defaults for old choices.
+  if (current === null) migratePreferences = true;
 } catch { /* private browsing or corrupt storage */ }
 try {
   const saved = localStorage.getItem(FAVORITE_STYLES_KEY);
@@ -142,18 +145,31 @@ function sharedPreferencePatch(value) {
   const { favoriteStyleIds, ...shared } = normalizePreferencePatch(value);
   return shared;
 }
+function confirmedSavedPreferences() {
+  try {
+    const stored=JSON.parse(browserStorage()?.getItem(KEY)||'null');
+    if(!stored||typeof stored!=='object'||Array.isArray(stored))return null;
+    const clean=sharedPreferencePatch(stored);
+    // Missing or normalized-away query values cannot authorize ignoring a URL.
+    if(URL_PREFERENCE_FIELDS.some(field=>!Object.hasOwn(stored,field)||!Object.hasOwn(clean,field)||stored[field]!==clean[field]))return null;
+    return clean;
+  }catch{return null;}
+}
 function syncPreferenceURL() {
   if(preferencesInitialized)preferenceURL.sync();
 }
 function savePreferenceRecord(key,value){
-  try{saveUserState(localStorage,key,value);}catch{/* Storage may be blocked entirely. */}
+  try{return saveUserState(localStorage,key,value);}catch{return false;/* Storage may be blocked entirely. */}
 }
 function persistPreferences() {
+  let saved=false;
   try {
     const { favoriteStyleIds, ...shared } = preferences;
     const value = JSON.stringify(shared);
-    savePreferenceRecord(KEY,value);
+    saved=savePreferenceRecord(KEY,value);
   } catch { /* storage is optional */ }
+  preferenceURL.notePreferenceWrite(saved);
+  return saved;
 }
 function persistFavoriteStyles() {
   try {
@@ -210,6 +226,7 @@ export async function initializePreferences() {
     globalThis.scorebugDesktop.onPreferencesChanged?.(acceptPreferences);
   }
   const recoveringURL=preferenceURL.recoverReload();
+  if(recoveringURL)acceptPreferences(recoveringURL,{persist:false});
   const query = new URLSearchParams(recoveringURL?'':globalThis.location?.search || '');
   const patch = {};
   if (validLeagueId(query.get('league'))) patch.leagueId = query.get('league');
@@ -223,6 +240,7 @@ export async function initializePreferences() {
   if (patch.gameId) patch.leagueId ||= leagueOfId(patch.gameId);
   if (patch.leagueId && patch.leagueId !== preferences.leagueId && !Object.hasOwn(patch,'gameId')) patch.gameId = null;
   if (Object.keys(patch).length) acceptPreferences(patch);
+  if(migratePreferences){persistPreferences();migratePreferences=false;}
   preferencesInitialized = true;
   syncPreferenceURL();
   return getPreferences();

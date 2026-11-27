@@ -5,6 +5,7 @@ import { SCOREBUG_STYLES, defaultStyleForSport } from '../../public/scorebug-sty
 import { eventsForSport } from '../../public/sport-events.js';
 import { fixtureForLeague, scoreboardForLeague, detailsForGame, fallbackDirectory } from './fixtures.mjs';
 import { runExtraFlows } from './extra-flows.mjs';
+import { runDelayedReloadFlow } from './delayed-reload.mjs';
 import { observeBrowserErrors, finalizeBrowserErrors } from './browser-diagnostics.mjs';
 
 // Instrument only long-lived global targets. DOM listeners on replaced cards are
@@ -204,6 +205,11 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
     });
     result.extraFlows??=[];result.extraFlows.push({pass,...await runExtraFlows({page,context,net,pass,engine,check,equal,truth,prefs,waitBoard,screenshot,directories})});
     await context.close();
+
+    const delayed=await makeContext(),delayedPage=await delayed.context.newPage();activePage=delayedPage;
+    result.delayedReloads??=[];result.delayedReloads.push(await runDelayedReloadFlow({page:delayedPage,context:delayed.context,baseURL,pass,engine,check,equal,truth,prefs,waitBoard}));
+    result.network.push({pass,kind:'delayed-reload',requests:delayed.net.requests.length,maxActive:delayed.net.maxActive,teamMaxActive:delayed.net.teamMaxActive});
+    await delayed.context.close();
 
     const imageTest=await makeContext(),imagePage=await imageTest.context.newPage();activePage=imagePage;
     let imageMode='error';const imageGame=fixtureForLeague('epl',{directories}),imageURLs=new Set([imageGame.away.logo,imageGame.home.logo]);
