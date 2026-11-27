@@ -60,12 +60,22 @@ Verification and Windows packaging commands:
 npm test
 npm test --prefix desktop
 npm run build
+python scripts/test_package_windows_release.py
 # Run on Windows:
 npm run test:smoke --prefix desktop
 npm run dist:win --prefix desktop
+python scripts/package_windows_release.py
 ```
 
-The suites cover feed normalization, missing/malformed data, event deduplication and silent baselines, polling recovery, team hit areas, screen-edge snapping, and outward stats placement. Windows CI checks the actual native window, preload, positioning, team-stats IPC, and transparency before packaging. Workflow artifacts are retained for 30 days. Run **Build Windows desktop app** on `main` with its publish checkbox enabled, or push a matching version tag, to publish the verified downloads at a stable URL. Publication uses that run's exact commit and checks asset hashes before making the draft public; see [publishing a release](GITHUB-ACCESS.md#publish-a-new-download).
+The suites cover feed normalization, missing/malformed data, event deduplication and silent baselines, polling recovery, team hit areas, screen-edge snapping, outward stats placement, and the desktop update lifecycle. Release-package tests reject mismatched versions, external installer links, bad hashes, and broken blockmaps. Windows CI checks the actual native window, preload, positioning, team-stats IPC, and transparency before packaging. Workflow artifacts are retained for 30 days. Bump the matching package versions and merge to `main` to publish the verified downloads automatically. Publication uses that run's exact commit and checks asset hashes before making the draft public; see [publishing a release](GITHUB-ACCESS.md#publish-a-new-download).
+
+## Windows feature updates
+
+The installed Windows app uses `electron-updater` with releases from `aaraven99/scorebug`. It downloads new stable versions in the background and applies ready updates when the app quits. **Restart to update** applies one immediately. An offline check or failed download leaves the running scorebug intact.
+
+Automatic updates run only in the packaged Windows installer version. Development runs and portable copies do not install updates. The settings page explains how portable users can switch to the installer. Saved preferences use the same Scorebug user-data folder.
+
+Publishing must include `latest.yml`, its exact versioned NSIS installer, and the matching blockmap. The packager validates these before the release job makes them public. The app is unsigned; update integrity comes from the GitHub HTTPS feed and manifest hashes, without an Authenticode publisher guarantee.
 
 ### API and code map
 
