@@ -25,7 +25,7 @@ No PowerToys, Python, Node.js, or Vercel setup is needed. The app is unsigned.
 - **Click the gear** to choose a game or change the size.
 - **Right-click** for position, monitor, lock, and quit options.
 
-Scores update about every 10 seconds without reloading. The game clock shows the latest time from the feed. The computer needs to stay awake and online.
+Scores and stats check for updates about every 2 seconds without reloading. The game clock shows the latest time reported by the feed; the provider can still lag behind the game or your TV. The computer needs to stay awake and online. Ordinary browser tabs may slow down in the background; the Windows app keeps checking.
 
 If a feed fails, Scorebug switches to a backup automatically. If every feed is down, it keeps the last received score visible with a **FEED DELAYED** label and keeps trying.
 
