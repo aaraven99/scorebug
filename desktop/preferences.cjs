@@ -8,6 +8,21 @@ const STYLE_ID_PATTERN = /^[a-z][a-z0-9-]{0,79}$/;
 const TEAM_ID_PATTERN = /^(?:\d{1,15}|[a-z][a-z0-9.-]{0,39}:[a-zA-Z0-9_-]{1,48})$/;
 const LOCAL_LOGO_PATTERN = /^\/(?:assets\/teams|logos(?:\/[a-z0-9-]+)?)\/[a-z0-9-]+\.(?:svg|png)$/i;
 const LOGO_HOSTS = new Set(['a.espncdn.com']);
+let favoriteStyleCatalog = null;
+
+function setFavoriteStyleCatalog(styles) {
+  if (!Array.isArray(styles) || !styles.length || styles.some(style => typeof style?.id !== 'string' || !STYLE_ID_PATTERN.test(style.id))) throw new TypeError('Invalid scorebug style catalog');
+  favoriteStyleCatalog = new Set(styles.map(style => style.id));
+}
+
+function cleanFavoriteStyleIds(value) {
+  if (!Array.isArray(value)) throw new TypeError('Favorite scorebug styles must be a list');
+  if (!favoriteStyleCatalog) {
+    if (!value.length) return [];
+    throw new Error('Scorebug style catalog is not ready');
+  }
+  return [...new Set(value.filter(id => typeof id === 'string' && favoriteStyleCatalog.has(id)))];
+}
 
 function cleanLeague(value) {
   if (typeof value !== 'string' || !LEAGUE_ID_PATTERN.test(value)) throw new TypeError('Invalid league');
@@ -57,6 +72,7 @@ function cleanPatch(patch) {
     clean.styleId = patch.styleId;
   }
   if (Object.hasOwn(patch, 'favorites')) clean.favorites = cleanFavorites(patch.favorites);
+  if (Object.hasOwn(patch, 'favoriteStyleIds')) clean.favoriteStyleIds = cleanFavoriteStyleIds(patch.favoriteStyleIds);
   if (Object.hasOwn(patch, 'team')) {
     if (patch.team !== null && (typeof patch.team !== 'string' || !/^(?:[A-Z\d]{1,16}|[a-z][a-z0-9.-]{0,39}:[a-zA-Z0-9_-]{1,48})$/.test(patch.team))) throw new TypeError('Invalid team');
     clean.team = patch.team;
@@ -135,4 +151,4 @@ function cleanSavedPreferences(saved) {
   return clean;
 }
 
-module.exports = { cleanPatch, cleanSavedPreferences, cleanFavorites, cleanGameId, cleanLeague, cleanDetailsContext, cleanDetailsRegions };
+module.exports = { cleanPatch, cleanSavedPreferences, cleanFavorites, cleanFavoriteStyleIds, setFavoriteStyleCatalog, cleanGameId, cleanLeague, cleanDetailsContext, cleanDetailsRegions };

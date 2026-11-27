@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { cleanPatch, cleanSavedPreferences, cleanFavorites, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
+const { cleanPatch, cleanSavedPreferences, cleanFavorites, cleanFavoriteStyleIds, setFavoriteStyleCatalog, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
 const { detailsPlacement } = require('./geometry.cjs');
 
 test('cross-sport selections, style and favorites survive desktop validation without losing league identity', () => {
@@ -49,6 +49,27 @@ test('upgrading saved desktop styles preserves the choice without changing new-p
   for (const saved of [{},{scale:.8},{styleAuto:true},{styleAuto:false}]) assert.deepEqual(cleanSavedPreferences(saved), saved);
   assert.equal(({styleAuto:true,...cleanSavedPreferences({})}).styleAuto,true);
   assert.throws(()=>cleanSavedPreferences({styleId:'bad/style'}),/Invalid scorebug style/);
+});
+
+test('favorite styles validate against the shared catalog and survive native saved-setting round trips', async () => {
+  const { SCOREBUG_STYLES } = await import('../public/scorebug-styles.js');
+  const { normalizeFavoriteStyleIds } = await import('../public/preferences-model.js');
+  setFavoriteStyleCatalog(SCOREBUG_STYLES);
+  const all = SCOREBUG_STYLES.map(style => style.id);
+  assert.equal(all.length,83);
+  for (const input of [[], ['nfl-blades','nba-nbc-pods','nfl-blades','unknown',null,12], [...all,...all]]) {
+    assert.deepEqual(cleanFavoriteStyleIds(input),normalizeFavoriteStyleIds(input));
+    assert.ok(cleanFavoriteStyleIds(input).length<=all.length);
+  }
+  const patch={leagueId:'f1',gameId:'f1:123',styleId:'nfl-cbs-eyebar',styleAuto:false,racingRows:22,
+    favorites:[{leagueId:'nfl',teamId:'3',name:'Chicago Bears',abbreviation:'CHI'}],favoriteStyleIds:all};
+  const saved=JSON.parse(JSON.stringify(cleanPatch(patch)));
+  assert.deepEqual(cleanSavedPreferences(saved),patch);
+  const copied=cleanPatch(patch);copied.favoriteStyleIds.pop();
+  assert.equal(patch.favoriteStyleIds.length,all.length);
+  assert.deepEqual(cleanPatch({favoriteStyleIds:['unknown','../../private']}),{favoriteStyleIds:[]});
+  for (const invalid of [null,undefined,{},'nfl-blades',42]) assert.throws(()=>cleanPatch({favoriteStyleIds:invalid}),/must be a list/);
+  assert.deepEqual(cleanSavedPreferences({styleId:'nfl-blades',racingRows:22}),{styleId:'nfl-blades',racingRows:22,styleAuto:false},'old settings remain valid without style favorites');
 });
 
 test('desktop favorites reject mismatched namespaces and cap saved metadata', () => {

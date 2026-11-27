@@ -11,7 +11,7 @@ const { HoverIntent } = require('./hover.cjs');
 const { UpdateController } = require('./updates.cjs');
 const { DetailsLifecycle } = require('./details-lifecycle.cjs');
 const { FullscreenTransitions } = require('./fullscreen.cjs');
-const { cleanPatch, cleanSavedPreferences, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
+const { cleanPatch, cleanSavedPreferences, cleanDetailsContext, cleanDetailsRegions, setFavoriteStyleCatalog } = require('./preferences.cjs');
 
 const DEFAULTS = Object.freeze({
   gameId: null,
@@ -20,6 +20,7 @@ const DEFAULTS = Object.freeze({
   styleAuto: true,
   racingRows: 6,
   favorites: [],
+  favoriteStyleIds: [],
   team: null,
   date: null,
   scale: 1,
@@ -86,8 +87,8 @@ if (SMOKE_TEST) {
 if (process.platform === 'win32') app.setAppUserModelId('dev.aarav.scorebug');
 
 function publicPreferences() {
-  const { gameId, leagueId, styleId, styleAuto, racingRows, favorites, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
-  return { gameId, leagueId, styleId, styleAuto, racingRows, favorites: favorites.map((item) => ({ ...item })), team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
+  const { gameId, leagueId, styleId, styleAuto, racingRows, favorites, favoriteStyleIds, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
+  return { gameId, leagueId, styleId, styleAuto, racingRows, favorites: favorites.map((item) => ({ ...item })), favoriteStyleIds: [...favoriteStyleIds], team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
 }
 
 function orientationForAnchor(anchor) {
@@ -962,6 +963,9 @@ function showStartupError(error) {
 }
 
 async function start() {
+  const appRoot = app.isPackaged ? path.join(process.resourcesPath, 'scorebug') : path.resolve(__dirname, '..');
+  const { SCOREBUG_STYLES } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-styles.js')).href);
+  setFavoriteStyleCatalog(SCOREBUG_STYLES);
   readPreferences();
   updates = new UpdateController({
     currentVersion: app.getVersion(),
@@ -980,7 +984,6 @@ async function start() {
     onBeforeRestart: () => { quitting = true; },
     onRestartCancelled: () => { if (!quitCleanupDone) quitting = false; }
   });
-  const appRoot = app.isPackaged ? path.join(process.resourcesPath, 'scorebug') : path.resolve(__dirname, '..');
   ({ scorebugDimensions } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-layout.js')).href));
   ({ getLeague } = await import(pathToFileURL(path.join(appRoot, 'public', 'sports.js')).href));
   const { createScorebugServer } = await import(pathToFileURL(path.join(appRoot, 'server.mjs')).href);
