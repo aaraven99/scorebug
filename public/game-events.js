@@ -1,3 +1,4 @@
+import { supportedGameId } from './preferences-model.js';
 // Structured ESPN play evidence names an event; the primary scoreboard confirms
 // its points. In particular, a +6/+7/+2 delta alone never identifies a play type.
 const SCORE_TITLES = {
@@ -18,7 +19,7 @@ function eventPlayer(value, teamId) {
   let headshot = null;
   try {
     const url = new URL(value.headshot);
-    if (url.protocol === 'https:' && /(^|\.)espncdn\.com$/i.test(url.hostname) && !url.username && !url.password && !url.port && /^\/i\/headshots\/nfl\/players\//.test(url.pathname)) headshot = url.href;
+    if (url.protocol === 'https:' && /(^|\.)espncdn\.com$/i.test(url.hostname) && !url.username && !url.password && !url.port && /^\/i\/headshots\/(?:nfl|college-football)\/players\//.test(url.pathname)) headshot = url.href;
   } catch { /* A name without a photograph is still useful. */ }
   return { id: validId(value.id) ? value.id : null, name, headshot };
 }
@@ -96,7 +97,7 @@ function collectPlays(game, details) {
 
 /** A labeled demo may use this game's reported roster; callers gate freshness. */
 export function selectDemoPlayer(details, teamId, kind) {
-  if (!validId(details?.gameId) || !validId(teamId) || ![details.away?.id, details.home?.id].includes(teamId)) return null;
+  if (!supportedGameId(details?.gameId) || !supportedGameId(teamId) || ![details.away?.id, details.home?.id].includes(teamId)) return null;
   const categories = {
     touchdown: ['receiving', 'rushing'], 'field-goal': ['kicking'], 'extra-point': ['kicking'],
     'two-point': ['receiving', 'rushing'], 'big-play': ['receiving', 'rushing'],
@@ -179,7 +180,7 @@ export function createGameEventTracker({ maxEvents = 4, scoreFallbackDelayMs = 1
     };
   }
   function update({ game, details = null, contextKey = '', now = Date.now(), silent = false } = {}) {
-    if (!validId(game?.id) || !validId(game.away?.id) || !validId(game.home?.id) || game.away.id === game.home.id || !Number.isFinite(now)) { reset(); return []; }
+    if (!supportedGameId(game?.id) || !supportedGameId(game.away?.id) || !supportedGameId(game.home?.id) || game.away.id === game.home.id || !Number.isFinite(now)) { reset(); return []; }
     const nextContext = `${contextKey}:${game.id}:${game.away.id}:${game.home.id}`;
     const plays = collectPlays(game, details);
     if (context !== nextContext || lastUpdate === null || silent || now < lastUpdate || now - lastUpdate > resumeGapMs) { seed(game, plays, nextContext, now); return []; }

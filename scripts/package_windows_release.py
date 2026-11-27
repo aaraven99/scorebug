@@ -145,7 +145,8 @@ def package_release(input_dir, output, version):
 3. Open {portable.name}.
 
 Drag near a side edge and release for the vertical layout.
-Hover a team's colored panel for its stats. Use the gear to change games or size.
+Hover a logo or timeout area for team stats, or the center for a comparison.
+Use the gear to choose sports, favorites, a scorebug style or size.
 Right-click for position, monitor, lock, or quit.
 
 Scores update automatically while the computer is awake and online.
@@ -153,7 +154,7 @@ This portable copy needs a new download for feature updates.
 For automatic feature updates, quit this copy and install the Windows app once:
 https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe
 
-Your saved game and position carry over. No PowerToys, Node.js, Python,
+Your saved teams, style and position carry over. No PowerToys, Node.js, Python,
 or Vercel setup is needed. The app is unsigned.
 
 Latest download: https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Portable-Windows.zip

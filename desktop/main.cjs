@@ -5,13 +5,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
+const { spawn } = require('node:child_process');
 const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, contentAlignmentForAnchor, widgetSize, containsPoint, detailsPlacement, detailsWindowShape, teamAtPoint, hoverBridge } = require('./geometry.cjs');
 const { HoverIntent } = require('./hover.cjs');
 const { UpdateController } = require('./updates.cjs');
 const { DetailsLifecycle } = require('./details-lifecycle.cjs');
+const { FullscreenTransitions } = require('./fullscreen.cjs');
+const { cleanPatch, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
 
 const DEFAULTS = Object.freeze({
   gameId: null,
+  leagueId: 'nfl',
+  styleId: 'nfl-blades',
+  favorites: [],
   team: null,
   date: null,
   scale: 1,
@@ -24,18 +30,22 @@ const DEFAULTS = Object.freeze({
   bounds: null,
   displayId: null
 });
-const EXTERNAL_HOSTS = new Set(['github.com', 'www.espn.com', 'espn.com', 'vercel.com', 'learn.microsoft.com']);
-const SMOKE_TEST = !app.isPackaged && process.argv.includes('--smoke-test');
+const EXTERNAL_HOSTS = new Set(['github.com', 'www.espn.com', 'espn.com', 'vercel.com', 'learn.microsoft.com', 'support.apple.com']);
+const SMOKE_TEST = process.argv.includes('--smoke-test') && (!app.isPackaged || process.env.SCOREBUG_VERIFY_PACKAGE === '1');
 
 let widget = null;
 let settings = null;
 let gameCenter = null;
+let gameCenterFullscreen = null;
 let restoreWidgetAfterGameCenter = false;
 let details = null;
 let detailsSide = null;
 let detailsPresentation = null;
 // The visible widget owns hover context independently of Automatic preferences.
 let detailsGameId = null;
+let detailsLeagueId = 'nfl';
+let renderedDetailsLayout = null;
+let macMoveWatcher = null;
 let pendingDetails = null;
 let defaultDetailsSide = 'home';
 let detailsExplicit = false;
@@ -63,53 +73,17 @@ let smokeExitCode = 0;
 
 app.setName('Scorebug');
 if (SMOKE_TEST) {
+  // Hosted Intel Mac runners have no usable GPU. Keep real native windows and
+  // sandboxing, but use CPU compositing for their screenshot-based smoke run.
+  if (process.env.SCOREBUG_SMOKE_SOFTWARE_RENDERING === '1') app.disableHardwareAcceleration();
   const temporaryUserData = process.env.SCOREBUG_SMOKE_USER_DATA || fs.mkdtempSync(path.join(os.tmpdir(), 'scorebug-smoke-'));
   app.setPath('userData', temporaryUserData);
 }
 if (process.platform === 'win32') app.setAppUserModelId('dev.aarav.scorebug');
 
-function cleanPatch(patch) {
-  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new TypeError('Preferences must be an object');
-  const clean = {};
-  if (Object.hasOwn(patch, 'gameId')) {
-    if (patch.gameId !== null && (typeof patch.gameId !== 'string' || !/^(?:\d{1,15}|(?:thescore|fox)-\d{1,15})$/.test(patch.gameId))) {
-      throw new TypeError('Invalid game ID');
-    }
-    clean.gameId = patch.gameId;
-  }
-  if (Object.hasOwn(patch, 'team')) {
-    if (patch.team !== null && (typeof patch.team !== 'string' || !/^[A-Z]{2,4}$/.test(patch.team))) throw new TypeError('Invalid team');
-    clean.team = patch.team;
-  }
-  if (Object.hasOwn(patch, 'date')) {
-    if (patch.date !== null && (typeof patch.date !== 'string' || !/^\d{8}$/.test(patch.date))) throw new TypeError('Invalid date');
-    if (patch.date !== null) {
-      const iso = `${patch.date.slice(0, 4)}-${patch.date.slice(4, 6)}-${patch.date.slice(6, 8)}`;
-      const parsed = new Date(`${iso}T00:00:00Z`);
-      if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== iso) throw new TypeError('Invalid date');
-    }
-    clean.date = patch.date;
-  }
-  if (Object.hasOwn(patch, 'scale')) {
-    if (typeof patch.scale !== 'number' || !Number.isFinite(patch.scale)) throw new TypeError('Invalid size');
-    clean.scale = Math.min(1.8, Math.max(0.65, patch.scale));
-  }
-  if (Object.hasOwn(patch, 'anchor')) {
-    if (patch.anchor !== null && !ANCHORS.includes(patch.anchor)) throw new TypeError('Invalid position');
-    clean.anchor = patch.anchor;
-  }
-  for (const key of ['snapEnabled', 'locked', 'autoUpdates']) {
-    if (Object.hasOwn(patch, key)) {
-      if (typeof patch[key] !== 'boolean') throw new TypeError(`Invalid ${key}`);
-      clean[key] = patch[key];
-    }
-  }
-  return clean;
-}
-
 function publicPreferences() {
-  const { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
-  return { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
+  const { gameId, leagueId, styleId, favorites, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
+  return { gameId, leagueId, styleId, favorites: favorites.map((item) => ({ ...item })), team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
 }
 
 function orientationForAnchor(anchor) {
@@ -181,6 +155,7 @@ function placeWidget(forceDisplay) {
     : clampBounds({ ...(preferences.bounds || widget.getBounds()), ...size }, display.workArea);
   applyingBounds = true;
   clearTimeout(boundsGuardTimer);
+  if (bounds.width !== widget.getBounds().width || bounds.height !== widget.getBounds().height) renderedDetailsLayout = { targets: [], panels: {}, styleId: preferences.styleId };
   widget.setBounds(bounds, false);
   placeDetails();
   preferences.bounds = bounds;
@@ -192,7 +167,17 @@ function placeWidget(forceDisplay) {
 function setPreferences(patch) {
   const clean = cleanPatch(patch);
   const needsPosition = Object.hasOwn(clean, 'scale') || Object.hasOwn(clean, 'anchor');
+  const leagueChanged = clean.leagueId !== undefined && clean.leagueId !== preferences.leagueId;
+  const styleChanged = clean.styleId !== undefined && clean.styleId !== preferences.styleId;
   preferences = { ...preferences, ...clean };
+  if (leagueChanged) {
+    if (!Object.hasOwn(clean, 'gameId')) preferences.gameId = null;
+    if (!Object.hasOwn(clean, 'team')) preferences.team = null;
+    detailsGameId = null;
+    detailsLeagueId = preferences.leagueId;
+    closeDetails({ immediate: true });
+  }
+  if (leagueChanged || styleChanged) renderedDetailsLayout = { targets: [], panels: {}, styleId: preferences.styleId };
   if (Object.hasOwn(clean, 'autoUpdates')) updates?.setAutomaticUpdates(clean.autoUpdates);
   if (widget && !widget.isDestroyed()) {
     widget.setMovable(!preferences.locked);
@@ -216,6 +201,34 @@ function finishMove({ snap = true } = {}) {
   if (target || JSON.stringify(preferences.bounds) !== JSON.stringify(bounds)) placeWidget(display);
   savePreferences();
   publishPreferences();
+}
+
+function macDownloadURL() {
+  return `https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Mac-${process.arch === 'arm64' ? 'Apple-Silicon' : 'Intel'}.dmg`;
+}
+
+function watchMacDragRelease() {
+  if (macMoveWatcher || process.platform !== 'darwin' || applyingBounds) return;
+  const helper = app.isPackaged ? path.join(process.resourcesPath, 'mac-mouse-release') : path.join(__dirname, 'native', 'bin', 'mac-mouse-release');
+  if (!fs.existsSync(helper)) return;
+  nativeMoveInProgress = true;
+  clearTimeout(moveTimer);
+  const watcher = spawn(helper, [], { stdio: 'ignore', timeout: 120_000 });
+  macMoveWatcher = watcher;
+  let handled = false;
+  const finish = (success) => {
+    if (handled) return;
+    handled = true;
+    if (macMoveWatcher === watcher) macMoveWatcher = null;
+    if (quitting || !widget || widget.isDestroyed()) return;
+    nativeMoveInProgress = false;
+    // If the OS query fails, retain free placement. Never snap while a held
+    // drag might still be in progress. The menu's explicit positions still work.
+    if (success) finishNativeMove();
+    else finishMove({ snap: false });
+  };
+  watcher.once('error', () => finish(false));
+  watcher.once('exit', (code) => finish(code === 0));
 }
 
 function finishNativeMove() {
@@ -265,16 +278,36 @@ function publishDetailsSide() {
 
 function getDetailsPresentation() {
   if (!details || details.isDestroyed() || !detailsPresentation) return null;
-  return { ...detailsPresentation, gameId: detailsGameId, phase: detailsLifecycle.phaseFor(details) };
+  return { ...detailsPresentation, gameId: detailsGameId, leagueId: detailsLeagueId, styleId: preferences.styleId, phase: detailsLifecycle.phaseFor(details) };
+}
+
+function setDetailsContext(value) {
+  const context = cleanDetailsContext(value);
+  if (detailsGameId !== context.gameId || detailsLeagueId !== context.leagueId) {
+    detailsGameId = context.gameId;
+    detailsLeagueId = context.leagueId;
+    publishDetailsPresentation();
+  }
+  return context;
 }
 
 function setDetailsGameId(gameId) {
-  const clean = cleanPatch({ gameId });
-  if (detailsGameId !== clean.gameId) {
-    detailsGameId = clean.gameId;
-    publishDetailsPresentation();
-  }
-  return detailsGameId;
+  return setDetailsContext({ gameId, leagueId: typeof gameId === 'string' && gameId.includes(':') ? gameId.split(':')[0] : gameId === null ? preferences.leagueId : 'nfl' }).gameId;
+}
+
+function setDetailsRegions(value) {
+  if (!widget || widget.isDestroyed()) return;
+  const viewport = widget.getContentBounds();
+  // A measured frame can arrive after the OS has already resized the window.
+  // The next renderer resize frame replaces it; old dimensions are not trusted.
+  if (value?.viewport && (value.viewport.width !== viewport.width || value.viewport.height !== viewport.height)) return;
+  renderedDetailsLayout = cleanDetailsRegions(value, viewport);
+  placeDetails();
+}
+
+function placementOptions(side) {
+  return { side, orientation: preferences.orientation, contentAlignment: preferences.contentAlignment,
+    measuredLayout: renderedDetailsLayout?.legacyBlades === true ? null : renderedDetailsLayout };
 }
 
 function publishDetailsPresentation() {
@@ -288,7 +321,7 @@ function placeDetails() {
   if (!widget || widget.isDestroyed() || !details || details.isDestroyed()) return;
   const bounds = widget.getBounds();
   const area = screen.getDisplayMatching(bounds).workArea;
-  const placement = detailsPlacement(bounds, area, { side: detailsSide || defaultDetailsSide, orientation: preferences.orientation, contentAlignment: preferences.contentAlignment });
+  const placement = detailsPlacement(bounds, area, placementOptions(detailsSide || defaultDetailsSide));
   detailsPresentation = placement.presentation;
   details.setBounds(placement.bounds, false);
   applyDetailsShape(details, placement.presentation);
@@ -392,7 +425,7 @@ function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
   detailsSide = side;
   detailsExplicit = focus;
   const area = screen.getDisplayMatching(widget.getBounds()).workArea;
-  const placement = detailsPlacement(widget.getBounds(), area, { side, orientation: preferences.orientation, contentAlignment: preferences.contentAlignment });
+  const placement = detailsPlacement(widget.getBounds(), area, placementOptions(side));
   detailsPresentation = placement.presentation;
   const win = new BrowserWindow({
     ...placement.bounds,
@@ -418,6 +451,7 @@ function showDetails({ focus = false, side = defaultDetailsSide } = {}) {
   applyDetailsShape(win, placement.presentation);
   win.setMenu(null);
   win.setAlwaysOnTop(true, 'floating');
+  if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   secureWindow(win);
   win.once('ready-to-show', () => {
     if (details !== win || win.isDestroyed() || quitting || !widget || widget.isDestroyed() || nativeMoveInProgress) return;
@@ -458,7 +492,9 @@ function monitorHoverDetails() {
   const panel = details && !details.isDestroyed() ? details.getBounds() : null;
   updateDetailsInput(pointer, panel);
   const open = Boolean(panel);
-  const side = teamAtPoint(bounds, pointer, preferences.orientation, preferences.contentAlignment);
+  const localPoint = { x: pointer.x - bounds.x, y: pointer.y - bounds.y };
+  const side = renderedDetailsLayout ? renderedDetailsLayout.targets.find((region) => containsPoint(region, localPoint))?.side || null
+    : teamAtPoint(bounds, pointer, preferences.orientation, preferences.contentAlignment);
   const overDetails = containsPoint(panel, pointer);
   if (open && detailsLifecycle.phaseFor(details) === 'closing' && !blocked && !hoverIntent.dismissed && (side || overDetails)) {
     // Returning to the old team reverses the same CSS transition immediately.
@@ -583,6 +619,7 @@ function createWidget() {
     if (preferences.locked) event.preventDefault();
     else {
       if (process.platform === 'win32') nativeMoveInProgress = true;
+      if (process.platform === 'darwin') watchMacDragRelease();
       closeDetails({ immediate: true });
     }
   });
@@ -619,7 +656,7 @@ function createWidget() {
 
 function getGameCenterState() {
   const open = Boolean(gameCenter && !gameCenter.isDestroyed());
-  return { open, fullscreen: open && gameCenter.isFullScreen() };
+  return { open, fullscreen: open && Boolean(gameCenterFullscreen?.value) };
 }
 
 function publishGameCenterState() {
@@ -638,11 +675,7 @@ function restoreFloatingWidget() {
 function setGameCenterFullscreen(fullscreen) {
   if (typeof fullscreen !== 'boolean') throw new TypeError('Fullscreen must be true or false');
   if (!gameCenter || gameCenter.isDestroyed()) return getGameCenterState();
-  if (fullscreen && widget && !widget.isDestroyed() && widget.isVisible()) {
-    restoreWidgetAfterGameCenter = true;
-    widget.hide();
-  }
-  gameCenter.setFullScreen(fullscreen);
+  gameCenterFullscreen.request(fullscreen);
   return getGameCenterState();
 }
 
@@ -675,6 +708,13 @@ function openGameCenter() {
     webPreferences: webPreferences()
   });
   gameCenter = win;
+  gameCenterFullscreen = new FullscreenTransitions((fullscreen) => {
+    if (fullscreen && widget && !widget.isDestroyed() && widget.isVisible()) {
+      restoreWidgetAfterGameCenter = true;
+      widget.hide();
+    }
+    win.setFullScreen(fullscreen);
+  });
   win.setMenu(null);
   secureWindow(win);
   win.once('ready-to-show', () => {
@@ -685,6 +725,8 @@ function openGameCenter() {
     publishGameCenterState();
   });
   win.on('enter-full-screen', () => {
+    if (gameCenter !== win || win.isDestroyed()) return;
+    gameCenterFullscreen.settled(true);
     if (widget && !widget.isDestroyed() && widget.isVisible()) {
       restoreWidgetAfterGameCenter = true;
       widget.hide();
@@ -692,20 +734,25 @@ function openGameCenter() {
     closeDetails({ immediate: true });
     publishGameCenterState();
   });
-  win.on('leave-full-screen', () => { restoreFloatingWidget(); publishGameCenterState(); });
+  win.on('leave-full-screen', () => {
+    if (gameCenter !== win || win.isDestroyed()) return;
+    gameCenterFullscreen.settled(false);
+    if (!gameCenterFullscreen.target) restoreFloatingWidget();
+    publishGameCenterState();
+  });
   win.on('closed', () => {
-    if (gameCenter === win) gameCenter = null;
+    if (gameCenter === win) { gameCenter = null; gameCenterFullscreen = null; }
     restoreFloatingWidget();
     publishGameCenterState();
   });
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
-    if (input.key === 'Escape' && win.isFullScreen()) {
+    if (input.key === 'Escape' && (gameCenterFullscreen?.value || gameCenterFullscreen?.target)) {
       event.preventDefault();
       setGameCenterFullscreen(false);
     } else if (input.key === 'F11' && !input.isAutoRepeat) {
       event.preventDefault();
-      setGameCenterFullscreen(!win.isFullScreen());
+      setGameCenterFullscreen(!gameCenterFullscreen.target);
     }
   });
   win.loadURL(`${origin}/game.html?desktop=1`).catch((error) => {
@@ -754,6 +801,8 @@ function buildMenu() {
     else updateItem = { label: 'Check for updates', click: () => { void updates.checkForUpdates(); } };
   } else if (updateState?.mode === 'portable') {
     updateItem = { label: 'Get automatic updates', click: openSettings };
+  } else if (updateState?.mode === 'manual-mac') {
+    updateItem = { label: 'Download the latest Mac version', click: () => openAllowedExternal(macDownloadURL()) };
   }
   return Menu.buildFromTemplate([
     { label: `Scorebug ${app.getVersion()}`, enabled: false },
@@ -799,7 +848,7 @@ function buildMenu() {
       label: 'Snap near corners, sides & center',
       type: 'checkbox',
       checked: preferences.snapEnabled,
-      enabled: process.platform === 'win32',
+      enabled: process.platform === 'win32' || process.platform === 'darwin',
       click: (item) => setPreferences({ snapEnabled: item.checked })
     },
     { label: 'Lock position', type: 'checkbox', checked: preferences.locked, click: (item) => setPreferences({ locked: item.checked }) },
@@ -822,7 +871,8 @@ function updateTray() {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray.png'));
+  let icon = nativeImage.createFromPath(path.join(__dirname, 'assets', process.platform === 'darwin' ? 'trayTemplate.png' : 'tray.png'));
+  if (process.platform === 'darwin') { icon = icon.resize({ width: 18, height: 18 }); icon.setTemplateImage(true); }
   tray = new Tray(icon);
   tray.setToolTip('Scorebug — right-click for position, size and settings');
   tray.on('double-click', openSettings);
@@ -862,6 +912,7 @@ function installIpc() {
     detailsVisible: detailsVisible(),
     detailsSide,
     detailsGameId,
+    detailsLeagueId,
     detailsPresentation: getDetailsPresentation(),
     gameCenter: getGameCenterState(),
     platform: process.platform
@@ -875,6 +926,8 @@ function installIpc() {
   addHandler('scorebug:details:show', (side) => showDetails({ focus: true, side: side === undefined ? defaultDetailsSide : cleanDetailsSide(side) }));
   addHandler('scorebug:details:default-side', (side) => { defaultDetailsSide = cleanDetailsSide(side); }, { widgetOnly: true });
   addHandler('scorebug:details:game-id', setDetailsGameId, { widgetOnly: true });
+  addHandler('scorebug:details:context', setDetailsContext, { widgetOnly: true });
+  addHandler('scorebug:details:regions', setDetailsRegions, { widgetOnly: true });
   addHandler('scorebug:details:hide', () => { setTimeout(() => {
     if (detailsExplicit && details?.isFocused() && widget && !widget.isDestroyed()) widget.focus();
     closeDetails({ dismissed: true });
@@ -897,8 +950,9 @@ async function start() {
   readPreferences();
   updates = new UpdateController({
     currentVersion: app.getVersion(),
-    isPackaged: app.isPackaged,
+    isPackaged: app.isPackaged && !SMOKE_TEST,
     platform: process.platform,
+    arch: process.arch,
     portable: Boolean(process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR),
     automatic: preferences.autoUpdates,
     createUpdater: () => require('electron-updater').autoUpdater,
@@ -928,6 +982,12 @@ async function start() {
   installIpc();
   createWidget();
   createTray();
+  if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: 'Scorebug', submenu: [{ role: 'about' }, { label: 'Settings…', accelerator: 'Command+,', click: openSettings }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] },
+    { role: 'editMenu' },
+    { label: 'View', submenu: [{ label: 'Show Scorebug', click: showWidget }, { label: 'Full-screen game view', click: openGameCenter }] },
+    { role: 'windowMenu' }
+  ]));
   updates.start();
   detailsHoverTimer = setInterval(monitorHoverDetails, 100);
   screen.on('display-added', handleDisplayChange);
@@ -938,7 +998,7 @@ async function start() {
   savePreferences();
   if (SMOKE_TEST) {
     const { runNativeSmoke } = require('./smoke.cjs');
-    await runNativeSmoke({ widget, screen, origin, getSettings: () => settings, getDetails: () => details, getGameCenter: () => gameCenter, preferencesPath });
+    await runNativeSmoke({ widget, screen, origin, getSettings: () => settings, getDetails: () => details, getGameCenter: () => gameCenter, preferencesPath, packaged: app.isPackaged });
     app.quit();
   }
 }
@@ -953,6 +1013,8 @@ if (!app.requestSingleInstanceLock()) {
     if (quitCleanupDone) return;
     quitCleanupDone = true;
     updates?.stop();
+    macMoveWatcher?.kill();
+    macMoveWatcher = null;
     clearTimeout(moveTimer);
     clearTimeout(boundsGuardTimer);
     clearInterval(detailsHoverTimer);

@@ -9,4 +9,4 @@ await cp(new URL('public/', root), dist, { recursive: true });
 const analyticsEnabled = await addWebAnalytics(dist);
 console.log(`Built static app: ${fileURLToPath(dist)}`);
 console.log(`Web Analytics: ${analyticsEnabled ? 'production website only' : 'off for this local or preview build'}.`);
-console.log('Vercel deploys api/scoreboard.js and api/game.js as Node.js functions. No keys or environment variables required.');
+console.log('Vercel deploys the score, game and team API routes as Node.js functions. Public sports feeds need no key; optional OpenF1 live timing needs a configured account.');

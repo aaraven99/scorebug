@@ -1,13 +1,9 @@
+import { formatPeriod, getLeague } from './sports.js';
 import { localTeamLogo } from './team-assets.js';
 
 function periodText(game) {
-  const period = Number(game.period);
-  if (game.phase === 'halftime') return 'Halftime';
-  if (game.phase === 'intermission') return period > 4 ? 'End OT' : `End Q${period || '—'}`;
-  const quarter = period > 4 ? period === 5 ? 'OT' : `${period - 4}OT` : period ? `Q${period}` : 'Live';
-  return /^\d{1,2}:[0-5]\d$/.test(String(game.clock)) ? `${quarter} · ${game.clock}` : quarter;
+  return [formatPeriod(game), game.clock || null].filter(Boolean).join(' · ');
 }
-
 function setText(element, value) {
   const text = String(value ?? '—');
   if (element.textContent !== text) element.textContent = text;
@@ -19,6 +15,7 @@ export function createLiveGameList(root, { onChoose, onFocusedGameRemoved } = {}
   function createEntry() {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'live-game';
+    const race = document.createElement('span'); race.className = 'live-race-name'; race.hidden = true;
     const matchup = document.createElement('span'); matchup.className = 'live-matchup';
     const teams = ['away','home'].map((side) => {
       const team = document.createElement('span'); team.className = 'live-team'; team.dataset.side = side;
@@ -30,13 +27,13 @@ export function createLiveGameList(root, { onChoose, onFocusedGameRemoved } = {}
       return { side, logo, name, score };
     });
     const clock = document.createElement('span'); clock.className = 'live-game-clock';
-    button.append(matchup,clock);
-    const entry = { button, teams, clock, game:null, ids:[] };
+    button.append(race,matchup,clock);
+    const entry = { button, teams, clock, race, matchup, game:null, ids:[] };
     button.addEventListener('click', () => { if (entry.game) onChoose?.(entry.game); });
     return entry;
   }
   return {
-    render(games, { selectedId = null, delayed = false } = {}) {
+    render(games, { selectedId = null, delayed = false, showLeague = false } = {}) {
       const used = new Set(), next = [], focused = document.activeElement;
       for (const game of games) {
         const ids = [game.id,...(Array.isArray(game.idAliases) ? game.idAliases : [])];
@@ -44,14 +41,20 @@ export function createLiveGameList(root, { onChoose, onFocusedGameRemoved } = {}
         used.add(entry); next.push(entry); entry.game = game; entry.ids = ids;
         entry.button.dataset.gameId = game.id;
         entry.button.setAttribute('aria-pressed',String(game.id === selectedId));
-        entry.button.setAttribute('aria-label',`Watch ${game.away.name || game.away.abbreviation} at ${game.home.name || game.home.abbreviation}, ${game.away.score ?? '—'} to ${game.home.score ?? '—'}, ${periodText(game)}${delayed ? ', feed delayed' : ''}`);
-        for (const item of entry.teams) {
+        const race = ['race','leaderboard'].includes(game.kind);
+        entry.race.hidden = !race; entry.matchup.hidden = race;
+        entry.button.classList.toggle('live-game-race',race);
+        const league = showLeague ? `${getLeague(game.leagueId)?.name || game.leagueId} · ` : '';
+        const isDelayed = delayed || game.favoriteFeedDelayed;
+        if (race) { setText(entry.race,game.name || game.sessionName || 'Event'); entry.button.setAttribute('aria-label',`Watch ${game.name || game.sessionName}, ${periodText(game)}${isDelayed ? ', feed delayed' : ''}`); }
+        else entry.button.setAttribute('aria-label',`Watch ${game.away.name || game.away.abbreviation} at ${game.home.name || game.home.abbreviation}, ${game.away.score ?? '—'} to ${game.home.score ?? '—'}, ${periodText(game)}${isDelayed ? ', feed delayed' : ''}`);
+        for (const item of race ? [] : entry.teams) {
           const team = game[item.side], logo = localTeamLogo(team);
           if (logo && item.logo.getAttribute('src') !== logo) { item.logo.src = logo; item.logo.hidden = false; }
           if (!logo) { item.logo.removeAttribute('src'); item.logo.hidden = true; }
           setText(item.name,team.abbreviation); setText(item.score,team.score);
         }
-        setText(entry.clock,periodText(game));
+        setText(entry.clock,`${league}${periodText(game)}${isDelayed ? ' · delayed' : ''}`);
       }
       for (const entry of entries) if (!used.has(entry)) entry.button.remove();
       next.forEach((entry,index) => {

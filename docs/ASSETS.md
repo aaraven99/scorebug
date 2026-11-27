@@ -69,3 +69,125 @@ This is an approximation of the supplied broadcast reference. An exact font matc
 The code recreates the user's supplied classic broadcast scorebug reference, with team-color gradients, thin silver-gray bevels around the graphic's panels, and a transparent exterior. The centered game clock, reported ball yard line, labeled timeout counts, and larger football possession symbol are rendered directly in SVG. There is no unsupported play-clock field. The left-center and right-center native positions use a vertical adaptation of that layout. Compact team-specific stats extensions inherit each team's color and show reported field-position and play text.
 
 No FOX wordmark or other broadcaster identity is included. The layout does not represent an official FOX widget or data service.
+
+
+## Additional sports, version 2.0
+
+The 107 bundled NBA, WNBA, MLB and NHL PNGs below are unmodified originals retrieved from ESPN team metadata. Their visible alpha bounds are measured in `public/team-logo-artwork.js` so marks with different transparent padding stay centered. Namespaces keep matching abbreviations in different leagues separate. Other competitions use the provider's original HTTPS logo when available and a team abbreviation otherwise. Team marks belong to their respective owners.
+
+| League | Team | Source |
+| --- | --- | --- |
+| MLB | Arizona Diamondbacks | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/ari.png) |
+| MLB | Athletics | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/ath.png) |
+| MLB | Atlanta Braves | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/atl.png) |
+| MLB | Baltimore Orioles | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/bal.png) |
+| MLB | Boston Red Sox | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/bos.png) |
+| MLB | Chicago Cubs | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/chc.png) |
+| MLB | Chicago White Sox | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/chw.png) |
+| MLB | Cincinnati Reds | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/cin.png) |
+| MLB | Cleveland Guardians | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/cle.png) |
+| MLB | Colorado Rockies | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/col.png) |
+| MLB | Detroit Tigers | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/det.png) |
+| MLB | Houston Astros | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/hou.png) |
+| MLB | Kansas City Royals | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/kc.png) |
+| MLB | Los Angeles Angels | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/laa.png) |
+| MLB | Los Angeles Dodgers | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/lad.png) |
+| MLB | Miami Marlins | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/mia.png) |
+| MLB | Milwaukee Brewers | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/mil.png) |
+| MLB | Minnesota Twins | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/min.png) |
+| MLB | New York Mets | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/nym.png) |
+| MLB | New York Yankees | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/nyy.png) |
+| MLB | Philadelphia Phillies | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/phi.png) |
+| MLB | Pittsburgh Pirates | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/pit.png) |
+| MLB | San Diego Padres | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/sd.png) |
+| MLB | Seattle Mariners | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/sea.png) |
+| MLB | San Francisco Giants | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/sf.png) |
+| MLB | St. Louis Cardinals | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/stl.png) |
+| MLB | Tampa Bay Rays | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/tb.png) |
+| MLB | Texas Rangers | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/tex.png) |
+| MLB | Toronto Blue Jays | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/tor.png) |
+| MLB | Washington Nationals | [Original PNG](https://a.espncdn.com/i/teamlogos/mlb/500/wsh.png) |
+| NBA | Atlanta Hawks | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/atl.png) |
+| NBA | Brooklyn Nets | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/bkn.png) |
+| NBA | Boston Celtics | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/bos.png) |
+| NBA | Charlotte Hornets | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/cha.png) |
+| NBA | Chicago Bulls | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/chi.png) |
+| NBA | Cleveland Cavaliers | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/cle.png) |
+| NBA | Dallas Mavericks | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/dal.png) |
+| NBA | Denver Nuggets | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/den.png) |
+| NBA | Detroit Pistons | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/det.png) |
+| NBA | Golden State Warriors | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/gs.png) |
+| NBA | Houston Rockets | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/hou.png) |
+| NBA | Indiana Pacers | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/ind.png) |
+| NBA | LA Clippers | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/lac.png) |
+| NBA | Los Angeles Lakers | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/lal.png) |
+| NBA | Memphis Grizzlies | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/mem.png) |
+| NBA | Miami Heat | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/mia.png) |
+| NBA | Milwaukee Bucks | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/mil.png) |
+| NBA | Minnesota Timberwolves | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/min.png) |
+| NBA | New Orleans Pelicans | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/no.png) |
+| NBA | New York Knicks | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/ny.png) |
+| NBA | Oklahoma City Thunder | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/okc.png) |
+| NBA | Orlando Magic | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/orl.png) |
+| NBA | Philadelphia 76ers | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/phi.png) |
+| NBA | Phoenix Suns | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/phx.png) |
+| NBA | Portland Trail Blazers | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/por.png) |
+| NBA | San Antonio Spurs | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/sa.png) |
+| NBA | Sacramento Kings | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/sac.png) |
+| NBA | Toronto Raptors | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/tor.png) |
+| NBA | Utah Jazz | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/utah.png) |
+| NBA | Washington Wizards | [Original PNG](https://a.espncdn.com/i/teamlogos/nba/500/wsh.png) |
+| NHL | Anaheim Ducks | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/ana.png) |
+| NHL | Boston Bruins | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/bos.png) |
+| NHL | Buffalo Sabres | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/buf.png) |
+| NHL | Carolina Hurricanes | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/car.png) |
+| NHL | Columbus Blue Jackets | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/cbj.png) |
+| NHL | Calgary Flames | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/cgy.png) |
+| NHL | Chicago Blackhawks | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/chi.png) |
+| NHL | Colorado Avalanche | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/col.png) |
+| NHL | Dallas Stars | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/dal.png) |
+| NHL | Detroit Red Wings | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/det.png) |
+| NHL | Edmonton Oilers | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/edm.png) |
+| NHL | Florida Panthers | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/fla.png) |
+| NHL | Los Angeles Kings | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/la.png) |
+| NHL | Minnesota Wild | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/min.png) |
+| NHL | Montreal Canadiens | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/mtl.png) |
+| NHL | New Jersey Devils | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/nj.png) |
+| NHL | Nashville Predators | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/nsh.png) |
+| NHL | New York Islanders | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/nyi.png) |
+| NHL | New York Rangers | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/nyr.png) |
+| NHL | Ottawa Senators | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/ott.png) |
+| NHL | Philadelphia Flyers | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/phi.png) |
+| NHL | Pittsburgh Penguins | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/pit.png) |
+| NHL | Seattle Kraken | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/sea.png) |
+| NHL | San Jose Sharks | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/sj.png) |
+| NHL | St. Louis Blues | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/stl.png) |
+| NHL | Tampa Bay Lightning | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/tb.png) |
+| NHL | Toronto Maple Leafs | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/tor.png) |
+| NHL | Utah Mammoth | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/utah.png) |
+| NHL | Vancouver Canucks | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/van.png) |
+| NHL | Vegas Golden Knights | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/vgk.png) |
+| NHL | Winnipeg Jets | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/wpg.png) |
+| NHL | Washington Capitals | [Original PNG](https://a.espncdn.com/i/teamlogos/nhl/500/wsh.png) |
+| WNBA | Atlanta Dream | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/atl.png) |
+| WNBA | Connecticut Sun | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/con.png) |
+| WNBA | Chicago Sky | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/chi.png) |
+| WNBA | Dallas Wings | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/dal.png) |
+| WNBA | Golden State Valkyries | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/gs.png) |
+| WNBA | Indiana Fever | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/ind.png) |
+| WNBA | Los Angeles Sparks | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/la.png) |
+| WNBA | Las Vegas Aces | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/lv.png) |
+| WNBA | Minnesota Lynx | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/min.png) |
+| WNBA | New York Liberty | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/ny.png) |
+| WNBA | Phoenix Mercury | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/phx.png) |
+| WNBA | Portland Fire | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/por.png) |
+| WNBA | Seattle Storm | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/sea.png) |
+| WNBA | Toronto Tempo | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/tor.png) |
+| WNBA | Washington Mystics | [Original PNG](https://a.espncdn.com/i/teamlogos/wnba/500/wsh.png) |
+
+### Additional broadcast typography
+
+Barlow Condensed Bold and ExtraBold, by Jeremy Tribby and the Barlow Project Authors, are bundled under the SIL Open Font License. They give selected tall-number packages a compact upright score face. These are visual approximations; no broadcaster's proprietary typeface is claimed.
+
+- [Official Google Fonts source](https://github.com/google/fonts/tree/main/ofl/barlowcondensed)
+- Local license: `public/fonts/BarlowCondensed-OFL.txt`

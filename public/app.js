@@ -1,274 +1,248 @@
 import { renderScorebug } from './scorebug.js';
-import { referenceGame } from './fixtures.js';
+import { SCOREBUG_STYLES, getScorebugStyle, defaultStyleForSport, styleDescription } from './scorebug-styles.js';
+import { referenceForLeague } from './sport-fixtures.js';
+import { LEAGUES, getLeague, normalizeLeague, sportFor } from './sports.js';
+import { normalizeFavorites, gameLeague } from './preferences-model.js';
 import { localTeamLogo } from './team-assets.js';
 import { attachDetailsHover } from './details-hover.js';
 import { createGameActivity } from './game-activity.js';
 import { createScoreAnimations } from './score-animation.js';
-import { selectDemoPlayer } from './game-events.js';
+import { eventsForSport, selectSportDemoPlayer } from './sport-events.js';
 import { mountDesktopUpdates } from './desktop-updates.js';
 import { createLiveGameList } from './live-games.js';
+import { createFavoritesFeed } from './favorites.js';
 import { widgetPopupSize } from './widget-layout.js';
-import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, activeGames, ScoreboardPoller, feedIsStale, checkedAgo } from './score-client.js';
+import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, activeGames, ScoreboardPoller, feedIsStale, checkedAgo, gameLabel } from './score-client.js';
 
-const $ = (id) => document.getElementById(id);
+const $ = id => document.getElementById(id);
 const desktop = Boolean(window.scorebugDesktop);
 let preferences = await initializePreferences();
-let snapshot = { data: null, error: null, loading: true };
-let currentSnapshot = snapshot, datedSnapshot = snapshot;
-let reference = false;
-let demoReference = false, demoSequence = 0, previewContext = null;
-let pipWindow = null;
-let toastTimer;
-let renderedSvg = '';
-const animations = createScoreAnimations($('scorebug-preview'));
-const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear() });
-function updateActivity() { activity.setGame(reference ? null : selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt, { sourceId: snapshot.data?.sourceId, stale: snapshot.data?.stale, error: Boolean(snapshot.error) }); }
-function floatingSize() { return widgetPopupSize(preferences); }
-function resizeFloatingWindow() {
-  if (!pipWindow || pipWindow.closed) return;
-  try { const size = floatingSize(); pipWindow.resizeTo(size.width, size.height); } catch { /* The browser may constrain PiP size. */ }
-}
-
-function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 6500); }
-function formatKickoff(value) { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date) : ''; }
-function phaseLabel(game) { return game?.isLive ? 'LIVE' : ({ halftime: 'HALFTIME', intermission: 'BREAK', final: 'FINAL', scheduled: 'UPCOMING', delayed: 'DELAYED', postponed: 'POSTPONED', suspended: 'SUSPENDED', canceled: 'CANCELED' }[game?.phase] || 'NFL'); }
-function label(id, value) { if ($(id).textContent !== value) $(id).textContent = value; }
-function changeSelection(patch) {
-  reference = false; demoReference = false; animations.clearDemo();
-  const url = new URL(location.href);
-  if (Object.hasOwn(patch,'gameId')) { if (patch.gameId) url.searchParams.set('game',patch.gameId); else url.searchParams.delete('game'); }
-  if (Object.hasOwn(patch,'date')) { if (patch.date) url.searchParams.set('date',patch.date); else url.searchParams.delete('date'); }
+if (!getLeague(preferences.leagueId)) preferences = await updatePreferences({leagueId:'nfl',gameId:null});
+let snapshot = {data:null,error:null,loading:true}, currentSnapshot=snapshot, datedSnapshot=snapshot;
+let reference=false, demoReference=false, demoSequence=0, previewContext=null, pipWindow=null, toastTimer, renderedSvg='', lastFavorites='', galleryKey='';
+let directory=[], directoryController=null, directoryLeague=null, directoryError=null, directoryLoading=false;
+const directories=new Map();
+const animations=createScoreAnimations($('scorebug-preview'));
+const activity=createGameActivity({onEvents:(events,game)=>animations.enqueue(events,game),onReset:()=>animations.clear(),onDetails:()=>{renderPreview();renderHealth();}});
+const league=()=>getLeague(preferences.leagueId)||getLeague('nfl');
+const sampleGame=()=>referenceForLeague(preferences.leagueId,directoryLeague===preferences.leagueId?directory:[]);
+const label=(id,value)=>{if($(id).textContent!==value)$(id).textContent=value;};
+const race=game=>['race','leaderboard'].includes(game?.kind);
+const titleOf=game=>race(game)?game.name||game.sessionName||'Event':`${game?.away?.name||'Away'} at ${game?.home?.name||'Home'}`;
+const shortTitle=game=>race(game)?game.name||game.sessionName||'Event':`${game?.away?.abbreviation||'Away'} at ${game?.home?.abbreviation||'Home'}`;
+function toast(message){label('toast',message);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,6500);}
+function phaseLabel(game){return game?.isLive?'LIVE':({halftime:'HALFTIME',intermission:'BREAK',final:'FINAL',scheduled:'UPCOMING',delayed:'DELAYED',postponed:'POSTPONED',suspended:'SUSPENDED',canceled:'CANCELED'}[game?.phase]||league().name);}
+function updateActivity(){activity.setGame(reference?null:selectGame(snapshot.data?.games,preferences),preferences.date||'current',snapshot.data?.fetchedAt,{sourceId:snapshot.data?.sourceId,stale:snapshot.data?.stale,error:Boolean(snapshot.error)});}
+function floatingSize(){return widgetPopupSize(preferences);}
+function resizeFloatingWindow(){if(!pipWindow||pipWindow.closed)return;try{const size=floatingSize();pipWindow.resizeTo(size.width,size.height);}catch{}}
+function styleMatches(style,sport){return style.sport===sport||({NFL:'football',NBA:'basketball',MLB:'baseball',NHL:'hockey',F1:'racing',Soccer:'soccer','Formula 1':'racing','College football':'football','College basketball':'basketball',Tennis:'tennis',Cricket:'cricket',Rugby:'rugby',Golf:'golf',Volleyball:'volleyball'})[style.sport]===sport;}
+function defaultStyle(leagueId){const sport=getLeague(leagueId)?.sport;return defaultStyleForSport(sport);}
+function changeSelection(patch){
+  reference=false;demoReference=false;animations.clearDemo();
+  if(patch.leagueId && patch.leagueId!==preferences.leagueId){patch={gameId:null,date:null,styleId:defaultStyle(patch.leagueId),...patch};previewDetails.close({immediate:true});}
+  const url=new URL(location.href);
+  for(const [key,param] of [['gameId','game'],['date','date'],['leagueId','league']])if(Object.hasOwn(patch,key)){if(patch[key])url.searchParams.set(param,patch[key]);else url.searchParams.delete(param);}
   url.searchParams.delete('team');
-  try { history.replaceState(null,'',url); } catch { /* Preferences still work when history is unavailable. */ }
+  try{history.replaceState(null,'',url);}catch{}
   return updatePreferences(patch);
 }
-const liveList = createLiveGameList($('live-games'), {
-  onChoose: (game) => changeSelection({gameId:game.id,date:null}),
-  onFocusedGameRemoved: () => $('other-games').querySelector('summary').focus({preventScroll:true}),
-});
-function renderLiveGames() {
-  const games = activeGames(currentSnapshot.data?.games);
-  const delayed = Boolean(currentSnapshot.error || (currentSnapshot.data && feedIsStale(currentSnapshot.data)));
-  const selected = preferences.gameId || !preferences.date ? selectGame(currentSnapshot.data?.games,preferences) : null;
-  liveList.render(games,{selectedId:selected?.id,delayed});
-  label('live-games-count',currentSnapshot.data ? `${games.length} ${games.length===1?'game':'games'}` : '');
-  let message;
-  if (!currentSnapshot.data) message = currentSnapshot.error ? 'Unable to check live games. Reconnecting…' : 'Looking for live games…';
-  else if (delayed) message = games.length ? 'Live feed delayed. Showing the last received matchups while we reconnect.' : 'Live feed delayed. No active games in the last update.';
-  else message = games.length ? 'Choose a matchup to keep watching it.' : 'No NFL games are live right now. Open Other games for upcoming games and results.';
-  label('live-games-message',message);
-  $('live-games-message').className = `live-games-message${delayed?' delayed':''}`;
-  const automatic = !preferences.gameId && !preferences.date;
-  $('follow-live').setAttribute('aria-pressed',String(automatic));
-  const pinned = preferences.gameId ? selectGame(snapshot.data?.games,preferences) : null;
-  label('selection-mode',automatic ? 'Automatic follows an active game. Choose a matchup to pin it.'
-    : pinned ? `Pinned to ${pinned.away.abbreviation} at ${pinned.home.abbreviation}. Choose Automatic to follow live games again.`
-      : preferences.gameId ? 'Your selected game stays pinned. Choose Automatic to follow live games again.'
-        : 'Browsing a date. Live now still shows the current games.');
-}
-function renderDemoControls(game, sample) {
-  const teamSelect = $('demo-team'), status = $('demo-status');
-  if (!teamSelect || !status) return;
-  const matchup = game || referenceGame;
-  for (const option of teamSelect.options) {
-    const side = option.value === 'home' ? 'home' : 'away';
-    option.textContent = `${side === 'away' ? 'Away' : 'Home'} · ${matchup[side].abbreviation}`;
-  }
-  status.textContent = `Preview only — live scores stay unchanged.${sample || !game ? ' Sample matchup: SF at KC.' : ''}`;
-}
-function renderHealth() {
-  renderLiveGames();
-  const stale = snapshot.data && feedIsStale(snapshot.data, Boolean(snapshot.error));
-  $('checked-at').textContent = snapshot.error || stale ? `Reconnecting · ${checkedAgo(snapshot.data).toLowerCase()}`
-    : snapshot.data?.feedStatus === 'backup' ? `Backup feed · ${checkedAgo(snapshot.data).toLowerCase()}` : checkedAgo(snapshot.data);
-  const dot = $('feed-health').querySelector('.health-dot');
-  dot.className = `health-dot${snapshot.error || stale ? ' error' : snapshot.data ? '' : ' pending'}`;
-  if (stale) renderPreview();
-}
-function renderPreview() {
-  const selected = selectGame(snapshot.data?.games, preferences);
-  if (selected) demoReference = false;
-  const sample = reference || demoReference;
-  const game = sample ? referenceGame : selected;
-  const nextContext = `${sample ? 'sample' : 'live'}:${game?.id || 'none'}:${preferences.date || 'current'}`;
-  if (nextContext !== previewContext) { previewContext = nextContext; animations.clearDemo(); }
-  const root = $('scorebug-preview');
-  if (game) {
-    const html = renderScorebug(game, { idPrefix: 'preview', orientation: preferences.orientation, demo: sample, stale: !sample && feedIsStale(snapshot.data, Boolean(snapshot.error)) });
-    if (html !== renderedSvg) { root.innerHTML = html; renderedSvg = html; }
-    animations.attach(preferences.orientation);
-    $('game-title').textContent = sample ? 'Sample matchup: San Francisco at Kansas City' : `${game.away.name} at ${game.home.name}`;
-    $('phase-badge').textContent = sample ? 'SAMPLE' : phaseLabel(game);
-    $('phase-badge').className = `status-pill${!sample && game.isLive ? ' live' : ''}${!sample && feedIsStale(snapshot.data, Boolean(snapshot.error)) ? ' error' : ''}`;
-  } else {
-    renderedSvg = '';
-    const label = snapshot.loading ? 'Connecting to the NFL feed' : snapshot.error ? 'Unable to reach the score feed' : preferences.gameId ? 'This game is not in the selected schedule' : 'No NFL games for this date';
-    root.replaceChildren();
-    const message = document.createElement('div'); message.className = `empty-scorebug${snapshot.error ? ' error' : ''}`; message.textContent = label; root.append(message);
-    $('game-title').textContent = snapshot.loading ? 'Finding your game…' : 'Choose a game above';
-    $('phase-badge').textContent = snapshot.error ? 'OFFLINE' : snapshot.loading ? 'CONNECTING' : 'NO GAME';
-    $('phase-badge').className = `status-pill${snapshot.error ? ' error' : ''}`;
-  }
-  $('preview-caption').textContent = sample ? 'Sample matchup · preview only' : 'Hover a logo or timeout marks for team stats; hover the clock to compare.';
-  $('reference-note').hidden = !sample;
-  $('reference-toggle').setAttribute('aria-pressed', String(sample));
-  $('reference-toggle').textContent = sample ? 'Back to live game' : 'Sample matchup';
-  renderDemoControls(game, sample);
-}
-function renderGames() {
-  const games = snapshot.data?.games || [];
-  const current = selectGame(games, preferences);
-  const select = $('game-select');
-  const options = new Map([...select.options].map((option) => [option.value,option]));
-  const desired = games.length ? games.map((game) => {
-    const scores = game.state !== 'pre' ? `  ${game.away.score ?? '–'} – ${game.home.score ?? '–'}` : '';
-    return [game.id,`${game.away.abbreviation} @ ${game.home.abbreviation}${scores} · ${phaseLabel(game)}`];
-  }) : [['',snapshot.loading ? 'Loading games…' : 'No games available — try another date']];
-  for (const [index,[value,text]] of desired.entries()) {
-    const option = options.get(value) || new Option(text,value);
-    if (option.text !== text) option.text = text;
-    if (select.options[index] !== option) select.insertBefore(option,select.options[index] || null);
-    options.delete(value);
-  }
-  for (const option of options.values()) option.remove();
-  select.disabled = !games.length;
-  select.value = current?.id || '';
-  $('games-count').textContent = games.length ? `${games.length} GAME${games.length === 1 ? '' : 'S'}` : 'NFL';
-  const delayed = snapshot.data && feedIsStale(snapshot.data, Boolean(snapshot.error));
-  $('feed-error').hidden = !snapshot.error && !delayed;
-  $('feed-error').textContent = snapshot.error || delayed ? 'Reconnecting automatically. The last received score stays visible and is marked as delayed.' : '';
-  const teams = $('match-teams'); teams.replaceChildren();
-  if (current) {
-    for (const [index, team] of [current.away, current.home].entries()) {
-      if (index) { const versus = document.createElement('span'); versus.className = 'versus'; versus.textContent = 'AT'; teams.append(versus); }
-      const el = document.createElement('span'); el.className = 'team';
-      const teamLogo = localTeamLogo(team);
-      if (teamLogo) { const logo = document.createElement('img'); logo.src = teamLogo; logo.alt = ''; logo.width = 31; logo.height = 31; logo.addEventListener('error', () => logo.hidden = true, { once: true }); el.append(logo); }
-      el.append(document.createTextNode(team.abbreviation)); teams.append(el);
+const chooseGame=game=>changeSelection({leagueId:gameLeague(game),gameId:game.id,date:null});
+const liveList=createLiveGameList($('live-games'),{onChoose:chooseGame,onFocusedGameRemoved:()=>$('other-games').querySelector('summary').focus({preventScroll:true})});
+const favoriteList=createLiveGameList($('favorite-games'),{onChoose:chooseGame,onFocusedGameRemoved:()=>$('favorite-editor').querySelector('summary').focus({preventScroll:true})});
+const favoritesFeed=createFavoritesFeed({onUpdate:()=>renderFavorites()});
+function renderFavorites(){
+  const favorites=normalizeFavorites(preferences.favorites), encoded=JSON.stringify(favorites);
+  if(encoded!==lastFavorites){
+    lastFavorites=encoded;const root=$('favorite-chips');root.replaceChildren();
+    for(const item of favorites){
+      const chip=document.createElement('span');chip.className='favorite-chip';
+      if(item.logo){const img=document.createElement('img');img.src=item.logo;img.alt='';img.addEventListener('error',()=>img.hidden=true,{once:true});chip.append(img);}
+      chip.append(document.createTextNode(item.name||item.abbreviation||item.teamId));
+      const small=document.createElement('small');small.textContent=getLeague(item.leagueId)?.name||item.leagueId;chip.append(small);
+      const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label',`Remove ${item.name||item.teamId} from favorites`);remove.addEventListener('click',()=>{updatePreferences({favorites:preferences.favorites.filter(v=>!(v.leagueId===item.leagueId&&v.teamId===item.teamId))});$('favorite-editor').querySelector('summary').focus({preventScroll:true});});chip.append(remove);root.append(chip);
     }
-    $('match-meta').textContent = [formatKickoff(current.startTime), current.broadcast, current.venue].filter(Boolean).join(' · ');
-    $('last-play').textContent = current.lastPlay || (current.state === 'pre' ? 'The scorebug will update automatically when the game starts.' : current.status || 'Waiting for the next play.');
-    document.title = `${current.away.abbreviation} ${current.away.score ?? '–'} · ${current.home.abbreviation} ${current.home.score ?? '–'} — Scorebug`;
-  } else {
-    const label = document.createElement('span'); label.className = 'placeholder-label'; label.textContent = 'Choose a game or use Automatic.'; teams.append(label);
-    $('match-meta').textContent = 'Choose a game or a different date.';
-    $('last-play').textContent = snapshot.loading ? 'Waiting for the feed…' : 'No play information available.';
   }
+  const {games,unavailable,pending}=favoritesFeed.result();
+  favoriteList.render(games,{selectedId:preferences.gameId,showLeague:true});
+  label('favorites-count',favorites.length?`${games.length} playing now`:'');
+  label('favorites-message',!favorites.length?'Add your teams for a shortcut when they’re playing.':games.length?'Your live favorites. These games also remain in their league’s Live now list.':pending?'Checking your favorite teams…':unavailable?'Some favorite feeds are delayed. Reconnecting automatically.':'None of your favorites are playing live right now.');
 }
-function renderPreferences() {
-  const scale = Number(preferences.scale) || 1;
-  $('size-range').value = String(scale); $('size-value').textContent = `${Math.round(scale * 100)}%`;
-  const vertical = preferences.orientation === 'vertical';
-  for (const button of $('browser-layout-controls').querySelectorAll('button[data-orientation]')) button.setAttribute('aria-pressed', String(button.dataset.orientation === (vertical ? 'vertical' : 'horizontal')));
-  $('scorebug-preview').style.width = `${(vertical ? 144 : 520) * scale}px`;
-  $('preview-stage').dataset.orientation = vertical ? 'vertical' : 'horizontal';
-  $('date-input').value = preferences.date ? `${preferences.date.slice(0, 4)}-${preferences.date.slice(4, 6)}-${preferences.date.slice(6, 8)}` : '';
-  $('snap-checkbox').checked = preferences.snapEnabled !== false; $('lock-checkbox').checked = Boolean(preferences.locked);
-  for (const button of $('anchor-grid').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.anchor === preferences.anchor));
+function renderDirectory(){
+  const query=$('favorite-search').value.trim().toLowerCase();
+  const shown=directory.filter(team=>`${team.name} ${team.abbreviation}`.toLowerCase().includes(query));
+  const select=$('favorite-team-select'),old=select.value;select.replaceChildren(new Option(directoryLoading?'Loading teams…':directoryError?'Team list unavailable':shown.length?'Choose a team or competitor':'No matching teams',''));
+  for(const team of shown.slice(0,500))select.add(new Option(team.name||team.abbreviation,team.id));
+  if([...select.options].some(option=>option.value===old))select.value=old;
+  select.disabled=directoryLoading||!shown.length;
+  $('add-favorite').disabled=select.disabled||!select.value;
+  label('favorite-directory-status',directoryError?'Could not load the team list. Open this section again to retry. Live games remain available.':directoryLoading?'Loading this league’s teams…':directory.length?`${getLeague(directoryLeague)?.name||''} · ${directory.length} teams or competitors. Favorites are saved on this device.`:'This feed has not supplied a team or competitor directory yet.');
 }
-function renderSelectedFeed(state) { snapshot = state; renderPreview(); renderGames(); renderHealth(); updateActivity(); }
-// The current feed is shared by Live now and the normal preview. Only date
-// browsing needs a second poller; returning to Automatic stops that one.
-const poller = new ScoreboardPoller({ date: null, onUpdate: (state) => {
-  currentSnapshot = state;
-  if (!preferences.date) renderSelectedFeed(state); else renderLiveGames();
-} });
-const datedPoller = new ScoreboardPoller({ date: preferences.date, onUpdate: (state) => {
-  datedSnapshot = state;
-  if (preferences.date) renderSelectedFeed(state);
-} });
-onPreferences((next) => {
-  const oldDate = preferences.date;
-  const sizeChanged = preferences.orientation !== next.orientation || preferences.scale !== next.scale;
-  if (oldDate !== next.date || preferences.gameId !== next.gameId || preferences.team !== next.team) { demoReference = false; animations.clearDemo(); }
-  preferences = next;
-  if (oldDate !== next.date) {
-    if (next.date) {
-      snapshot = datedPoller.date === next.date ? datedSnapshot : {data:null,error:null,loading:true};
-      datedPoller.setDate(next.date); datedPoller.start();
-    } else { datedPoller.stop(); snapshot = currentSnapshot; }
-    $('other-games').open = Boolean(next.date);
+async function loadDirectory(){
+  const id=preferences.leagueId;
+  directoryController?.abort();directoryLeague=id;directoryError=null;
+  if(directories.has(id)){directory=directories.get(id);directoryLoading=false;renderDirectory();return;}
+  directory=[];directoryLoading=true;renderDirectory();
+  const controller=new AbortController();directoryController=controller;const timer=setTimeout(()=>controller.abort(),10000);
+  try{
+    const response=await fetch(`/api/teams?league=${encodeURIComponent(id)}`,{signal:controller.signal,headers:{Accept:'application/json'}});
+    const body=await response.json();if(!response.ok||!Array.isArray(body.teams))throw new Error('Directory unavailable');
+    if(id!==preferences.leagueId||directoryController!==controller)return;
+    directory=body.teams.filter(team=>team&&typeof team.id==='string'&&typeof team.name==='string').slice(0,2000);
+    directories.set(id,directory);
+  }catch(error){if(id===preferences.leagueId&&directoryController===controller)directoryError=error;}
+  finally{clearTimeout(timer);if(directoryController===controller){directoryLoading=false;renderDirectory();if(reference||demoReference)renderPreview();galleryKey='';renderStyleGallery();}}
+}
+function renderLiveGames(){
+  const games=activeGames(currentSnapshot.data?.games),delayed=Boolean(currentSnapshot.error||(currentSnapshot.data&&feedIsStale(currentSnapshot.data)));
+  const selected=preferences.gameId||!preferences.date?selectGame(currentSnapshot.data?.games,preferences):null;
+  liveList.render(games,{selectedId:selected?.id,delayed});
+  label('live-games-count',currentSnapshot.data?`${games.length} ${league().kind==='match'?(games.length===1?'game':'games'):(games.length===1?'session':'sessions')}`:'');
+  label('live-games-message',!currentSnapshot.data?currentSnapshot.error?'Unable to check live events. Reconnecting…':'Looking for live events…':delayed?'Feed delayed. Showing the last received events while we reconnect.':games.length?`Live in ${league().name}. Choose an event to keep watching it.`:`No ${league().name} events are live right now. Open Other games for the schedule and results.`);
+  $('live-games-message').className=`live-games-message${delayed?' delayed':''}`;
+  const automatic=!preferences.gameId&&!preferences.date,pinned=preferences.gameId?selectGame(snapshot.data?.games,preferences):null;
+  $('follow-live').setAttribute('aria-pressed',String(automatic));
+  label('selection-mode',automatic?'Automatic follows a live favorite in this league first, then another active game.':pinned?`Pinned to ${shortTitle(pinned)}. Choose Automatic to follow live games again.`:preferences.gameId?'Your selected event stays pinned. Choose Automatic to follow live games again.':'Browsing a date. Live now still shows the current events.');
+  favoritesFeed.sync(preferences,currentSnapshot);renderFavorites();
+}
+let demoSport=null,demoGame=null;
+function renderDemoControls(game,sample){
+  const matchup=game||sampleGame(),sport=sportFor(matchup),select=$('demo-team');
+  const key=`${matchup.id}:${(matchup.entries||[]).map(entry=>entry.id).join(',')}`;
+  if(demoGame!==key){const old=select.value;select.replaceChildren();if(race(matchup)){for(const entry of (matchup.entries||[]).slice(0,24))select.add(new Option(entry.athlete?.name||entry.name||entry.team?.name||'Competitor',entry.id||entry.athlete?.id||entry.team?.id));if(!select.options.length)select.add(new Option('Session','session'));}else{for(const side of ['away','home'])select.add(new Option(`${side==='away'?'Away':'Home'} · ${matchup[side].abbreviation}`,side));}if([...select.options].some(o=>o.value===old))select.value=old;demoGame=key;}
+  if(demoSport!==sport){const control=$('demo-event');control.replaceChildren();for(const spec of eventsForSport(sport))control.add(new Option(spec.title.toLowerCase().replace(/^./,v=>v.toUpperCase()),spec.kind));demoSport=sport;}
+  label('demo-status',`Preview only — live scores stay unchanged.${sample||!game?' Sample data is being shown.':''}`);
+}
+function coverageText(){
+  const data=snapshot.data;
+  const active=activity.getDisplayGame(selectGame(data?.games,preferences));
+  const coverage=active?.coverage||data?.coverage;
+  if(typeof coverage==='string')return coverage;
+  const note=coverage?.note||coverage?.message||coverage?.description||data?.coverageNote;
+  if(note)return `${active?.timingStale?'Timing delayed. ':''}${String(note)}`;
+  if(league().id==='f1')return 'Practice, qualifying, sprint and race sessions are listed when scheduled. Public timing may be delayed; gaps, tyres and flags appear only when reported. Genuine live OpenF1 timing requires a configured paid account.';
+  return '';
+}
+function renderHealth(){
+  const stale=snapshot.data&&feedIsStale(snapshot.data,Boolean(snapshot.error));
+  label('checked-at',snapshot.error||stale?`Reconnecting · ${checkedAgo(snapshot.data).toLowerCase()}`:snapshot.data?.feedStatus==='backup'?`Backup feed · ${checkedAgo(snapshot.data).toLowerCase()}`:checkedAgo(snapshot.data));
+  $('feed-health').querySelector('.health-dot').className=`health-dot${snapshot.error||stale?' error':snapshot.data?'':' pending'}`;
+  label('coverage-note',coverageText());
+  if(stale)renderPreview();
+}
+function renderPreview(){
+  const selected=selectGame(snapshot.data?.games,preferences);if(selected)demoReference=false;
+  const sample=reference||demoReference,game=sample?sampleGame():activity.getDisplayGame(selected);
+  const context=`${sample?'sample':'live'}:${game?.id||'none'}:${preferences.date||'current'}:${preferences.styleId}`;
+  if(context!==previewContext){previewContext=context;animations.clearDemo();}
+  const root=$('scorebug-preview');
+  if(game){
+    const html=renderScorebug(game,{idPrefix:'preview',styleId:preferences.styleId,orientation:preferences.orientation,demo:sample,stale:!sample&&(feedIsStale(snapshot.data,Boolean(snapshot.error))||game.timingStale)});
+    if(html!==renderedSvg){root.innerHTML=html;renderedSvg=html;}animations.attach(preferences.orientation);
+    label('game-title',`${sample?'Sample: ':''}${titleOf(game)}`);label('phase-badge',sample?'SAMPLE':phaseLabel(game));
+    $('phase-badge').className=`status-pill${!sample&&game.isLive?' live':''}${!sample&&feedIsStale(snapshot.data,Boolean(snapshot.error))?' error':''}`;
+  }else{
+    renderedSvg='';root.replaceChildren();const node=document.createElement('div');node.className=`empty-scorebug${snapshot.error?' error':''}`;node.textContent=snapshot.loading?`Connecting to ${league().name}`:snapshot.error?'Unable to reach the score feed':preferences.gameId?'This event is not in the selected schedule':`No ${league().name} events for this date`;root.append(node);
+    label('game-title',snapshot.loading?'Finding your game…':'Choose an event above');label('phase-badge',snapshot.error?'OFFLINE':snapshot.loading?'CONNECTING':'NO EVENT');$('phase-badge').className=`status-pill${snapshot.error?' error':''}`;
   }
-  renderPreferences(); renderPreview(); renderGames(); renderLiveGames(); updateActivity();
-  if (sizeChanged) resizeFloatingWindow();
-});
-
-$('follow-live').addEventListener('click', () => changeSelection({gameId:null,date:null}));
-$('game-select').addEventListener('change', (event) => changeSelection({ gameId: event.target.value || null }));
-$('date-input').addEventListener('change', (event) => changeSelection({ date: event.target.value.replaceAll('-', '') || null, gameId: null }));
-$('week-button').addEventListener('click', () => changeSelection({ date: null, gameId: null }));
-$('size-range').addEventListener('input', (event) => {
-  const scale = Number(event.target.value);
-  updatePreferences({ scale });
-});
-$('browser-layout-controls').addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-orientation]');
-  if (desktop || !button) return;
-  previewDetails.close();
-  updatePreferences({ orientation: button.dataset.orientation === 'vertical' ? 'vertical' : 'horizontal' });
-});
-const previewDetails = attachDetailsHover($('scorebug-preview'), { enabled: () => !reference && !demoReference });
-$('reference-toggle').addEventListener('click', () => {
-  reference = !(reference || demoReference); demoReference = false;
-  animations.clearDemo(); previewDetails.close(); renderPreview(); updateActivity();
-});
-const DEMO_EVENTS = {
-  touchdown: { title: 'TOUCHDOWN', points: 6 },
-  'field-goal': { title: 'FIELD GOAL', points: 3 },
-  safety: { title: 'SAFETY', points: 2 },
-  'extra-point': { title: 'EXTRA POINT', points: 1 },
-  'two-point': { title: 'TWO-POINT CONVERSION', points: 2 },
-  interception: { title: 'INTERCEPTION', points: null },
-  fumble: { title: 'FUMBLE RECOVERED', points: null },
-  'big-play': { title: 'BIG PLAY', points: null, yardsGained: 25 },
-  score: { title: 'SCORE UPDATE', points: 3 },
-};
-$('demo-play')?.addEventListener('click', () => {
-  const selected = selectGame(snapshot.data?.games, preferences);
-  if (!selected && !reference) demoReference = true;
-  renderPreview(); previewDetails.close();
-  const game = reference || demoReference ? referenceGame : selected;
-  const side = $('demo-team')?.value === 'home' ? 'home' : 'away';
-  const kind = Object.hasOwn(DEMO_EVENTS, $('demo-event')?.value) ? $('demo-event').value : 'touchdown';
-  const details = activity.getDetails();
-  const event = { id: `demo:${++demoSequence}`, gameId: game.id, kind, teamId: game[side].id,
-    detail: 'Animation preview only.', playId: null, period: null, clock: null, yardsGained: null,
-    player: details?.gameId === game.id ? selectDemoPlayer(details, game[side].id, kind) : null,
-    ...DEMO_EVENTS[kind] };
-  animations.demo(event, game);
-});
-$('refresh-button').addEventListener('click', () => { poller.refresh(); if(preferences.date)datedPoller.refresh(); activity.refresh(); });
-$('snap-checkbox').addEventListener('change', (event) => updatePreferences({ snapEnabled: event.target.checked }));
-$('lock-checkbox').addEventListener('change', (event) => updatePreferences({ locked: event.target.checked }));
-$('anchor-grid').addEventListener('click', (event) => { const button = event.target.closest('button[data-anchor]'); if (button) updatePreferences({ anchor: button.dataset.anchor }); });
-$('clean-button').addEventListener('click', () => {
-  const url = new URL('/widget.html', location.href);
-  const game = selectGame(snapshot.data?.games, preferences);
-  if (preferences.gameId && game) url.searchParams.set('game', game.id);
-  if (preferences.date) url.searchParams.set('date', preferences.date);
-  if (desktop) { updatePreferences({ anchor: preferences.anchor || 'bottom-center' }); toast('The desktop scorebug is ready. Drag it to any edge to snap.'); }
-  else window.open(url.href, '_blank', 'noopener,noreferrer');
-});
-$('game-center-button').addEventListener('click', async () => {
-  previewDetails.close();
-  if (desktop) {
-    try { await window.scorebugDesktop.openGameCenter(); }
-    catch { toast('The game center could not open. Try again from the scorebug’s right-click menu.'); }
-    return;
+  label('preview-caption',sample?'Sample data · preview only':race(game)?'Hover the timing area for standings and session details.':'Hover a logo or timeout marks for team stats; hover the middle to compare.');
+  $('reference-note').hidden=!sample;$('reference-toggle').setAttribute('aria-pressed',String(sample));label('reference-toggle',sample?'Back to live':'Sample matchup');
+  renderDemoControls(game,sample);
+}
+function renderGames(){
+  const games=snapshot.data?.games||[],current=selectGame(games,preferences),select=$('game-select'),options=new Map([...select.options].map(option=>[option.value,option]));
+  const desired=games.length?games.map(game=>[game.id,`${gameLabel(game)} · ${phaseLabel(game)}`]):[['',snapshot.loading?'Loading events…':'No events available — try another date']];
+  desired.forEach(([value,text],index)=>{const option=options.get(value)||new Option(text,value);if(option.text!==text)option.text=text;if(select.options[index]!==option)select.insertBefore(option,select.options[index]||null);options.delete(value);});for(const option of options.values())option.remove();select.disabled=!games.length;select.value=current?.id||'';
+  label('games-count',games.length?`${games.length} EVENTS`:league().name);
+  const delayed=snapshot.data&&feedIsStale(snapshot.data,Boolean(snapshot.error));$('feed-error').hidden=!snapshot.error&&!delayed;label('feed-error',snapshot.error||delayed?'Reconnecting automatically. The last received data stays visible and is marked as delayed.':'');
+  const teams=$('match-teams');teams.replaceChildren();
+  if(current){
+    if(race(current))teams.append(document.createTextNode(titleOf(current)));
+    else for(const [index,team] of [current.away,current.home].entries()){
+      if(index){const versus=document.createElement('span');versus.className='versus';versus.textContent='AT';teams.append(versus);}
+      const el=document.createElement('span');el.className='team';const logoPath=localTeamLogo(team);if(logoPath){const logo=document.createElement('img');logo.src=logoPath;logo.alt='';logo.width=31;logo.height=31;logo.addEventListener('error',()=>logo.hidden=true,{once:true});el.append(logo);}el.append(document.createTextNode(team.abbreviation));teams.append(el);
+    }
+    const time=new Date(current.startTime||'');label('match-meta',[Number.isFinite(time.getTime())?time.toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):null,current.broadcast,current.venue].filter(Boolean).join(' · '));
+    label('last-play',current.lastPlay||(current.state==='pre'?'The scorebug will update automatically when the event starts.':current.status||'Waiting for the next update.'));
+    document.title=`${gameLabel(current)} — Scorebug`;
+  }else{teams.textContent='Choose an event or use Automatic.';label('match-meta','Choose an event or a different date.');label('last-play',snapshot.loading?'Waiting for the feed…':'No event information available.');document.title='Scorebug — Live sports, your way';}
+}
+function renderStyleGallery(){
+  if($('style-browser').hidden)return;
+  const query=$('style-search').value.trim().toLowerCase(),all=$('all-styles').checked;
+  const key=`${preferences.leagueId}|${preferences.styleId}|${query}|${all}`;if(key===galleryKey)return;galleryKey=key;
+  const game=sampleGame(),root=$('style-gallery');root.replaceChildren();
+  for(const style of SCOREBUG_STYLES.filter(style=>(all||styleMatches(style,league().sport))&&`${style.name} ${style.network} ${style.sport} ${style.era} ${style.description}`.toLowerCase().includes(query))){
+    const button=document.createElement('button');button.type='button';button.className='style-card';button.setAttribute('aria-pressed',String(style.id===preferences.styleId));
+    const preview=document.createElement('div');preview.className='style-card-preview';preview.setAttribute('aria-hidden','true');preview.innerHTML=renderScorebug(game,{idPrefix:`card-${style.id}`,styleId:style.id,orientation:'horizontal',interactive:false});
+    const title=document.createElement('strong');title.textContent=style.name;const subtitle=document.createElement('small');subtitle.textContent=[style.network,style.era].filter(Boolean).join(' · ');
+    button.append(preview,title,subtitle);button.addEventListener('click',()=>{previewDetails.close({immediate:true});updatePreferences({styleId:style.id});});root.append(button);
   }
-  const url = new URL('/game.html', location.href);
-  if (preferences.gameId) url.searchParams.set('game', preferences.gameId);
-  if (preferences.date) url.searchParams.set('date', preferences.date);
-  if (!preferences.gameId && preferences.team) url.searchParams.set('team', preferences.team);
-  window.open(url.href, '_blank', 'noopener,noreferrer');
+  if(!root.children.length)root.textContent='No styles match that search.';
+}
+function renderPreferences(){
+  const scale=Number(preferences.scale)||1,vertical=preferences.orientation==='vertical';$('size-range').value=String(scale);label('size-value',`${Math.round(scale*100)}%`);
+  for(const button of $('browser-layout-controls').querySelectorAll('button[data-orientation]'))button.setAttribute('aria-pressed',String(button.dataset.orientation===(vertical?'vertical':'horizontal')));
+  $('scorebug-preview').style.width=`${(vertical?144:520)*scale}px`;$('preview-stage').dataset.orientation=vertical?'vertical':'horizontal';
+  $('date-input').value=preferences.date?`${preferences.date.slice(0,4)}-${preferences.date.slice(4,6)}-${preferences.date.slice(6,8)}`:'';$('snap-checkbox').checked=preferences.snapEnabled!==false;$('lock-checkbox').checked=Boolean(preferences.locked);
+  for(const button of $('anchor-grid').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.anchor===preferences.anchor));
+  $('league-select').value=preferences.leagueId;$('style-select').value=getScorebugStyle(preferences.styleId)?.id||'nfl-blades';
+  label('style-note',styleDescription(preferences.styleId,sampleGame())||'The selected look uses the current sport’s scores and information.');renderStyleGallery();
+}
+function renderSelectedFeed(state){snapshot=state;renderPreview();renderGames();renderLiveGames();renderHealth();updateActivity();}
+const poller=new ScoreboardPoller({leagueId:preferences.leagueId,date:null,onUpdate:state=>{currentSnapshot=state;if(!preferences.date)renderSelectedFeed(state);else renderLiveGames();}});
+const datedPoller=new ScoreboardPoller({leagueId:preferences.leagueId,date:preferences.date,onUpdate:state=>{datedSnapshot=state;if(preferences.date)renderSelectedFeed(state);}});
+onPreferences(next=>{
+  const old=preferences,leagueChanged=old.leagueId!==next.leagueId,sizeChanged=old.orientation!==next.orientation||old.scale!==next.scale;preferences=next;
+  if(leagueChanged||old.date!==next.date||old.gameId!==next.gameId){demoReference=false;animations.clearDemo();previewDetails.close({immediate:true});}
+  if(leagueChanged){reference=false;directory=[];directoryLeague=null;currentSnapshot={data:null,error:null,loading:true};datedSnapshot=currentSnapshot;snapshot=currentSnapshot;poller.setContext({leagueId:next.leagueId,date:null});loadDirectory();}
+  if(leagueChanged||old.date!==next.date){
+    if(next.date){snapshot=datedPoller.leagueId===next.leagueId&&datedPoller.date===next.date?datedSnapshot:{data:null,error:null,loading:true};datedPoller.setContext({leagueId:next.leagueId,date:next.date});datedPoller.start();}
+    else{datedPoller.stop();snapshot=currentSnapshot;}$('other-games').open=Boolean(next.date);
+  }
+  renderPreferences();renderPreview();renderGames();renderLiveGames();renderHealth();updateActivity();if(sizeChanged)resizeFloatingWindow();
 });
-
+const previewDetails=attachDetailsHover($('scorebug-preview'),{enabled:()=>!reference&&!demoReference});
+for(const item of LEAGUES)$('league-select').add(new Option(item.name,item.id));
+const groups=new Map();for(const style of SCOREBUG_STYLES){const groupName=style.sport||'Other';let group=groups.get(groupName);if(!group){group=document.createElement('optgroup');group.label=groupName;groups.set(groupName,group);$('style-select').append(group);}group.append(new Option(style.name,style.id));}
+$('league-select').addEventListener('change',event=>changeSelection({leagueId:normalizeLeague(event.target.value),gameId:null,date:null}));
+$('style-select').addEventListener('change',event=>{previewDetails.close({immediate:true});updatePreferences({styleId:event.target.value});});
+$('style-browser-toggle').addEventListener('click',()=>{const open=$('style-browser').hidden;$('style-browser').hidden=!open;$('style-browser-toggle').setAttribute('aria-expanded',String(open));renderStyleGallery();});
+$('style-search').addEventListener('input',renderStyleGallery);$('all-styles').addEventListener('change',renderStyleGallery);
+$('favorite-search').addEventListener('input',renderDirectory);$('favorite-team-select').addEventListener('change',()=>{$('add-favorite').disabled=!$('favorite-team-select').value;});
+$('favorite-editor').addEventListener('toggle',()=>{if($('favorite-editor').open&&directoryError)loadDirectory();});
+$('add-favorite').addEventListener('click',()=>{
+  const team=directory.find(team=>team.id===$('favorite-team-select').value);if(!team)return;
+  if(preferences.favorites?.some(favorite=>favorite.leagueId===preferences.leagueId&&favorite.teamId===team.id)){toast('That team is already in your favorites.');return;}
+  if((preferences.favorites?.length||0)>=64){toast('You can save up to 64 favorites. Remove one to add another.');return;}
+  updatePreferences({favorites:[...normalizeFavorites(preferences.favorites),{leagueId:preferences.leagueId,teamId:team.id,name:team.name,abbreviation:team.abbreviation,logo:localTeamLogo(team),color:team.color}]});toast(`${team.name} added to favorites.`);
+});
+$('follow-live').addEventListener('click',()=>changeSelection({gameId:null,date:null}));
+$('game-select').addEventListener('change',event=>changeSelection({gameId:event.target.value||null}));
+$('date-input').addEventListener('change',event=>changeSelection({date:event.target.value.replaceAll('-','')||null,gameId:null}));
+$('week-button').addEventListener('click',()=>changeSelection({date:null,gameId:null}));
+$('size-range').addEventListener('input',event=>updatePreferences({scale:Number(event.target.value)}));
+$('browser-layout-controls').addEventListener('click',event=>{const button=event.target.closest('button[data-orientation]');if(desktop||!button)return;previewDetails.close();updatePreferences({orientation:button.dataset.orientation==='vertical'?'vertical':'horizontal'});});
+$('reference-toggle').addEventListener('click',()=>{reference=!(reference||demoReference);demoReference=false;animations.clearDemo();previewDetails.close();renderPreview();updateActivity();});
+$('demo-play').addEventListener('click',()=>{
+  const selected=selectGame(snapshot.data?.games,preferences);if(!selected&&!reference)demoReference=true;renderPreview();previewDetails.close();
+  const game=reference||demoReference?sampleGame():activity.getDisplayGame(selected),sport=sportFor(game),spec=eventsForSport(sport).find(event=>event.kind===$('demo-event').value)||eventsForSport(sport)[0];
+  const side=$('demo-team').value==='home'?'home':'away',entry=race(game)?game.entries?.find(entry=>(entry.id||entry.athlete?.id||entry.team?.id)===$('demo-team').value):null;
+  const teamId=race(game)?entry?.team?.id||entry?.athlete?.id||entry?.id||null:game[side].id,details=activity.getDetails();
+  const player=race(game)?entry?.athlete||(entry?.name?{id:entry.id,name:entry.name,headshot:entry.headshot}:null):details?.gameId===(game.detailsGameId||game.id)?selectSportDemoPlayer(details,teamId,spec.kind,sport):null;
+  animations.demo({id:`demo:${++demoSequence}`,gameId:game.id,teamId,detail:'Animation preview only.',playId:null,period:null,clock:null,yardsGained:spec.kind==='big-play'?25:null,player,...spec,statDetail:spec.kind==='three-pointer'?'3PT 42.9% · sample':''},game);
+});
+$('refresh-button').addEventListener('click',()=>{poller.refresh();if(preferences.date)datedPoller.refresh();favoritesFeed.refresh();activity.refresh();});
+$('snap-checkbox').addEventListener('change',event=>updatePreferences({snapEnabled:event.target.checked}));$('lock-checkbox').addEventListener('change',event=>updatePreferences({locked:event.target.checked}));
+$('anchor-grid').addEventListener('click',event=>{const button=event.target.closest('button[data-anchor]');if(button)updatePreferences({anchor:button.dataset.anchor});});
+function viewURL(path){const url=new URL(path,location.href);url.searchParams.set('league',preferences.leagueId);url.searchParams.set('style',preferences.styleId);if(preferences.gameId)url.searchParams.set('game',preferences.gameId);if(preferences.date)url.searchParams.set('date',preferences.date);return url;}
+$('clean-button').addEventListener('click',()=>{if(desktop){updatePreferences({anchor:preferences.anchor||'bottom-center'});toast('The desktop scorebug is ready. Drag it to an edge to snap.');}else window.open(viewURL('/widget.html').href,'_blank','noopener,noreferrer');});
+$('game-center-button').addEventListener('click',async()=>{previewDetails.close();if(desktop){try{await window.scorebugDesktop.openGameCenter();}catch{toast('The game center could not open. Try again from the scorebug menu.');}}else window.open(viewURL('/game.html').href,'_blank','noopener,noreferrer');});
 async function floatWidget() {
   if (desktop) { await updatePreferences({ anchor: 'bottom-center' }); toast('Scorebug snapped to the bottom center.'); return; }
   if (pipWindow && !pipWindow.closed) { pipWindow.focus(); return; }
   if (!window.documentPictureInPicture?.requestWindow) {
     const size = floatingSize();
-    const popup = window.open('/widget.html', 'scorebug-overlay', `popup,width=${size.width},height=${size.height}`);
+    const popup = window.open(viewURL('/widget.html').href, 'scorebug-overlay', `popup,width=${size.width},height=${size.height}`);
     toast(popup ? 'Pin this window with PowerToys: Win + Ctrl + T. The desktop app supports snapping.' : 'Popup blocked. Use Clean view, then pin it with PowerToys.');
     return;
   }
@@ -277,11 +251,11 @@ async function floatWidget() {
     pipWindow = await window.documentPictureInPicture.requestWindow(floatingSize());
     pipWindow.scorebugInitialPreferences = getPreferences();
     const doc = pipWindow.document;
-    doc.documentElement.lang = 'en'; doc.title = 'Scorebug — Live NFL';
+    doc.documentElement.lang = 'en'; doc.title = 'Scorebug — Live sports';
     const base = doc.createElement('base'); base.href = `${location.origin}/`; doc.head.append(base);
     for (const path of ['/widget.css', '/scorebug.css']) { const link = doc.createElement('link'); link.rel = 'stylesheet'; link.href = new URL(path, location.origin).href; doc.head.append(link); }
     doc.body.className = 'widget-page'; doc.body.dataset.pip = 'true';
-    const main = doc.createElement('main'); main.id = 'widget-root'; main.className = 'widget-root'; main.setAttribute('aria-label', 'Floating NFL scoreboard'); doc.body.append(main);
+    const main = doc.createElement('main'); main.id = 'widget-root'; main.className = 'widget-root'; main.setAttribute('aria-label', 'Floating sports scoreboard'); doc.body.append(main);
     const script = doc.createElement('script'); script.type = 'module'; script.src = new URL('/widget-runtime.js', location.origin).href; doc.body.append(script);
     $('float-button-label').textContent = 'Scorebug is floating';
     pipWindow.addEventListener('pagehide', () => { pipWindow = null; $('float-button-label').textContent = 'Float in browser'; }, { once: true });
@@ -294,7 +268,7 @@ if (desktop) {
   if ($('page-title')) $('page-title').textContent = 'Scorebug settings';
   $('desktop-controls').hidden = false; $('desktop-banner').hidden = true;
   $('browser-layout-controls').hidden = true;
-  $('mode-label').textContent = 'Windows app'; $('float-button-label').textContent = 'Snap to bottom center';
+  $('mode-label').textContent = /Mac/.test(navigator.platform) ? 'Mac app' : 'Windows app'; $('float-button-label').textContent = 'Snap to bottom center';
   $('floating-copy').textContent = 'Transparent and always on top. Drop at a side to turn vertical; top and bottom stay horizontal.';
   $('floating-hint').textContent = 'Hover the scorebug for controls, or right-click it for the full menu. Close this settings window to keep watching.';
   $('clean-button').hidden = true;
@@ -303,11 +277,10 @@ if (desktop) {
   $('floating-hint').textContent = 'Pin it with PowerToys: Win + Ctrl + T. For automatic snapping, use the desktop app.';
 }
 if (!desktop) $('mode-label').textContent = 'Browser window';
-let disposeUpdates = mountDesktopUpdates($('desktop-updates'));
-$('other-games').open = Boolean(preferences.date);
-renderPreferences(); renderLiveGames(); activity.start(); poller.start(); if(preferences.date)datedPoller.start();
-let healthTimer = setInterval(renderHealth, 1000);
-window.addEventListener('pagehide', () => { poller.stop(); datedPoller.stop(); activity.stop(); clearInterval(healthTimer); disposeUpdates(); });
-window.addEventListener('pageshow', (event) => {
-  if (event.persisted) { disposeUpdates = mountDesktopUpdates($('desktop-updates')); activity.start(); poller.start(); if(preferences.date)datedPoller.start(); clearInterval(healthTimer); healthTimer = setInterval(renderHealth, 1000); }
-});
+
+let disposeUpdates=mountDesktopUpdates($('desktop-updates'));
+$('other-games').open=Boolean(preferences.date);
+renderPreferences();renderLiveGames();renderDirectory();loadDirectory();activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();
+let healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);
+window.addEventListener('pagehide',()=>{poller.stop();datedPoller.stop();favoritesFeed.stop();activity.stop();directoryController?.abort();clearInterval(healthTimer);disposeUpdates();});
+window.addEventListener('pageshow',event=>{if(event.persisted){disposeUpdates=mountDesktopUpdates($('desktop-updates'));activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();clearInterval(healthTimer);healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);}});

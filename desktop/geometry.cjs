@@ -126,7 +126,8 @@ const DETAILS_SIZE = Object.freeze({ width: 320, height: 344 });
 const COMPARISON_DETAILS_SIZE = Object.freeze({ width: 408, height: 450 });
 const DETAILS_SEAM_OVERLAP = 1.5;
 
-function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', contentAlignment = 'bottom', size } = {}) {
+function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation = 'horizontal', contentAlignment = 'bottom', size, measuredLayout } = {}) {
+  if (measuredLayout?.panels?.[side]) return measuredDetailsPlacement(widgetBounds, workArea, { side, orientation, contentAlignment, size, measuredLayout });
   side = ['away', 'home', 'comparison'].includes(side) ? side : 'home';
   const comparison = side === 'comparison';
   size ||= comparison ? COMPARISON_DETAILS_SIZE : DETAILS_SIZE;
@@ -258,6 +259,78 @@ function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation =
       joinRight: limit(right[0] - bounds.x, 0, bounds.width),
       joinY: limit(left[1] - bounds.y, 0, bounds.height)
     });
+  }
+  return { bounds, presentation };
+}
+
+/** Join alternate layouts to their rendered panel, not the original NFL shape. */
+function measuredDetailsPlacement(widgetBounds, workArea, { side, orientation, contentAlignment, size, measuredLayout }) {
+  const local = measuredLayout.panels[side];
+  const panel = { ...local, x: widgetBounds.x + local.x, y: widgetBounds.y + local.y };
+  const localBoard = measuredLayout.board || { x: 8, y: 8, width: widgetBounds.width - 16, height: widgetBounds.height - 16 };
+  const board = { ...localBoard, x: widgetBounds.x + localBoard.x, y: widgetBounds.y + localBoard.y };
+  const points = local.points?.map(([x, y]) => [widgetBounds.x + x, widgetBounds.y + y]) || [
+    [panel.x, panel.y], [panel.x + panel.width, panel.y],
+    [panel.x + panel.width, panel.y + panel.height], [panel.x, panel.y + panel.height]
+  ];
+  const comparison = side === 'comparison';
+  size ||= comparison ? COMPARISON_DETAILS_SIZE : DETAILS_SIZE;
+  const width = Math.max(1, Math.min(size.width, workArea.width)), height = Math.max(1, Math.min(size.height, workArea.height));
+  const limit = (value, low, high) => Math.max(low, Math.min(value, high));
+  const overlap = DETAILS_SEAM_OVERLAP;
+  const preferred = side === 'away' ? 'left' : side === 'home' ? 'right'
+    : panel.x - workArea.x > workArea.x + workArea.width - panel.x - panel.width ? 'left' : 'right';
+  const upperY = Math.min(board.y, panel.y), lowerY = Math.max(board.y + board.height, panel.y + panel.height);
+  const vertical = upperY - workArea.y >= workArea.y + workArea.height - lowerY ? ['up', 'down'] : ['down', 'up'];
+  const directions = orientation === 'vertical' ? [preferred, preferred === 'left' ? 'right' : 'left', ...vertical]
+    : comparison ? [...vertical, preferred, preferred === 'left' ? 'right' : 'left'] : [preferred, ...vertical];
+  const desired = (direction) => {
+    const lateral = direction === 'left' || direction === 'right';
+    const edge = lateral ? direction === 'left' ? [points[0], points[3]] : [points[1], points[2]]
+      : [[panel.x, direction === 'up' ? upperY : lowerY], [panel.x + panel.width, direction === 'up' ? upperY : lowerY]];
+    const adjusted = edge.map(([x, y]) => [x + (direction === 'left' ? overlap : direction === 'right' ? -overlap : 0), y + (direction === 'up' ? overlap : direction === 'down' ? -overlap : 0)]);
+    const x = direction === 'left' ? Math.max(...adjusted.map(([x]) => x)) - width
+      : direction === 'right' ? Math.min(...adjusted.map(([x]) => x))
+        : limit(panel.x + panel.width / 2 - width / 2, workArea.x, workArea.x + workArea.width - width);
+    const y = lateral ? limit(panel.y + panel.height / 2 - height / 2, workArea.y, workArea.y + workArea.height - height)
+      : adjusted[0][1] - (direction === 'up' ? height : 0);
+    return { direction, bounds: { x, y, width, height }, points: adjusted };
+  };
+  const candidates = directions.map(desired);
+  const fits = (candidate) => candidate.bounds.x >= workArea.x && candidate.bounds.y >= workArea.y
+    && candidate.bounds.x + candidate.bounds.width <= workArea.x + workArea.width
+    && candidate.bounds.y + candidate.bounds.height <= workArea.y + workArea.height;
+  let selected = candidates.find(fits);
+  if (!selected) {
+    const minWidth = comparison ? 340 : 240, minHeight = comparison ? 260 : 180;
+    selected = candidates.map((candidate) => {
+      const bounds = { ...candidate.bounds };
+      if (candidate.direction === 'left') { const right = bounds.x + bounds.width; bounds.x = Math.max(workArea.x, bounds.x); bounds.width = right - bounds.x; }
+      if (candidate.direction === 'right') bounds.width = Math.min(bounds.width, workArea.x + workArea.width - bounds.x);
+      if (candidate.direction === 'up') { const bottom = bounds.y + bounds.height; bounds.y = Math.max(workArea.y, bounds.y); bounds.height = bottom - bounds.y; }
+      if (candidate.direction === 'down') bounds.height = Math.min(bounds.height, workArea.y + workArea.height - bounds.y);
+      return { ...candidate, bounds, readable: bounds.width >= minWidth && bounds.height >= minHeight };
+    }).find((candidate) => candidate.readable && fits(candidate));
+  }
+  if (!selected) selected = candidates.map((candidate) => ({ ...candidate, bounds: clampBounds(candidate.bounds, workArea) }))
+    .reduce((best, candidate) => overlapArea(candidate.bounds, board) < overlapArea(best.bounds, board) ? candidate : best);
+  const bounds = clampBounds(selected.bounds, workArea), direction = selected.direction;
+  const presentation = {
+    side, direction, orientation, attachment: { left: 'right', right: 'left', up: 'bottom', down: 'top' }[direction],
+    width: bounds.width, height: bounds.height,
+    gradientX: panel.x - bounds.x, gradientY: panel.y - bounds.y, gradientWidth: panel.width, gradientHeight: panel.height,
+    ...(local.fill ? { teamFill: local.fill } : {}), ...(local.border ? { teamBorder: local.border } : {}), ...(local.ink ? { teamInk: local.ink } : {})
+  };
+  if (direction === 'left' || direction === 'right') {
+    const [top, bottom] = selected.points;
+    const topY = limit(top[1], bounds.y, bounds.y + bounds.height), bottomY = limit(bottom[1], bounds.y, bounds.y + bounds.height);
+    const edgeX = (y) => bottom[1] === top[1] ? top[0] : top[0] + (bottom[0] - top[0]) * (y - top[1]) / (bottom[1] - top[1]);
+    Object.assign(presentation, { joinTop: topY - bounds.y, joinBottom: bottomY - bounds.y,
+      joinTopX: limit(edgeX(topY) - bounds.x, 0, bounds.width), joinBottomX: limit(edgeX(bottomY) - bounds.x, 0, bounds.width) });
+  } else {
+    const [left, right] = selected.points;
+    Object.assign(presentation, { joinLeft: limit(left[0] - bounds.x, 0, bounds.width), joinRight: limit(right[0] - bounds.x, 0, bounds.width), joinY: limit(left[1] - bounds.y, 0, bounds.height) });
+    if (direction === 'down' && contentAlignment === 'top') presentation.neckHeight = Math.max(24, widgetBounds.y + widgetBounds.height + 3 - lowerY);
   }
   return { bounds, presentation };
 }

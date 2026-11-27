@@ -1,5 +1,8 @@
 /** Classic broadcast scorebug. All game text is treated as untrusted data. */
 import { localTeamLogo, teamLogoPresentation } from './team-assets.js';
+import { getScorebugStyle } from './scorebug-styles.js';
+import { renderStyledScorebug } from './scorebug-variants.js';
+import { sportFor } from './sports.js';
 
 let nextId = 0;
 
@@ -26,7 +29,7 @@ function mix(hex, toward, amount) {
 }
 
 export function teamColor(team, side) {
-  return String(team.abbreviation).toUpperCase() === 'SF' ? '#b3995d' : color(team.color, side === 'home' ? '#c51636' : '#24394a');
+  return (!team.leagueId || team.leagueId === 'nfl') && (!team.sport || team.sport === 'football') && String(team.abbreviation).toUpperCase() === 'SF' ? '#b3995d' : color(team.color, side === 'home' ? '#c51636' : '#24394a');
 }
 
 function luminance(hex) {
@@ -97,7 +100,7 @@ function quarter(period) {
 }
 
 function kickoff(startTime) {
-  const date = new Date(startTime);
+  const date = startTime ? new Date(startTime) : new Date(NaN);
   if (!Number.isFinite(date.getTime())) return 'SCHEDULED';
   const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date);
   const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
@@ -193,10 +196,12 @@ function comparisonTarget(path, clipId) {
  * Top-docked widgets can place that badge space below with statusPosition.
  */
 export function renderScorebug(game, options = {}) {
+  const style = getScorebugStyle(options.styleId);
+  if (style.id !== 'nfl-blades' || sportFor(game) !== 'football') return renderStyledScorebug(game, { ...options, idPrefix: options.idPrefix || `variant-${++nextId}` }, style, { teamPalette, logoImage, possession });
   if (options.orientation === 'vertical') return renderVerticalScorebug(game, options);
   const { stale = false, demo = false, showTimeouts = true, interactive = true } = options;
   const id = String(options.idPrefix || `scorebug-${++nextId}`).replace(/[^a-zA-Z0-9_-]/g, '') || `scorebug-${++nextId}`;
-  const away = game?.away || {}, home = game?.home || {};
+  const away = { ...game?.away, ...(game?.leagueId ? { leagueId: game.leagueId, sport: 'football' } : {}) }, home = { ...game?.home, ...(game?.leagueId ? { leagueId: game.leagueId, sport: 'football' } : {}) };
   const awayScore = score(away.score), homeScore = score(home.score);
   const bottom = game ? strip(game) : { banner: 'SELECT A GAME' };
   const badge = stale ? 'FEED DELAYED' : demo ? 'DESIGN PREVIEW' : '';
@@ -214,7 +219,7 @@ export function renderScorebug(game, options = {}) {
   const stripPath = 'M10.928571 93H575.928571L566.714286 136H1.714286Z';
   const awayPaint = teamPalette(away, 'away'), homePaint = teamPalette(home, 'home');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-orientation="horizontal"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-24' : '0'} 600 ${badge ? '162' : '138'}" role="group" aria-labelledby="${id}-title ${id}-description">
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-league-id="${escape(game?.leagueId || 'nfl')}" data-style-id="nfl-blades" data-sport="football" data-orientation="horizontal"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-24' : '0'} 600 ${badge ? '162' : '138'}" role="group" aria-labelledby="${id}-title ${id}-description">
   <title id="${id}-title">${escape(title)}</title>
   <desc id="${id}-description">Classic football scorebug. Away team on the left, home team on the right. ${bottom.banner ? 'Game status appears beneath the scores.' : 'Quarter and ball position at left, game clock in the center, and down and distance at right.'} A football marks possession. Three marks along each team's outer edge show timeouts: bright means remaining, dim means used, and a question mark means unavailable.</desc>
   <defs>${timeoutPaint(id)}<clipPath id="${id}-away-clip"><path d="${awayPath}"/></clipPath><clipPath id="${id}-home-clip"><path d="${homePath}"/></clipPath><clipPath id="${id}-strip-clip"><path d="${stripPath}"/></clipPath></defs>
@@ -243,7 +248,7 @@ export function renderScorebug(game, options = {}) {
 function renderVerticalScorebug(game, options) {
   const { stale = false, demo = false, showTimeouts = true, interactive = true } = options;
   const id = String(options.idPrefix || `vertical-${++nextId}`).replace(/[^a-zA-Z0-9_-]/g, '') || `vertical-${++nextId}`;
-  const away = game?.away || {}, home = game?.home || {};
+  const away = { ...game?.away, ...(game?.leagueId ? { leagueId: game.leagueId, sport: 'football' } : {}) }, home = { ...game?.home, ...(game?.leagueId ? { leagueId: game.leagueId, sport: 'football' } : {}) };
   const bottom = game ? strip(game) : { banner: 'SELECT GAME' };
   const badge = stale ? 'FEED DELAYED' : demo ? 'DESIGN PREVIEW' : '';
   const badgeBelow = options.statusPosition === 'below';
@@ -263,7 +268,7 @@ function renderVerticalScorebug(game, options) {
       ${scoreNumber(value, 80, top + 93, true)}
       ${hasPossession(game, team) ? possession(84, top + 50, .55) : ''}${showTimeouts ? timeouts(team, { side, id, vertical: true, top }) : ''}</g>${interactive ? teamTarget(team, side, targets, `${id}-${side}-clip`) : ''}</g>`;
   }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--vertical${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-orientation="vertical"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-19' : '0'} 160 ${badge ? '309' : '290'}" role="group" aria-labelledby="${id}-title ${id}-description">
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="scorebug scorebug--vertical${stale ? ' scorebug--stale' : ''}" data-game-id="${escape(game?.id ?? '')}" data-league-id="${escape(game?.leagueId || 'nfl')}" data-style-id="nfl-blades" data-sport="football" data-orientation="vertical"${badgeBelow ? ' data-status-position="below"' : ''} viewBox="0 ${badge && !badgeBelow ? '-19' : '0'} 160 ${badge ? '309' : '290'}" role="group" aria-labelledby="${id}-title ${id}-description">
     <title id="${id}-title">${escape(title)}</title><desc id="${id}-description">Away team above home team. A football marks possession. Timeout marks follow the away team's left edge and the home team's right edge: bright means remaining, dim means used, and a question mark means unavailable. The centered game clock, down and distance, and ball position appear below.</desc>
     <defs>${timeoutPaint(id)}<clipPath id="${id}-away-clip"><path d="${panelPath(0)}"/></clipPath><clipPath id="${id}-home-clip"><path d="${panelPath(103)}"/></clipPath><clipPath id="${id}-strip-clip"><path d="${stripPath}"/></clipPath></defs>
     ${badge ? `<g class="bug-status-flag"${badgeBelow ? ' transform="translate(0 309)"' : ''}><path d="M10-17H159L157-2H8Z" fill="${stale ? '#b95518' : '#283739'}"/><text x="80" y="-6" text-anchor="middle" style="font-size:9px;letter-spacing:.6px">${badge}</text></g>` : ''}

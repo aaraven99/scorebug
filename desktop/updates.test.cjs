@@ -84,7 +84,7 @@ test('development, portable and other platforms never load or check the updater'
     [{ isPackaged: false, platform: 'win32', portable: true }, 'development'],
     [{ portable: true }, 'portable'],
     [{ platform: 'linux' }, 'unsupported'],
-    [{ platform: 'darwin' }, 'unsupported']
+    [{ platform: 'darwin' }, 'manual-mac']
   ]) {
     const { controller, timers, factoryCalls } = fixture(options);
     controller.start();
@@ -99,6 +99,20 @@ test('development, portable and other platforms never load or check the updater'
     assert.equal(controller.getState().status, 'idle');
   }
   assert.equal(updateMode({ isPackaged: true, platform: 'win32', portable: false }), 'installed');
+});
+
+test('Mac development builds provide architecture-correct manual downloads without pretending to auto-update', async () => {
+  for (const [arch, name] of [['arm64', 'Apple-Silicon'], ['x64', 'Intel']]) {
+    const { controller, factoryCalls, timers } = fixture({ platform: 'darwin', arch });
+    controller.start();
+    const state = await controller.checkForUpdates();
+    assert.equal(state.mode, 'manual-mac');
+    assert.equal(state.downloadURL, `https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Mac-${name}.dmg`);
+    assert.match(state.message, /Download the latest Mac version/);
+    assert.equal(factoryCalls(), 0);
+    assert.equal(timers.timeouts.size, 0);
+    assert.equal(timers.intervals.size, 0);
+  }
 });
 
 test('installed app checks after startup and hourly without changing signature defaults', async () => {

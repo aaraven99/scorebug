@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('scorebugDesktop', {
   showDetails: (side) => ipcRenderer.invoke('scorebug:details:show', side),
   setDefaultDetailsSide: (side) => ipcRenderer.invoke('scorebug:details:default-side', side),
   setDetailsGameId: (gameId) => ipcRenderer.invoke('scorebug:details:game-id', gameId),
+  setDetailsContext: (context) => ipcRenderer.invoke('scorebug:details:context', context),
+  setDetailsRegions: (regions) => ipcRenderer.invoke('scorebug:details:regions', regions),
   hideDetails: () => ipcRenderer.invoke('scorebug:details:hide'),
   closeWidget: () => ipcRenderer.invoke('scorebug:quit'),
   onDetailsVisibilityChanged: (callback) => {

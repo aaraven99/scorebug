@@ -72,6 +72,7 @@ export function nextPollDelay({ interval = LIVE_POLL_INTERVAL_MS, failures = 0, 
 }
 
 function sameGame(a, b) {
+  if ((a?.leagueId || 'nfl') !== (b?.leagueId || 'nfl')) return false;
   if (a?.id && a.id === b?.id) return true;
   if (!a?.away?.id || !a?.home?.id || a.away.id !== b?.away?.id || a.home.id !== b?.home?.id) return false;
   const left = time(a.startTime), right = time(b.startTime);
@@ -101,7 +102,8 @@ function gameRegresses(next, previous) {
   const nextClock = clockSeconds(next.clock), previousClock = clockSeconds(previous.clock);
   // Small clock corrections are common. A different route going substantially
   // backwards without any score progress is evidence of an older snapshot.
-  return Number.isFinite(nextClock) && Number.isFinite(previousClock) && nextClock > previousClock + 15;
+  const elapsed = ['soccer','rugby'].includes(next.sport);
+  return Number.isFinite(nextClock) && Number.isFinite(previousClock) && (elapsed ? nextClock < previousClock - 15 : nextClock > previousClock + 15);
 }
 
 /** Reject known older snapshots, while allowing a healthy source's corrections. */

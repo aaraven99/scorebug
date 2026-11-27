@@ -1,3 +1,4 @@
+import { leagueOfId, validLeagueId } from './preferences-model.js';
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder, retainKnownStats } from './feed-state.js';
 
 /** One abortable summary poll per selected game, including while the widget is idle. */
@@ -9,7 +10,7 @@ export class GameDetailsPoller {
     this.now = now;
     this.document = globalThis.document;
     this.baseURL = baseURL || globalThis.document?.baseURI || 'http://localhost/';
-    this.gameId = null;
+    this.gameId = null; this.leagueId = 'nfl';
     this.active = false;
     this.generation = 0;
     this.failures = 0;
@@ -18,11 +19,12 @@ export class GameDetailsPoller {
     this.online = () => this.refresh();
     this.state = { gameId: null, data: null, error: null, loading: false };
   }
-  setGame(value) {
+  setGame(value, leagueId = value ? leagueOfId(String(value)) : this.leagueId, date = null) {
     const id = value == null ? null : String(value);
-    if (id === this.gameId) return;
+    leagueId = validLeagueId(leagueId) ? leagueId : 'nfl';
+    if (id === this.gameId && leagueId === this.leagueId && date === this.date) return;
     this.cancel();
-    this.gameId = id;
+    this.gameId = id; this.leagueId = leagueId; this.date = date;
     this.failures = 0;
     this.retryAt = 0;
     this.state = { gameId: id, data: null, error: null, loading: Boolean(id) };
@@ -69,6 +71,8 @@ export class GameDetailsPoller {
     this.onUpdate(this.state);
     try {
       const url = new URL('/api/game', this.baseURL); url.searchParams.set('id', id);
+      if (this.leagueId !== 'nfl') url.searchParams.set('league', this.leagueId);
+      if (this.date) url.searchParams.set('date', this.date);
       const response = await this.fetcher(url, { cache: 'no-store', signal: controller.signal, headers: { Accept: 'application/json' } });
       retryAt = this.now() + responseRetryMs(response, null, this.now());
       const data = await response.json();

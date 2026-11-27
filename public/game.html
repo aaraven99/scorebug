@@ -14,18 +14,18 @@
 <body class="game-page">
   <header class="game-header">
     <a class="game-brand" href="/" id="game-back" aria-label="Back to Scorebug"><img src="/favicon.svg" alt="" width="29" height="29"><span>Game center</span></a>
-    <div class="game-select-controls"><label class="sr-only" for="center-game-select">Choose a game</label><select id="center-game-select"><option value="">Finding games…</option></select><button id="center-automatic" type="button" aria-pressed="true">Automatic</button></div>
+    <div class="game-select-controls"><label class="sr-only" for="center-league-select">Sport or league</label><select id="center-league-select"></select><label class="sr-only" for="center-style-select">Scorebug style</label><select id="center-style-select"></select><label class="sr-only" for="center-game-select">Choose a game</label><select id="center-game-select"><option value="">Finding games…</option></select><button id="center-automatic" type="button" aria-pressed="true">Automatic</button></div>
     <div class="game-window-controls"><button id="center-refresh" type="button" title="Check for the latest game data">Refresh</button><button id="center-fullscreen" type="button">Full screen</button><button id="center-close" type="button">Back</button></div>
   </header>
   <main class="game-center">
-    <section class="game-hero" aria-label="Live scoreboard and quarter scores">
+    <section class="game-hero" aria-label="Live scoreboard and period scores">
       <div class="hero-score"><div class="game-topline"><h1 id="center-title">Finding your game…</h1><span id="center-health" role="status">Connecting</span></div><div id="center-scorebug" class="center-scorebug"></div><p id="center-status">Choose a game above, or let Automatic follow a live game.</p></div>
-      <div class="quarter-section"><h2>By quarter</h2><div id="center-quarters" class="table-scroll"></div><p class="data-note" id="center-summary-status">Loading game details…</p></div>
+      <div class="quarter-section"><h2 id="period-title">By quarter</h2><div id="center-quarters" class="table-scroll"></div><p class="data-note" id="center-summary-status">Loading game details…</p></div>
     </section>
 
     <div class="overview-grid">
       <section class="game-section field-section" aria-labelledby="field-title"><div class="section-title"><h2 id="field-title">On the field</h2><span id="center-possession"></span></div><div id="center-field"></div><div class="field-key"><span><i class="line-ball"></i>Ball</span><span><i class="line-first"></i>First down</span><span>Offense moves →</span></div><p id="center-situation" class="situation-line"></p><div class="latest-play"><h3>Latest play</h3><p id="center-last-play">Waiting for a reported play.</p></div><div id="center-current-drive" class="current-drive"></div></section>
-      <section class="game-section insights-section" aria-labelledby="insights-title"><div class="section-title"><h2 id="insights-title">How the game is going</h2></div><div id="center-insights"></div></section>
+      <section class="game-section insights-section" id="insights-section" aria-labelledby="insights-title"><div class="section-title"><h2 id="insights-title">How the game is going</h2></div><div id="center-insights"></div></section>
     </div>
 
     <div class="detail-grid">
@@ -34,13 +34,13 @@
     </div>
 
     <div class="detail-grid history-grid">
-      <section class="game-section" aria-labelledby="scoring-title"><div class="section-title"><h2 id="scoring-title">Scoring plays</h2><span>Newest first</span></div><div id="center-scoring" class="section-scroll history-scroll" tabindex="0" aria-label="Scoring plays"></div></section>
-      <section class="game-section" aria-labelledby="drives-title"><div class="section-title"><h2 id="drives-title">Every drive</h2><span id="center-drive-count">Newest first</span></div><div id="center-drives" class="section-scroll history-scroll" tabindex="0" aria-label="Drive summaries"></div></section>
+      <section class="game-section" id="scoring-section" aria-labelledby="scoring-title"><div class="section-title"><h2 id="scoring-title">Scoring plays</h2><span>Newest first</span></div><div id="center-scoring" class="section-scroll history-scroll" tabindex="0" aria-label="Scoring plays"></div></section>
+      <section class="game-section" id="drives-section" aria-labelledby="drives-title"><div class="section-title"><h2 id="drives-title">Every drive</h2><span id="center-drive-count">Newest first</span></div><div id="center-drives" class="section-scroll history-scroll" tabindex="0" aria-label="Drive summaries"></div></section>
     </div>
 
     <section class="game-section players-section" aria-labelledby="players-title"><div class="section-title"><h2 id="players-title">Player box score</h2><span id="center-players-note">All reported categories</span></div><div id="center-players" class="player-grid"></div></section>
     <section class="game-section" aria-labelledby="info-title"><div class="section-title"><h2 id="info-title">Game details</h2></div><div id="center-info"></div></section>
-    <footer class="game-footer"><span id="center-source">Live data reconnects automatically.</span><span>Missing data is shown as —. Field positions are a schematic, not player tracking.</span></footer>
+    <footer class="game-footer"><span id="center-source">Live data reconnects automatically.</span><span>Missing data is shown as —. Diagrams show the reported situation, not continuous player tracking.</span></footer>
   </main>
   <p class="center-notice" id="center-notice" role="status" hidden></p>
 </body>

@@ -1,5 +1,5 @@
 /** Small settings panel for the native updater. Feed data never enters this UI. */
-const MODES = new Set(['installed', 'portable', 'development', 'unsupported']);
+const MODES = new Set(['installed', 'portable', 'manual-mac', 'development', 'unsupported']);
 const STATUSES = new Set(['idle', 'checking', 'downloading', 'ready', 'up-to-date', 'error']);
 
 function updateState(value) {
@@ -11,10 +11,12 @@ function updateState(value) {
     currentVersion: version(value.currentVersion), availableVersion: version(value.availableVersion),
     percent: Number.isFinite(value.percent) ? Math.round(Math.min(100, Math.max(0, value.percent))) : null,
     message: typeof value.message === 'string' ? value.message.trim().slice(0, 240) : '',
+    downloadURL: /^https:\/\/github\.com\/aaraven99\/scorebug\/releases\/latest\/download\/Scorebug-Mac-(?:Apple-Silicon|Intel)\.dmg$/.test(value.downloadURL || '') ? value.downloadURL : null,
   };
 }
 
 function statusText(state) {
+  if (state.mode === 'manual-mac') return 'Download the latest Mac version, quit Scorebug, then replace it in Applications. Your favorites, style and position stay saved. Automatic Mac updates need an Apple-signed release.';
   if (state.mode === 'portable') return 'Install the Windows version once for automatic updates. Your saved game and position will carry over.';
   if (state.mode === 'development') return 'Updates are disabled while running from source.';
   if (state.mode !== 'installed') return 'Automatic updates are available in the installed Windows app.';
@@ -49,7 +51,13 @@ export function mountDesktopUpdates(root, bridge = window.scorebugDesktop) {
       : state ? statusText(state) : busy ? 'Loading update status…' : 'Update status is unavailable. Try again.';
     const installed = supported && (!state || state.mode === 'installed');
     controls.hidden = !installed;
-    install.hidden = supported && (!state || !['portable', 'unsupported'].includes(state.mode));
+    install.hidden = supported && (!state || !['portable', 'manual-mac', 'unsupported'].includes(state.mode));
+    const mac = state?.mode === 'manual-mac';
+    const download = install.matches('a') ? install : install.querySelector('a');
+    if (download) {
+      download.textContent = mac ? 'Download the latest Mac version' : 'Download the Windows installer';
+      download.href = mac ? state.downloadURL || 'https://github.com/aaraven99/scorebug/releases/latest' : 'https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe';
+    }
     automatic.checked = state?.automatic === true;
     automatic.disabled = !installed || !state || busy;
     check.disabled = !installed || busy || ['checking', 'downloading'].includes(state?.status);

@@ -1,4 +1,5 @@
-import { getScoreboard, ScoreboardError } from '../lib/nfl.mjs';
+import { ScoreboardError } from '../lib/nfl.mjs';
+import { getScoreboard } from '../lib/multisport.mjs';
 
 /** Node/Vercel function; also used unchanged by the local development server. */
 export default async function handler(req, res) {
@@ -15,7 +16,9 @@ export default async function handler(req, res) {
     const url = new URL(req.url, 'http://localhost');
     const dates = url.searchParams.getAll('date');
     if (dates.length > 1) throw new ScoreboardError('Provide only one date.', { statusCode: 400, code: 'INVALID_DATE' });
-    const data = await getScoreboard({ date: dates[0] });
+    const leagues = url.searchParams.getAll('league');
+    if (leagues.length > 1) throw new ScoreboardError('Choose one league.', { statusCode: 400, code: 'INVALID_LEAGUE' });
+    const data = await getScoreboard({ date: dates[0], leagueId: leagues[0] });
     res.statusCode = 200;
     if (data.retryAfterMs > 0) res.setHeader('Retry-After', String(Math.ceil(data.retryAfterMs / 1000)));
     res.end(req.method === 'HEAD' ? undefined : JSON.stringify(data));

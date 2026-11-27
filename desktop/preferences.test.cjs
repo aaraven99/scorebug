@@ -1,0 +1,79 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { cleanPatch, cleanFavorites, cleanDetailsContext, cleanDetailsRegions } = require('./preferences.cjs');
+const { detailsPlacement } = require('./geometry.cjs');
+
+test('cross-sport selections, style and favorites survive desktop validation without losing league identity', () => {
+  const favorites = [
+    { leagueId: 'nfl', teamId: '3', name: 'Chicago Bears', abbreviation: 'CHI', logo: 'https://a.espncdn.com/i/teamlogos/nfl/500/chi.png', color: '#0b162a' },
+    { leagueId: 'nba', teamId: 'nba:4', name: 'Chicago Bulls', abbreviation: 'CHI' },
+    { leagueId: 'eng.1', teamId: 'eng.1:359', name: 'Arsenal', abbreviation: 'ARS' }
+  ];
+  const patch = { leagueId: 'nba', gameId: 'nba:401000002', styleId: 'nba-nbc-pods', favorites, scale: 1.3 };
+  assert.deepEqual(cleanPatch(patch), patch);
+  assert.deepEqual(cleanFavorites([...favorites, favorites[0]]), favorites);
+  assert.equal(cleanPatch({ gameId: 'f1:9568' }).gameId, 'f1:9568');
+  assert.equal(cleanPatch({ gameId: 'fox-123' }).gameId, 'fox-123');
+  assert.equal(cleanPatch({ gameId: null, team: null }).gameId, null);
+});
+
+test('desktop favorites reject mismatched namespaces and cap saved metadata', () => {
+  assert.throws(() => cleanFavorites([{ leagueId: 'nba', teamId: 'nfl:4' }]), /different league/);
+  assert.throws(() => cleanFavorites([{ leagueId: 'nba', teamId: '4' }]), /include their league/);
+  assert.throws(() => cleanFavorites(Array.from({length: 65}, () => ({leagueId:'nfl',teamId:'3'}))), /64/);
+  const saved = cleanFavorites([{ leagueId: 'nfl', teamId: '3', name: 'A'.repeat(200), abbreviation: 'B'.repeat(100), logo:'https://evil.example/team.png', color:'url(javascript:evil)' }])[0];
+  assert.equal(saved.name.length, 100);
+  assert.equal(saved.abbreviation.length, 16);
+  assert.equal(saved.logo, undefined);
+  assert.equal(saved.color, undefined);
+  assert.equal(cleanFavorites([{ leagueId:'nfl',teamId:'3',logo:'https://evil.example@a.espncdn.com/x' }])[0].logo, undefined);
+  assert.equal(cleanFavorites([{ leagueId:'nba',teamId:'nba:4',logo:'/logos/nba/chi.png' }])[0].logo, '/logos/nba/chi.png');
+  assert.equal(cleanFavorites([{ leagueId:'nfl',teamId:'3',logo:'/logos/chi.png' }])[0].logo, '/logos/chi.png');
+  assert.equal(cleanFavorites([{ leagueId:'nfl',teamId:'3',logo:'/logos/../private.png' }])[0].logo, undefined);
+  assert.throws(() => cleanFavorites([{ leagueId:'nfl',teamId:'nfl:3' }]), /NFL/);
+  assert.throws(() => cleanPatch({ gameId:'nba:../../private' }), /Invalid/);
+  assert.throws(() => cleanPatch({ leagueId:'https://foo' }), /Invalid/);
+  assert.throws(() => cleanPatch({ styleId:'<script>' }), /Invalid/);
+});
+
+test('hover game context cannot cross sports even when provider numeric IDs repeat', () => {
+  assert.deepEqual(cleanDetailsContext({gameId:'nba:123',leagueId:'nba'}),{gameId:'nba:123',leagueId:'nba'});
+  assert.deepEqual(cleanDetailsContext({gameId:'123',leagueId:'nfl'}),{gameId:'123',leagueId:'nfl'});
+  assert.deepEqual(cleanDetailsContext({gameId:null,leagueId:'f1'}),{gameId:null,leagueId:'f1'});
+  assert.throws(() => cleanDetailsContext({gameId:'123',leagueId:'nba'}), /different league/);
+  assert.throws(() => cleanDetailsContext({gameId:'nba:123',leagueId:'nfl'}), /different league/);
+});
+
+test('renderer measured hover rectangles are bounded, namespaced and never control other windows', () => {
+  const layout = {styleId:'nba-pods', targets:[{side:'comparison',x:40,y:80,width:60,height:20}],
+    panels:{comparison:{x:10,y:80,width:140,height:30,fill:'#222222',border:'#111111',ink:'#ffffff'}},
+    board:{x:8,y:8,width:144,height:280}};
+  assert.deepEqual(cleanDetailsRegions(layout,{width:160,height:320}),layout);
+  assert.deepEqual(cleanDetailsRegions({targets:[],panels:{},styleId:'nba-pods'},{width:160,height:320}).targets,[]);
+  for (const invalid of [{...layout,targets:[{side:'away',x:-10,y:2,width:10,height:10}]},
+    {...layout,targets:[{side:'away',x:150,y:2,width:20,height:10}]},
+    {...layout,targets:[{side:'away',x:2,y:2,width:NaN,height:10}]},
+    {...layout,targets:[{side:'evil',x:2,y:2,width:10,height:10}]}]) {
+    assert.throws(()=>cleanDetailsRegions(invalid,{width:160,height:320}));
+  }
+});
+
+test('alternate style blades join their measured panel edge at both side anchors', () => {
+  const workArea={x:0,y:25,width:1440,height:850};
+  const layout={styleId:'nba-pods',targets:[],panels:{away:{x:12,y:40,width:136,height:85,fill:'#dd0000',border:'#880000',ink:'#ffffff'}},board:{x:8,y:30,width:144,height:280}};
+  for (const x of [16,1264]) {
+    const widget={x,y:280,width:160,height:320};
+    const {bounds,presentation}=detailsPlacement(widget,workArea,{side:'away',orientation:'vertical',measuredLayout:layout});
+    assert.equal(presentation.direction,x===16?'right':'left');
+    assert.equal(presentation.gradientX,widget.x+12-bounds.x);
+    assert.equal(presentation.gradientY,widget.y+40-bounds.y);
+    assert.equal(presentation.gradientHeight,85);
+    assert.equal(presentation.teamFill,'#dd0000');
+    assert.ok(bounds.x>=workArea.x && bounds.x+bounds.width<=workArea.width);
+    assert.ok(bounds.y>=workArea.y && bounds.y+bounds.height<=workArea.y+workArea.height);
+    assert.equal(bounds.y+presentation.joinTop,widget.y+40);
+    assert.equal(bounds.y+presentation.joinBottom,widget.y+125);
+  }
+});

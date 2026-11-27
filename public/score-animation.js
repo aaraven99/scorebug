@@ -11,13 +11,14 @@ function playerFor(event) {
   let headshot = null;
   try {
     const url = new URL(event.player.headshot);
-    if (url.protocol === 'https:' && !url.username && !url.password && !url.port && /(^|\.)espncdn\.com$/i.test(url.hostname)) headshot = url.href;
+    if (url.protocol === 'https:' && !url.username && !url.password && !url.port && ['a.espncdn.com','media.formula1.com'].includes(url.hostname)) headshot = url.href;
   } catch { /* A name remains useful when the feed supplies no usable photo. */ }
   return { name, headshot };
 }
 
 function eventDetail(event, team) {
   const result = [team?.abbreviation];
+  if (event.statDetail) result.push(cleanText(event.statDetail,64));
   if (event.kind === 'big-play' && Number.isFinite(event.yardsGained)) result.push(`${event.yardsGained} YARDS`);
   else if (Number.isFinite(event.points) && event.points > 0) result.push(`+${event.points}`);
   else if (event.kind === 'interception' || event.kind === 'fumble') result.push('TURNOVER');
@@ -105,17 +106,18 @@ export function createScoreAnimations(host) {
 
   function buildContent(record) {
     const { event, game, demo } = record.item;
-    const team = [game.away, game.home].find((candidate) => candidate?.id === event.teamId);
+    const team = [game.away, game.home, ...(game.entries || []).flatMap(entry=>[entry.team,entry.athlete,entry])].find((candidate) => candidate?.id === event.teamId);
     const player = playerFor(event);
-    const color = team ? teamColor(team, team.id === game.away.id ? 'away' : 'home') : '#425349';
-    overlay.style.setProperty('--event-color', color);
+    const color = team ? teamColor(team, team.id === game.away?.id ? 'away' : 'home') : '#425349';
+    const flagColor = {'red-flag':'#c82232','yellow-flag':'#caab12','safety-car':'#a88e18','virtual-safety-car':'#a88e18','green-flag':'#287647','checkered-flag':'#303630'}[event.kind];
+    overlay.style.setProperty('--event-color', flagColor || color);
     overlay.dataset.kind = cleanText(event.kind, 32);
     overlay.dataset.player = String(Boolean(player));
     if (demo) overlay.dataset.demo = 'true'; else delete overlay.dataset.demo;
 
     const content = document.createElement('div'); content.className = 'score-animation-content';
     const art = document.createElement('div'); art.className = 'score-animation-art'; art.setAttribute('aria-hidden', 'true');
-    const fallback = document.createElement('span'); fallback.className = 'score-animation-crest-fallback'; fallback.textContent = team?.abbreviation || 'NFL';
+    const fallback = document.createElement('span'); fallback.className = 'score-animation-crest-fallback'; fallback.textContent = team?.abbreviation || (game.leagueId || 'SPORT').toUpperCase();
     const logoPath = team && localTeamLogo(team);
     if (logoPath) {
       const logo = document.createElement('img'); logo.src = logoPath; logo.alt = ''; logo.className = 'score-animation-logo';
@@ -145,7 +147,7 @@ export function createScoreAnimations(host) {
     const title = document.createElement('strong'); title.className = 'score-animation-title'; title.textContent = cleanText(event.title, 64) || 'SCORE UPDATE';
     if (title.textContent.length > 17) title.classList.add('score-animation-title--long');
     const name = document.createElement('span'); name.className = player ? 'score-animation-player-name' : 'score-animation-team-name';
-    name.textContent = player?.name || team?.name || team?.abbreviation || 'NFL';
+    name.textContent = player?.name || team?.name || team?.abbreviation || (game.leagueId || 'SPORT').toUpperCase();
     text.append(meta, title, name); content.append(art, text);
     return content;
   }

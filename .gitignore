@@ -12,3 +12,5 @@ test-results/
 *.log
 __pycache__/
 *.py[cod]
+
+desktop/native/bin/
