@@ -23,6 +23,7 @@ function possessingSide() { const game = selectGame(snapshot.data?.games, prefer
 const detailsHover = attachDetailsHover(board, { native: desktop, defaultSide: possessingSide });
 const animations = createScoreAnimations(board);
 const activity = createGameActivity({ onEvents: (events, game) => animations.enqueue(events, game), onReset: () => animations.clear() });
+function updateActivity() { activity.setGame(selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt, { sourceId: snapshot.data?.sourceId, stale: snapshot.data?.stale, error: Boolean(snapshot.error) }); }
 let nativeDetailsSide = null;
 detailsButton.addEventListener('click', () => detailsHover.open());
 
@@ -37,7 +38,7 @@ function render() {
     const side = possessingSide();
     if (desktop && side !== nativeDetailsSide) { nativeDetailsSide = side; window.scorebugDesktop.setDefaultDetailsSide?.(side); }
     document.title = `${game.away.abbreviation} ${game.away.score ?? '–'} · ${game.home.abbreviation} ${game.home.score ?? '–'} — Scorebug`;
-    hint.textContent = `${game.away.abbreviation} @ ${game.home.abbreviation} / ${snapshot.error ? 'RECONNECTING' : 'ESPN FEED'}`;
+    hint.textContent = `${game.away.abbreviation} @ ${game.home.abbreviation} / ${feedIsStale(snapshot.data, Boolean(snapshot.error)) ? 'FEED DELAYED' : snapshot.data?.feedStatus === 'backup' ? 'BACKUP FEED' : 'LIVE FEED'}`;
   } else {
     rendered = '';
     const message = document.createElement('div'); message.className = `empty-scorebug${snapshot.error ? ' error' : ''}`;
@@ -45,8 +46,8 @@ function render() {
     const help = document.createElement('small'); help.textContent = 'Hover here for settings'; message.append(help); board.replaceChildren(message);
   }
 }
-const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (next) => { snapshot = next; render(); if (!next.error) activity.setGame(selectGame(next.data?.games, preferences), preferences.date || 'current', next.data?.fetchedAt); } });
-onPreferences((next) => { const oldDate = preferences.date; preferences = next; if (oldDate !== next.date) poller.setDate(next.date); render(); activity.setGame(selectGame(snapshot.data?.games, preferences), preferences.date || 'current', snapshot.data?.fetchedAt); });
+const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (next) => { snapshot = next; render(); updateActivity(); } });
+onPreferences((next) => { const oldDate = preferences.date; preferences = next; if (oldDate !== next.date) poller.setDate(next.date); render(); updateActivity(); });
 refresh.addEventListener('click', () => { poller.refresh(); activity.refresh(); });
 settings.addEventListener('click', () => {
   if (desktop) window.scorebugDesktop.openSettings();

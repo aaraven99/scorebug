@@ -40,12 +40,14 @@ function render() {
   $('field-down').textContent = game?.state === 'in' ? game.downDistance || '' : '';
   const play = game?.lastPlay || summary?.lastPlay?.text || (game?.state === 'pre' ? 'Team totals appear after kickoff.' : 'Waiting for a reported play.');
   $('details-play').textContent = play; $('details-play').title = play;
-  const delayed = Boolean(summaryState.error || snapshot.error || (summary && Date.now() - Date.parse(summary.fetchedAt) > 45000) || (snapshot.data && feedIsStale(snapshot.data)));
-  $('stats-status').textContent = delayed ? summary ? 'Last received · reconnecting' : 'Stats unavailable · retrying' : summary ? 'Game totals · auto-updating' : game ? 'Loading team stats…' : 'No game selected';
+  const delayed = Boolean(summaryState.error || snapshot.error || (summary && feedIsStale(summary)) || (snapshot.data && feedIsStale(snapshot.data)));
+  $('stats-status').textContent = game?.detailsGameId === null ? 'Team totals unavailable'
+    : delayed ? summary ? 'Last received · reconnecting' : 'Stats unavailable · retrying' : summary ? 'Game totals · auto-updating' : game ? 'Loading team stats…' : 'No game selected';
   $('stats-status').className = delayed ? 'delayed' : '';
+  $('details-source').textContent = summary?.source || snapshot.data?.source || '';
 }
 const summaries = new GameDetailsPoller({ onUpdate: (next) => { summaryState = next; render(); } });
-function update() { render(); summaries.setGame(currentGame?.id || null); }
+function update() { render(); summaries.setGame(currentGame?.detailsGameId === null ? null : currentGame?.detailsGameId || currentGame?.id || null); }
 const poller = new ScoreboardPoller({ date: preferences.date, onUpdate: (next) => { snapshot = next; update(); } });
 onPreferences((next) => { const oldDate = preferences.date; preferences = next; if (oldDate !== next.date) poller.setDate(next.date); update(); });
 function setSide(value) { if (value === 'away' || value === 'home') { side = value; render(); } }

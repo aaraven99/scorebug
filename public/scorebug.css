@@ -18,16 +18,15 @@
 .scorebug .bug-clock{font-size:30px;font-weight:800;letter-spacing:-.8px}
 .scorebug .bug-down{font-size:25px;letter-spacing:-.8px}
 .scorebug .bug-down--long{font-size:18px;letter-spacing:-.65px}
+.scorebug .bug-down--unavailable{font-size:18px;letter-spacing:.2px;fill:#c9d2c3}
 .scorebug .bug-field-label{font-family:Arial,sans-serif;font-size:8px;font-style:normal;font-weight:700;letter-spacing:1.2px;fill:#d1dbce}
 .scorebug .bug-field-value{font-size:18px;letter-spacing:-.6px}
 .scorebug .bug-field-value--long{font-size:13px;letter-spacing:-.3px}
 .scorebug .bug-banner{font-size:25px;letter-spacing:-.2px}
-.scorebug .bug-timeouts-label,.scorebug .bug-timeouts-count{font-family:Arial,sans-serif;font-size:10px;font-style:normal;font-weight:700;letter-spacing:.3px;fill:#fff9eb}
-.scorebug .bug-timeouts-count{font-size:11px}
-.scorebug .bug-timeout{stroke:#fff8e3;stroke-opacity:.48;stroke-width:.7}
-.scorebug .bug-timeout--available{fill:#fff9e8}
-.scorebug .bug-timeout--used{fill:#091512;fill-opacity:.58}
-.scorebug .bug-timeouts--unknown .bug-timeouts-count{fill:#e4e5da}
+.scorebug .bug-timeout{stroke-width:.65;stroke-linejoin:round}
+.scorebug .bug-timeout--available{stroke:#e6ecdd;stroke-opacity:.85;filter:drop-shadow(.4px .5px .4px #07120da6)}
+.scorebug .bug-timeout--used{fill:#091512;fill-opacity:.58;stroke:#e0e8d7;stroke-opacity:.3}
+.scorebug .bug-timeout-unknown{font-family:Arial,sans-serif;font-size:14px;font-style:normal;font-weight:700;fill:#e4e8dc;stroke:#18251b;stroke-width:.65;paint-order:stroke fill}
 .scorebug .bug-possession{filter:drop-shadow(0 1px .8px #0008)}
 .scorebug .bug-status-flag text{font-family:Arial,sans-serif;font-size:12px;font-style:normal;font-weight:700;letter-spacing:1.15px;fill:#fff}
 .scorebug .bug-team-logo{filter:drop-shadow(0 1px 1px #0006)}
@@ -41,6 +40,7 @@
 .scorebug .bug-vertical-clock{font-size:29px;font-weight:800;letter-spacing:-1px}
 .scorebug .bug-vertical-down{font-size:17px;letter-spacing:-.6px}
 .scorebug .bug-vertical-down--long{font-size:12px;letter-spacing:-.45px}
+.scorebug .bug-vertical-down--unavailable{font-size:13px;letter-spacing:.2px;fill:#c9d2c3}
 .scorebug .bug-vertical-field{font-size:11px;letter-spacing:-.25px}
 .scorebug .bug-vertical-banner{font-size:13px;letter-spacing:-.4px}
 .scorebug .bug-vertical-banner--long{font-size:9px;letter-spacing:-.3px}
