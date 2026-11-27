@@ -137,8 +137,31 @@ test('horizontal corner blades attach above or below the selected team, never to
     assert.equal(presentation.attachment, direction === 'up' ? 'bottom' : 'top');
     assert.ok(bounds.x + presentation.joinLeft >= edge[0][0] - 0.01);
     assert.ok(bounds.x + presentation.joinRight <= edge[1][0] + 0.01);
-    const expectedY = edge[0][1] + (direction === 'up' ? DETAILS_SEAM_OVERLAP : -DETAILS_SEAM_OVERLAP);
+    const bug = scorebugHitBounds(widget);
+    const expectedY = direction === 'up' ? edge[0][1] + DETAILS_SEAM_OVERLAP : bug.y + 136 * bug.width / 600 - DETAILS_SEAM_OVERLAP;
     assert.ok(Math.abs(bounds.y + presentation.joinY - expectedY) <= 0.51);
+  }
+});
+
+test('downward blades join below the full information strip and leave its clock/down text visible', () => {
+  for (const orientation of ['horizontal', 'vertical']) {
+    for (const scale of [0.65, 1, 1.8]) {
+      const size = widgetSize(scale, orientation);
+      const area = { x: -800, y: 50, width: size.width + 32, height: size.height + 320 };
+      const widget = anchorBounds('top-center', size, area);
+      const bug = scorebugHitBounds(widget, orientation);
+      const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
+      const stripBottom = bug.y + (orientation === 'vertical' ? 346 : 136) * factor;
+      for (const side of ['home', 'away']) {
+        const { bounds, presentation } = detailsPlacement(widget, area, { side, orientation });
+        assert.equal(presentation.direction, 'down');
+        assert.ok(bounds.y >= stripBottom - DETAILS_SEAM_OVERLAP - 0.51, 'only the narrow border overlap can enter the strip');
+        assert.ok(Math.abs(bounds.y + presentation.joinY - stripBottom + DETAILS_SEAM_OVERLAP) <= 0.51);
+        assert.ok(bounds.x + presentation.joinLeft >= bug.x + factor - 0.01);
+        assert.ok(bounds.x + presentation.joinRight <= bug.x + (orientation === 'vertical' ? 149 : 571) * factor + 0.01);
+        assert.ok(bounds.y + bounds.height <= area.y + area.height);
+      }
+    }
   }
 });
 

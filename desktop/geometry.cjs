@@ -117,6 +117,14 @@ function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation =
   const height = Math.max(1, Math.min(Math.round(finite(size.height, DETAILS_SIZE.height)), workArea.height));
   const polygon = teamPanelPolygon(widgetBounds, orientation, side);
   const team = teamPanelBounds(widgetBounds, orientation, side);
+  const bug = scorebugHitBounds(widgetBounds, orientation);
+  const factor = bug.width / (orientation === 'vertical' ? 160 : 600);
+  // Downward blades join beneath the information strip so their neck never
+  // covers the clock/down text. Match the visible path (not its 2px SVG margin).
+  const stripBottom = bug.y + (orientation === 'vertical' ? 346 : 136) * factor;
+  const stripLeft = bug.x + factor;
+  const stripRight = bug.x + (orientation === 'vertical' ? 149 : 571) * factor;
+  const downEdge = [[Math.max(polygon[3][0], stripLeft), stripBottom], [Math.min(polygon[2][0], stripRight), stripBottom]];
   const overlap = DETAILS_SEAM_OVERLAP;
   const limit = (value, low, high) => Math.max(low, Math.min(value, high));
   const desired = (direction) => {
@@ -128,14 +136,14 @@ function detailsPlacement(widgetBounds, workArea, { side = 'home', orientation =
       const y = limit(team.y + (team.height - height) / 2, workArea.y, workArea.y + workArea.height - height);
       return { direction, bounds: { x, y, width, height }, points };
     }
-    const edge = direction === 'up' ? [polygon[0], polygon[1]] : [polygon[3], polygon[2]];
+    const edge = direction === 'up' ? [polygon[0], polygon[1]] : downEdge;
     const y = edge[0][1] + (direction === 'up' ? overlap : -overlap) - (direction === 'up' ? height : 0);
     const x = limit((edge[0][0] + edge[1][0]) / 2 - width / 2, workArea.x, workArea.x + workArea.width - width);
     return { direction, bounds: { x, y, width, height }, points: edge.map(([px, py]) => [px, py + (direction === 'up' ? overlap : -overlap)]) };
   };
   const primary = side === 'away' ? 'left' : 'right';
   const upSpace = team.y - workArea.y;
-  const downSpace = workArea.y + workArea.height - team.y - team.height;
+  const downSpace = workArea.y + workArea.height - stripBottom;
   const verticalDirections = upSpace >= downSpace ? ['up', 'down'] : ['down', 'up'];
   // Horizontal teams have different outer edges. If the selected team's edge
   // is against the screen, attach above/below that team rather than the rival.

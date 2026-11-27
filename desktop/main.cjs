@@ -12,7 +12,7 @@ const { DetailsLifecycle } = require('./details-lifecycle.cjs');
 
 const DEFAULTS = Object.freeze({
   gameId: null,
-  team: 'CHI',
+  team: null,
   date: null,
   scale: 1,
   anchor: 'bottom-center',
@@ -66,13 +66,13 @@ function cleanPatch(patch) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new TypeError('Preferences must be an object');
   const clean = {};
   if (Object.hasOwn(patch, 'gameId')) {
-    if (patch.gameId !== null && (typeof patch.gameId !== 'string' || !/^(?:\d{1,15}|thescore-\d{1,15})$/.test(patch.gameId))) {
+    if (patch.gameId !== null && (typeof patch.gameId !== 'string' || !/^(?:\d{1,15}|(?:thescore|fox)-\d{1,15})$/.test(patch.gameId))) {
       throw new TypeError('Invalid game ID');
     }
     clean.gameId = patch.gameId;
   }
   if (Object.hasOwn(patch, 'team')) {
-    if (typeof patch.team !== 'string' || !/^[A-Z]{2,4}$/.test(patch.team)) throw new TypeError('Invalid team');
+    if (patch.team !== null && (typeof patch.team !== 'string' || !/^[A-Z]{2,4}$/.test(patch.team))) throw new TypeError('Invalid team');
     clean.team = patch.team;
   }
   if (Object.hasOwn(patch, 'date')) {
