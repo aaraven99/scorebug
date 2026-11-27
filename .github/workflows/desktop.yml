@@ -1,4 +1,4 @@
-name: Build Windows and Mac desktop apps
+name: Verify Scorebug and build desktop apps
 
 on:
   workflow_dispatch:
@@ -13,16 +13,6 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-    paths:
-      - 'desktop/**'
-      - 'public/**'
-      - 'lib/**'
-      - 'api/**'
-      - 'server.mjs'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scripts/**'
-      - '.github/workflows/desktop.yml'
 
 permissions:
   contents: read
@@ -32,6 +22,43 @@ concurrency:
   cancel-in-progress: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') && (github.event_name != 'workflow_dispatch' || !inputs.publish_release) }}
 
 jobs:
+  browser-qa:
+    name: Browser QA · ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            suite: all
+          - browser: webkit
+            suite: flows
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install exact dependencies
+        run: npm ci
+      - name: Install the actual browser and system libraries
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Test all leagues and styles and repeated user workflows
+        run: node scripts/qa-scorebug.mjs --suite ${{ matrix.suite }} --passes 3 --browser ${{ matrix.browser }}
+      - name: Preserve QA results and visual evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Scorebug-Browser-QA-${{ matrix.browser }}
+          path: test-results/qa/
+          if-no-files-found: error
+          retention-days: 30
+
   windows:
     runs-on: windows-latest
     timeout-minutes: 20
@@ -180,7 +207,7 @@ jobs:
     if: >-
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
       (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && github.ref == 'refs/heads/main')
-    needs: [windows, macos]
+    needs: [browser-qa, windows, macos]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -289,7 +316,7 @@ jobs:
           test "$count" -le 1 || fail 'Multiple releases match this tag.'
           if [ "$count" = 0 ]; then
             jq -n --arg tag "$RELEASE_TAG" --arg sha "$RELEASE_COMMIT" --arg version "$release_version" \
-              '{tag_name:$tag,target_commitish:$sha,name:("Scorebug "+$version),draft:true,prerelease:false,body:"Multi-sport Scorebug: favorite teams, broadcast-inspired styles, sport-specific stats and events, and Windows + Mac downloads.\n\nWindows: download Scorebug-Setup-Windows.exe and run it. The installed Windows app updates automatically. The portable ZIP needs manual feature updates.\n\nMac: choose Scorebug-Mac-Apple-Silicon.dmg for an Apple-chip Mac, or Scorebug-Mac-Intel.dmg for Intel. Open the DMG and drag Scorebug to Applications. macOS 13 or newer is required. ZIP versions contain the same app.\n\nMac builds are ad-hoc signed, not Apple Developer ID signed or notarized. If macOS blocks the app and you trust this download, try opening it, then use System Settings > Privacy & Security > Open Anyway. Mac feature updates are manual for now: quit Scorebug and replace the app in Applications. Favorites and layout carry over. Read START-HERE-MAC.txt for simple setup steps.\n\nChoose your sport, save favorite teams and try the style selector in Settings. Drag near a side edge for the compact vertical view. Hover a logo or timeout area for team stats; hover the center for a comparison.\n\nThis release passed native Windows, Apple Silicon Mac and Intel Mac checks, including launch tests of both packaged Mac apps. All public downloads and the Windows automatic-update files were verified before publication."}' > create-release.json
+              '{tag_name:$tag,target_commitish:$sha,name:("Scorebug "+$version),draft:true,prerelease:false,body:"Phone Standby is here: open sports-scorebug.vercel.app/standby.html on your phone, choose up to four games, turn the phone sideways and hide the controls. No app-store download is needed.\n\nFavorite-team search now searches all supported leagues. This update also fixes repeated animation exits, logo fallbacks, several layout issues and saved choices in Safari.\n\nWindows: download Scorebug-Setup-Windows.exe and run it. The installed Windows app updates automatically. The portable ZIP needs manual feature updates.\n\nMac: choose Scorebug-Mac-Apple-Silicon.dmg for an Apple-chip Mac, or Scorebug-Mac-Intel.dmg for Intel. Open the DMG and drag Scorebug to Applications. macOS 13 or newer is required. ZIP versions contain the same app.\n\nMac builds are ad-hoc signed, not Apple Developer ID signed or notarized. If macOS blocks the app and you trust this download, try opening it, then use System Settings > Privacy & Security > Open Anyway. Mac feature updates are manual for now: quit Scorebug and replace the app in Applications. Favorites and layout carry over. Read START-HERE-MAC.txt for simple setup steps.\n\nChoose your sport, save favorite teams and try the style selector in Settings. Drag near a side edge for the compact vertical view. Hover a logo or timeout area for team stats; hover the center for a comparison.\n\nThis release passed repeated Chromium and WebKit user-flow checks, the complete league/style layout matrix, and native Windows, Apple Silicon Mac and Intel Mac checks, including launch tests of both packaged Mac apps. All public downloads and the Windows automatic-update files were verified before publication. Physical iPhone hardware is not part of these automated checks."}' > create-release.json
             gh api --method POST "repos/$GH_REPO/releases" --input create-release.json > release-state.json
           else
             jq '.[0]' matching-releases.json > release-state.json

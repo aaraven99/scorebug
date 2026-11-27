@@ -1,5 +1,5 @@
 const initialized = Symbol.for('scorebug.webAnalytics');
-const publicPages = new Set(['/', '/index.html', '/widget.html', '/game.html']);
+const publicPages = new Set(['/', '/index.html', '/widget.html', '/game.html', '/standby.html']);
 
 // This module is included only in the production website build. Keep these
 // runtime checks too, so serving that build locally never records a visit.

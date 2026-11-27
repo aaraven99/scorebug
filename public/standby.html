@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080a0d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Scorebug">
+  <meta name="description" content="Keep up to four live games in view on your phone. A quiet, full-screen scoreboard for your desk or bedside.">
+  <title>Standby — Scorebug</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/app-icon.png">
+  <link rel="manifest" href="/standby.webmanifest">
+  <link rel="stylesheet" href="/scorebug.css">
+  <link rel="stylesheet" href="/standby.css">
+  <script type="module" src="/standby.js"></script>
+</head>
+<body data-controls="visible">
+  <div class="standby-shell">
+    <header class="standby-header">
+      <a class="standby-brand" href="/" aria-label="Back to Scorebug"><img src="/favicon.svg" width="27" height="27" alt=""><span>Scorebug <strong>Standby</strong></span></a>
+      <div class="standby-header-actions"><button id="standby-add" type="button">Add game <span aria-hidden="true">+</span></button><button id="standby-controls-toggle" type="button" aria-pressed="false" aria-label="Hide Standby controls">Hide controls</button></div>
+    </header>
+    <main id="standby-grid" class="standby-grid" data-count="1" aria-label="Your games"></main>
+    <footer class="standby-toolbar" id="standby-toolbar">
+      <div class="standby-screen-controls">
+        <button id="standby-awake" type="button" aria-pressed="false" aria-describedby="standby-awake-status">Keep screen awake</button>
+        <button id="standby-fullscreen" type="button" aria-pressed="false" aria-describedby="standby-screen-status">Full screen</button>
+        <button id="standby-dim" type="button" aria-pressed="false">Dim display</button>
+        <button id="standby-refresh" type="button">Refresh</button>
+      </div>
+      <div class="standby-status-row"><span id="standby-awake-status" role="status">Screen may sleep.</span><span id="standby-screen-status" role="status">Keep this page open for live scores.</span><button id="standby-help-toggle" class="standby-text-button" type="button" aria-expanded="false" aria-controls="standby-help">Phone tips</button></div>
+      <p id="standby-storage-status" class="standby-notice" role="status" hidden></p>
+      <div id="standby-help" class="standby-help" hidden><p>Turn your phone sideways for a wider view. Add up to four games; each has its own league, game, and style.</p><p>On iPhone, open this page in Safari and choose <strong>Share → Add to Home Screen</strong> for an app-style view. Keep the page open and your phone unlocked. This is a browser display, not an iOS Lock Screen widget.</p><p>Keep screen awake works when your browser allows it. Scores check about every two seconds while this page is visible; feeds can still lag. A delayed badge means the score is the last confirmed update.</p></div>
+    </footer>
+  </div>
+  <button id="standby-reveal" class="standby-reveal" type="button" hidden>Show controls</button>
+  <dialog id="slot-dialog" aria-labelledby="slot-dialog-title">
+    <div class="slot-dialog-heading"><h1 id="slot-dialog-title">Choose your game</h1><button id="slot-done" type="button">Done</button></div>
+    <p class="slot-dialog-note">Changes apply to this game only.</p>
+    <label for="slot-league">Sport / league</label><select id="slot-league"></select>
+    <label for="slot-game">Game or session</label><select id="slot-game"><option value="">Automatic · a live game first</option></select>
+    <p id="slot-game-status" class="slot-dialog-note" role="status"></p>
+    <div class="slot-date-row"><label for="slot-date">Schedule date<input id="slot-date" type="date"></label><button id="slot-current" type="button">Current schedule</button></div>
+    <label for="slot-style">Scorebug style</label><select id="slot-style"></select>
+    <p id="slot-style-note" class="slot-dialog-note"></p>
+    <div id="slot-racing-controls" hidden><label for="slot-racing-rows">Drivers shown <output id="slot-racing-value" for="slot-racing-rows">6</output></label><input id="slot-racing-rows" type="range" min="3" max="60" step="1" value="6"><p class="slot-dialog-note">Only drivers supplied by the feed are shown.</p></div>
+    <div class="slot-dialog-bottom"><button id="slot-remove" type="button" class="standby-remove">Remove game</button><p id="slot-remove-note" class="slot-dialog-note">Keep at least one game in your display.</p></div>
+  </dialog>
+  <p id="standby-announcement" class="sr-only" role="status" aria-live="polite"></p>
+</body>
+</html>

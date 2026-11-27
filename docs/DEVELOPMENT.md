@@ -41,9 +41,12 @@ The Mac app requires macOS 13 or newer. Run native tests on the operating system
 npm test
 npm test --prefix desktop
 npm run build
+npx playwright install --with-deps chromium webkit
+npm run qa
+npm run qa:mobile
 ```
 
-The tests cover sports data, event detection, favorites, style rendering, game identity, polling, hover geometry and desktop updates. On Windows or Mac, also run:
+The tests cover sports data, event detection, favorites, style rendering, game identity, polling, hover geometry and desktop updates. The browser checks run every league/style/orientation combination three times and repeat user workflows in Chromium and WebKit, including phone Standby. These are required for every edit; see [the QA guide](QA.md) and [project instructions](../AGENTS.md). Reports and screenshots are saved under `test-results/qa/` and uploaded by CI. On Windows or Mac, also run:
 
 ```sh
 npm run test:smoke --prefix desktop
@@ -102,6 +105,8 @@ The client usually checks scores and selected-game details every two seconds wit
 | Preferences, favorites and polling | `public/preferences-model.js`, `favorites.js`, `style-favorites.js`, `score-client.js`, `game-details-client.js` |
 | Sport stats and animations | `public/sport-stats.js`, `sport-events.js`, `game-activity.js`, `score-animation.js` |
 | Hover stats and full-screen view | `public/details-*`, `game-view.js`, `sport-view.js`, `game.js` |
+| Phone Standby and multiple scores | `public/standby.html`, `standby.js`, `standby-model.js`, `standby-feeds.js`, `standby-screen.js`, `standby.css` |
+| Repeated browser and visual QA | `scripts/qa-scorebug.mjs`, `tests/qa/`, `docs/QA.md` |
 | Native windows and releases | `desktop/`, `scripts/package_*_release.py`, `scripts/combine_desktop_release.py`, `.github/workflows/desktop.yml` |
 
 Keep game and team IDs scoped to their league. Style changes must retain the selected sport's data and hover targets. New stats should stay unavailable when a feed does not report them; samples and animation demos must remain clearly labeled.

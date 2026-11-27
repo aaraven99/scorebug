@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#141917">
   <title>Game center — Scorebug</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/app-icon.png">
   <link rel="stylesheet" href="/widget.css">
   <link rel="stylesheet" href="/game.css">
   <link rel="stylesheet" href="/scorebug.css">
@@ -15,7 +16,7 @@
   <header class="game-header">
     <a class="game-brand" href="/" id="game-back" aria-label="Back to Scorebug"><img src="/favicon.svg" alt="" width="29" height="29"><span>Game center</span></a>
     <div class="game-select-controls"><label class="sr-only" for="center-league-select">Sport or league</label><select id="center-league-select"></select><label class="sr-only" for="center-style-select">Scorebug style</label><select id="center-style-select"></select><label class="sr-only" for="center-game-select">Choose a game</label><select id="center-game-select"><option value="">Finding games…</option></select><button id="center-automatic" type="button" aria-pressed="true">Automatic</button></div>
-    <div class="game-window-controls"><button id="center-refresh" type="button" title="Check for the latest game data">Refresh</button><button id="center-fullscreen" type="button">Full screen</button><button id="center-close" type="button">Back</button></div>
+    <div class="game-window-controls"><a id="center-standby" href="/standby.html">Standby</a><button id="center-refresh" type="button" title="Check for the latest game data">Refresh</button><button id="center-fullscreen" type="button">Full screen</button><button id="center-close" type="button">Back</button></div>
   </header>
   <main class="game-center">
     <section class="game-hero" aria-label="Live scoreboard and period scores">

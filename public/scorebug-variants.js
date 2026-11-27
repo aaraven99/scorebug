@@ -55,16 +55,23 @@ function view(game) {
   const field=sport==='football'?(game?.fieldPosition||s.fieldPosition||''):'';
   return {sport,s,banner,period:formatPeriod(game||{}).toUpperCase(),clock,detail:String(detail).toUpperCase(),field};
 }
+function readablePaint(paint) {
+  const luminance=hex=>safeColor(hex).slice(1).match(/../g).map(value=>parseInt(value,16)/255).reduce((sum,channel,index)=>sum+(channel<=.04045?channel/12.92:((channel+.055)/1.055)**2.4)*[.2126,.7152,.0722][index],0);
+  const fill=luminance(paint.fill),ink=luminance(paint.ink);
+  if((Math.max(fill,ink)+.05)/(Math.min(fill,ink)+.05)>=4.5)return paint;
+  return {...paint,ink:fill>.179?'#000000':'#ffffff'};
+}
 function paletteFor(style,team,side,helpers) {
   const base=helpers.teamPalette(team,side),v=style.variant;
-  if(['white','pl-white','mls','sportsnet'].includes(v))return {...base,fill:'#f2f4f5',border:'#b9c4cc',ink:'#101820',accent:base.fill};
-  if(['pl-purple','rugby'].includes(v))return {...base,fill:side==='away'?base.fill:'#eeeef6',border:'#2f073e',ink:side==='away'?base.ink:'#15101d',accent:base.fill};
-  if(v==='ucl')return {...base,fill:'#0719a8',border:'#253be0',ink:'#ffffff',accent:base.fill};
-  if(v==='world-cup')return {...base,fill:'#841435',border:'#5c0d28',ink:'#ffffff',accent:base.fill};
-  if(v==='vnl')return {...base,fill:'#223b98',border:'#182869',ink:'#ffffff',accent:base.fill};
-  if(['venom','neon','college-dark','cbb-center','gridiron','compact-pill','apple'].includes(v))return {...base,fill:'#14181e',border:base.fill,ink:'#ffffff',accent:base.fill};
-  if(v==='nba-pods'&&side==='home')return {...base,fill:'#f2e7db',border:'#cbb6a5',ink:base.fill,accent:base.fill};
-  return {...base,accent:base.fill};
+  let paint={...base,accent:base.fill};
+  if(['white','pl-white','mls','sportsnet'].includes(v))paint={...base,fill:'#f2f4f5',border:'#b9c4cc',ink:'#101820',accent:base.fill};
+  else if(['pl-purple','rugby'].includes(v))paint={...base,fill:side==='away'?base.fill:'#eeeef6',border:'#2f073e',ink:side==='away'?base.ink:'#15101d',accent:base.fill};
+  else if(v==='ucl')paint={...base,fill:'#0719a8',border:'#253be0',ink:'#ffffff',accent:base.fill};
+  else if(v==='world-cup')paint={...base,fill:'#841435',border:'#5c0d28',ink:'#ffffff',accent:base.fill};
+  else if(v==='vnl')paint={...base,fill:'#223b98',border:'#182869',ink:'#ffffff',accent:base.fill};
+  else if(['venom','neon','college-dark','cbb-center','gridiron','compact-pill','apple'].includes(v))paint={...base,fill:'#14181e',border:base.fill,ink:'#ffffff',accent:base.fill};
+  else if(v==='nba-pods'&&side==='home')paint={...base,fill:'#f2e7db',border:'#cbb6a5',ink:base.fill,accent:base.fill};
+  return readablePaint(paint);
 }
 function panelShape(x,y,w,h,shape='rect',side='away') {
   if(shape==='slant')return `M${x+12} ${y}H${x+w}L${x+w-12} ${y+h}H${x}Z`;
@@ -106,20 +113,24 @@ function teamGroup(team,side,box,ctx,{scoreSize=43,name=true,logoWidth=56,logoOn
   const number=scoreValue(team,sportFor(game));
   const large=number.length>3?scoreSize*.7:number.length===3?scoreSize*.83:scoreSize;
   const textX=reverse?x+w-48:x+47;
-  const logo=helpers.logoImage(team,logoX,centerY,logoWidth,Math.min(56,h-24));
+  const abbreviationY=y+h-(shape==='curved'?22:8),hasCaption=name&&!logoOnly;
+  // Give the visible logo and its caption separate space. Tall marks need the
+  // same clearance as wide marks, including their selective contrast outline.
+  const logoHeight=Math.min(56,hasCaption?abbreviationY-y-21:h-24);
+  const logoY=hasCaption?Math.min(centerY,abbreviationY-15-logoHeight/2):centerY;
+  const logo=helpers.logoImage(team,logoX,logoY,logoWidth,logoHeight);
   let contents=`<path class="bug-team-panel" d="${path}" fill="${paint.fill}" stroke="${paint.border}" stroke-width="2"/>`;
   if(paint.accent!==paint.fill)contents+=`<path d="M${x+2} ${y+2}H${x+w-2}" stroke="${paint.accent}" stroke-width="4"/>`;
   if(scoreCard)contents+=`<path d="${rectPath(reverse?x+3:x+w-76,y+3,73,h-6,2)}" fill="#eff2f3"/>`;
   if(strip)contents+=`<path d="M${x+1} ${y+h-10}H${x+w-1}" stroke="${paint.accent}" stroke-width="7"/>`;
   contents+=logo||label(team.abbreviation||'—',logoX,centerY+8,Math.min(23,logoWidth/2),{anchor:'middle',fill:paint.ink,width:logoWidth});
-  const abbreviationY=y+h-(shape==='curved'?22:8);
-  if(name&&!logoOnly&&logo)contents+=label(team.abbreviation||'',textX,abbreviationY,11,{anchor:'middle',fill:paint.ink,width:logoWidth});
+  if(hasCaption&&logo)contents+=label(team.abbreviation||'',textX,abbreviationY,11,{anchor:'middle',fill:paint.ink,width:logoWidth,className:'variant-team-abbreviation'});
   contents+=label(number,scoreX,centerY+large*.35,large,{anchor:'middle',weight:900,fill:scoreCard?'#101820':paint.ink,width:74,className:'variant-score'});
   const possessionX=reverse?x+91:x+w-91;
   contents+=marker(game,team,possessionX,centerY,Math.min(16,h*.2),helpers);
   contents+=timeoutRail(team,x+w/2-27,y+h-(shape==='curved'?19:7),54,options,game,paint);
   const bonus=game?.situation?.[`${side}Bonus`]===true||game?.situation?.bonusTeamId===team.id;
-  if(sportFor(game)==='basketball'&&bonus)contents+=label('BONUS',x+w/2,y+h-16,8,{anchor:'middle',fill:paint.ink,width:48});
+  if(sportFor(game)==='basketball'&&bonus)contents+=label('BONUS',x+w/2,y+h-(shape==='curved'?28:16),8,{anchor:'middle',fill:paint.ink,width:48,className:'variant-bonus'});
   if(options.interactive!==false)contents+=target(side,Math.max(x+2,logoX-logoWidth/2-7),y+4,Math.min(logoWidth+14,w/2),h-8,team.name||team.abbreviation);
   return `<g class="bug-team bug-team--${side}" data-team-side="${side}" data-team-id="${esc(team.id||'')}" data-team-fill="${paint.fill}" data-team-border="${paint.border}" data-team-ink="${paint.ink}">${contents}</g>`;
 }
@@ -138,6 +149,7 @@ function infoPanel(box,ctx,{fill='#111820',ink='#f7f8f9',radius=0,mode='row',cla
     contents+=label(v.clock||v.detail||'—',x+w/2,y+h/2+8,Math.min(27,h*.72),{anchor:'middle',fill:ink,weight:900,width:third-10,className:'variant-clock'});
     const trailing=v.clock?v.detail:v.field;
     contents+=label(trailing||v.field||'',x+w-12,y+h/2+6,Math.min(17,h*.52),{anchor:'end',fill:ink,width:third-16});
+    if(v.sport==='baseball')contents+=diamond(v.s,x+w*.32,y+h*.6,Math.min(9,h*.24));
   }
   if(options.interactive!==false)contents+=target('comparison',mode==='column'?x:x+w*.34,y,mode==='column'?w:w*.32,h);
   return contents;
@@ -145,14 +157,14 @@ function infoPanel(box,ctx,{fill='#111820',ink='#f7f8f9',radius=0,mode='row',cla
 function supplemental(game,ctx,x,y,width) {
   const {v}=ctx,s=game?.situation||{};
   if(v.sport==='baseball')return diamond(s,x+width/2,y,11);
-  if(v.sport==='football'&&v.field)return label(`BALL ${v.field}`,x+width/2,y+5,11,{anchor:'middle',width});
+  if(v.sport==='football'&&v.field)return label(`BALL ${v.field}`,x+width/2,y+5,11,{anchor:'middle',width,className:'variant-aux-text'});
   if(v.sport==='basketball') {
     const parts=['away','home'].map(side=>{const t=game?.[side]||{};return t.fouls!=null?`${t.abbreviation||side.toUpperCase()} ${t.fouls} FOULS`:'';}).filter(Boolean);
-    return label(parts.join('   ·   '),x+width/2,y+5,11,{anchor:'middle',width});
+    return label(parts.join('   ·   '),x+width/2,y+5,11,{anchor:'middle',width,className:'variant-aux-text'});
   }
   if(v.sport==='hockey') {
     const shots=['away','home'].map(side=>game?.[side]?.shotsOnGoal??game?.[side]?.shots);
-    if(shots.some(value=>value!=null))return label(`SHOTS  ${shots[0]??'—'}  —  ${shots[1]??'—'}`,x+width/2,y+5,12,{anchor:'middle',width});
+    if(shots.some(value=>value!=null))return label(`SHOTS  ${shots[0]??'—'}  —  ${shots[1]??'—'}`,x+width/2,y+5,12,{anchor:'middle',width,className:'variant-aux-text'});
   }
   return '';
 }
@@ -203,7 +215,11 @@ function banner(ctx) {
   html+=infoPanel({x:infoX,y,w:infoX===4?132:198,h},ctx,{fill:body,ink:light?'#111c27':'#ffffff',mode:'column',radius:metal?7:0});
   if(v==='neon')html+=`<path d="M7 ${y+h+2}H390" stroke="#4ce1cf" stroke-width="2.5"/>`;
   if(v==='venom'||v==='arrow')html+=`<path d="M5 ${y+h+2}H390" stroke="#d2db42" stroke-width="3"/>`;
-  if(v==='ticker'||v==='two-tier')html+=`<path d="${rectPath(2,y+h+4,596,25)}" fill="#161b23"/>`+label(ctx.v.detail||ctx.v.field||formatPeriod(ctx.game),300,y+h+22,12,{anchor:'middle',width:570});
+  if(v==='ticker'||v==='two-tier') {
+    html+=`<path d="${rectPath(2,y+h+4,596,25)}" fill="#161b23"/>`;
+    if(ctx.v.sport==='baseball')html+=diamond(ctx.v.s,300,y+h+19,9)+label(ctx.v.detail,328,y+h+22,12,{width:250});
+    else html+=label(ctx.v.detail||ctx.v.field||formatPeriod(ctx.game),300,y+h+22,12,{anchor:'middle',width:570});
+  }
   else html+=supplemental(ctx.game,ctx,6,y+h+19,588);
   return html;
 }
@@ -324,7 +340,7 @@ function bladesAdapted(ctx) {
     const score=scoreValue(team,v.sport);
     html+=label(score,scoreX,70,score.length>2?44:65,{anchor:'middle',weight:900,fill:paint.ink,width:90,italic:true,className:'variant-score'});
     html+=marker(ctx.game,team,away?185:413,46,22,helpers);
-    html+=timeoutRail(team,away?21:579,15,57,options,ctx.game,paint,{vertical:true});
+    html+=timeoutRail(team,away?32:574,15,57,options,ctx.game,paint,{vertical:true});
     if(options.interactive!==false)html+=target(side,away?32:435,5,138,81,team.name);
     html+='</g>';
   });
@@ -335,6 +351,7 @@ function bladesAdapted(ctx) {
     html+=label(v.period,33,123,23,{width:150});
     html+=label(v.clock||v.detail||'—',292,124,28,{anchor:'middle',weight:900,width:170,className:'variant-clock'});
     html+=label(v.clock?v.detail:'',551,123,19,{anchor:'end',width:165});
+    if(v.sport==='baseball')html+=diamond(v.s,193,118,10);
   }
   if(options.interactive!==false)html+=target('comparison',228,94,130,41);
   return html;
@@ -356,7 +373,9 @@ function verticalSets(ctx) {
     if(ctx.options.interactive!==false)html+=target(side,7,y+3,145,23,t.name);
     html+='</g>';
   });
-  return html+infoPanel({x:3,y:216,w:154,h:70},ctx,{fill:colors[0],mode:'column'});
+  html+=infoPanel({x:3,y:216,w:154,h:70},ctx,{fill:colors[0],mode:'column'});
+  if(v.sport==='baseball'&&!v.banner)html+=diamond(v.s,132,235,6);
+  return html;
 }
 function vertical(ctx) {
   if(ctx.style.family==='sets')return verticalSets(ctx);
@@ -367,16 +386,16 @@ function vertical(ctx) {
   let html='';
   if(compact)html+=`<path d="${rectPath(4,3,152,27,4)}" fill="#17222d"/>`+label(v.banner||v.period,80,22,12,{anchor:'middle',width:138});
   ['away','home'].forEach((side,index)=> {
-    const team=teams[side],y=teamTop+index*step,paint=paletteFor(style,team,side,helpers),isBlades=style.family==='blades';
+    const team=teams[side],y=teamTop+index*step,isBlades=style.family==='blades',open=style.family==='minimal';
+    const palette=paletteFor(style,team,side,helpers),paint=open?{...palette,fill:'#18212b',ink:'#ffffff'}:palette;
     const x=isBlades?9:4,w=isBlades?150:152;
     const path=isBlades?`M17 ${y-2}H159L151 ${y+94}H9Z`:panelShape(x,y,w,rowH,shape,side);
-    const open=style.family==='minimal';
     html+=`<g class="bug-team bug-team--${side}" data-team-side="${side}" data-team-id="${esc(team.id||'')}" data-team-fill="${paint.fill}" data-team-border="${paint.border}" data-team-ink="${paint.ink}"><path class="bug-team-panel" d="${path}" fill="${open?'#18212bd9':paint.fill}" stroke="${paint.border}"/>`;
     const number=scoreValue(team,v.sport);
     if(compact) {
       const logo=helpers.logoImage(team,40,y+29,58,36);
       html+=logo||label(team.abbreviation||'—',40,y+35,19,{anchor:'middle',fill:paint.ink,width:58});
-      if(logo)html+=label(team.abbreviation||'',40,y+64,11,{anchor:'middle',fill:paint.ink,width:60});
+      if(logo)html+=label(team.abbreviation||'',40,y+64,11,{anchor:'middle',fill:paint.ink,width:60,className:'variant-team-abbreviation'});
       html+=label(number,121,y+51,number.length>3?24:32,{anchor:'middle',fill:paint.ink,weight:900,width:56,className:'variant-score'});
       html+=marker(ctx.game,team,80,y+36,11,helpers);
       html+=timeoutRail(team,side==='away'?12:84,y+73,64,ctx.options,ctx.game,paint);
@@ -387,7 +406,8 @@ function vertical(ctx) {
       const fontSize=number.length>3?28:40;
       html+=label(number,80,y+rowH-8,fontSize,{anchor:'middle',fill:paint.ink,weight:900,width:110,className:'variant-score'});
       html+=marker(ctx.game,team,80,y+45,13,helpers);
-      html+=timeoutRail(team,side==='away'?12:146,y+12,Math.min(52,rowH-20),ctx.options,ctx.game,paint,{vertical:true});
+      const timeoutX=shape==='shield'?(side==='away'?24:132):(side==='away'?(isBlades?20:12):146);
+      html+=timeoutRail(team,timeoutX,y+12,Math.min(52,rowH-20),ctx.options,ctx.game,paint,{vertical:true});
       if(ctx.options.interactive!==false)html+=target(side,25,y+3,110,35,team.name);
     }
     html+='</g>';
@@ -433,14 +453,17 @@ function timing(ctx) {
     const value=golf?(entry.scoreDisplay??entry.score??entry.toPar??'—'):(entry.gap??entry.time??entry.status??'—');
     const rowShape=variant==='slanted'?'slant':['rounded','modern'].includes(variant)?'round':'rect';
     html+=`<g class="variant-classification-row" data-entry-id="${esc(entry.id||'')}" data-row-index="${index}" data-row-x="${x}" data-row-y="${y}"><path d="${panelShape(x,y,w,rowH-2,rowShape)}" fill="${base}"/>`;
-    html+=`<path d="${rectPath(x+2,y+2,vertical?18:23,rowH-6,1)}" fill="${classic?accent:white?'#d32a3a':['slim','modern','full-name','stage','golf-mini'].includes(variant)?'#252e36':color}"/>`;
+    const positionFill=classic?accent:white?'#d32a3a':['slim','modern','full-name','stage','golf-mini'].includes(variant)?'#252e36':color;
+    const positionInk=readablePaint({fill:positionFill,ink:ctx.helpers.teamPalette({color:positionFill},'away').ink}).ink;
+    html+=`<path d="${rectPath(x+2,y+2,vertical?18:23,rowH-6,1)}" fill="${positionFill}"/>`;
     if(['modern','slim','full-name','stage','golf-pylon'].includes(variant))html+=`<rect x="${x+24}" y="${y+3}" width="2" height="${rowH-8}" fill="${color}"/>`;
-    html+=label(position,x+(vertical?11:14),y+rowH*.67,vertical?11:12,{anchor:'middle',fill:classic?'#24271a':'#ffffff',weight:800,width:vertical?16:20});
+    html+=label(position,x+(vertical?11:14),y+rowH*.67,vertical?11:12,{anchor:'middle',fill:positionInk,weight:800,width:vertical?16:20});
     html+=label(name,x+(vertical?26:34),y+rowH*.67,vertical?13:14,{fill:ink,width:vertical?67:162,weight:700});
-    html+=label(value,x+w-5,y+rowH*.67,vertical?11:12,{anchor:'end',fill:ink,width:vertical?48:78});
+    const valueInset=variant==='slanted'?12:5;
+    html+=label(value,x+w-valueInset,y+rowH*.67,vertical?11:12,{anchor:'end',fill:ink,width:(vertical?48:78)-(valueInset-5)});
     html+='</g>';
   });
-  const footerText=golf?(entries.length>shown.length?`${entries.length} players · hover for full standings`:'Player statistics in Game Center')
+  const footerText=golf?(entries.length>shown.length?`${entries.length} players · ${options.interactive===false?'Game stats':'hover for full standings'}`:'Player statistics in Game Center')
     :!shown.length?'Waiting for reported timing':vertical?`${shown.length}${entries.length>shown.length?`/${entries.length}`:''} DRIVERS · DETAILS`
     :entries.length>shown.length?`${shown.length} OF ${entries.length} DRIVERS · FULL TIMING IN GAME CENTER`:`${shown.length} DRIVERS REPORTED · SESSION DETAILS`;
   html+=`<path d="${rectPath(3,height-footerH,width-6,footerH-2,3)}" fill="${base}"/>`+label(footerText,width/2,height-8,vertical?8.5:10,{anchor:'middle',fill:ink,width:width-18});

@@ -23,7 +23,7 @@ If a download does not start, [open the latest release](https://github.com/aarav
 ## Start watching
 
 1. **Choose a sport or league.** Leave **Automatic** selected to follow a live game, or click a game to keep watching that one. The **College sports** group includes college football and men's and women's college basketball.
-2. **Save your teams.** Under **Favorite teams**, open **Add a team or competitor**, type a name, and click its result. For a college team, choose its sport in **Search in** to load that directory. When a favorite plays live, its game appears in **Favorite teams** and in its league’s **Live now** list. Automatic prefers a live favorite in the selected league.
+2. **Save your teams.** Under **Favorite teams**, open **Add a team or competitor**, type a name, and click its result. **All sports** searches across every supported league, including college sports. The directories load in the background; progress and any missing coverage appear beneath the results. **Filter by sport** narrows the results if you want. When a favorite plays live, its game appears in **Favorite teams** and in its league’s **Live now** list. Automatic prefers a live favorite in the selected league.
 3. **Pick and save your styles.** Choose a look in **Scorebug style** or **Browse styles**. Click its star to save it under **Favorite styles**, then click its saved name whenever you want to switch. In **Browse styles**, turn on **Favorites only** to show your saved looks.
 4. **Place the scorebug.** Drag the desktop app to an edge and release to snap it. Side positions use a compact vertical layout. On the website, choose **Normal** or **Side**, then **Float in browser**.
 
@@ -36,6 +36,19 @@ Hover a team logo or its timeout marks for that team’s stats. Hover the middle
 For a larger view, open **Game center**. It puts the available score, team or driver standings, statistics, player details, and play history together. The **Try an animation** controls preview events without changing the live score.
 
 For Formula 1, use **Drivers shown** beneath the style controls to show a few drivers or the full field. The floating window grows with the list and fits it within your screen. Driver names appear on their own line in animations; safety car, VSC, and race-control flags apply to the whole session and do not name a driver.
+
+## Watch on your phone
+
+Open **[Standby](https://sports-scorebug.vercel.app/standby.html)** in your phone's browser. Turn your phone sideways for a quiet score display. Portrait works too.
+
+1. Tap **Change** on a score to choose its sport, game and style.
+2. Tap **Add game** to follow up to **four games at once**. Each card has its own selections, and your board is remembered on this device.
+3. Tap **Keep screen awake** if you want the display to stay on. The status tells you whether the browser granted it. **Dim display** lowers the brightness within the page, and **Hide controls** makes more room for scores.
+4. Tap **Game stats** on a card to open that game's full details.
+
+**Full screen** works where the browser supports it. On iPhone, you can also use **Share → Add to Home Screen** and open Scorebug from that icon. This is a website, so no App Store download is needed. It runs while the page is open and visible; it is not an iPhone lock-screen widget. Scores refresh when you return to the page.
+
+Games from the same league and date share one update stream. A failed connection keeps the last confirmed score on screen with a delayed label.
 
 ## Sports and styles
 
@@ -76,6 +89,6 @@ Visitor counting is included. Enable **Web Analytics** in the Vercel project, th
 
 ## For contributors
 
-[Run from source and test](docs/DEVELOPMENT.md) · [Publish an app update](docs/GITHUB-ACCESS.md) · [Fonts and artwork](docs/ASSETS.md)
+[Run from source and test](docs/DEVELOPMENT.md) · [Deep QA checks](docs/QA.md) · [Publish an app update](docs/GITHUB-ACCESS.md) · [Fonts and artwork](docs/ASSETS.md)
 
 Unofficial fan project. Not affiliated with the broadcasters, leagues, teams, or data providers whose names appear in the app.

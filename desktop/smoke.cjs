@@ -118,7 +118,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
   const evidenceDir = process.env.SCOREBUG_SMOKE_EVIDENCE || path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
   const summary = { passed: false, platform: process.platform, arch: process.arch, packaged, softwareRendering: process.env.SCOREBUG_SMOKE_SOFTWARE_RENDERING === '1', version: require('./package.json').version, electron: process.versions.electron, feedRequired: false, checks: [] };
-  let deadline;
+  let deadline, restoreStandbyNetwork;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
   const readScorebugLayout = async (options = {}) => {
@@ -676,6 +676,76 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.deepEqual((await evaluate('window.scorebugDesktop.getState()')).preferences, compactPreferences);
         await waitFor('Close state reaches the compact window', () => evaluate('window.__gameCenterState?.open === false && window.__gameCenterState?.fullscreen === false'), 3000);
         check('Game Center reuses a secure fullscreen window, exits with Escape/F11, restricts its IPC controls and restores the compact scoreboard');
+
+        // This group intentionally exercises the last-confirmed cached score.
+        // Keep real NBA responses from replacing its explicitly labelled fixture
+        // as Settings and Game Center navigate through fresh renderer documents.
+        const smokeRequests = widget.webContents.session.webRequest;
+        smokeRequests.onBeforeRequest({ urls: [`${origin}/api/scoreboard*`] }, (_request, done) => done({ cancel: true }));
+        restoreStandbyNetwork = () => { smokeRequests.onBeforeRequest(null); restoreStandbyNetwork = null; };
+        await evaluate('window.scorebugDesktop.openSettings()');
+        await waitFor('Settings Standby entry', () => getSettings()?.webContents.executeJavaScript('Boolean(document.querySelector("#standby-button"))'), 8000);
+        const standbyWindow = getSettings();
+        const standbyEvaluate = code => standbyWindow.webContents.executeJavaScript(code, true);
+        await standbyEvaluate(`(async () => {
+          const [{ referenceForLeague }, { writeCachedScoreboard }, { normalizeStandbyState, saveStandbyState }] = await Promise.all([
+            import('/sport-fixtures.js'), import('/score-client.js'), import('/standby-model.js')
+          ]);
+          const game = { ...referenceForLeague('nba'), id: 'nba:native-smoke', detailsGameId: null };
+          const slot = { leagueId: 'nba', gameId: game.id, styleId: 'nfl-blades', date: '20261125', racingRows: 22 };
+          if (!writeCachedScoreboard(slot.date, { leagueId: 'nba', fetchedAt: new Date().toISOString(), games: [game], source: 'Native test fixture' }, { leagueId: 'nba' })) throw new Error('Native test cache could not be prepared');
+          saveStandbyState(localStorage, normalizeStandbyState({ slots: [slot] }));
+          document.querySelector('#standby-button').click();
+        })()`);
+        await waitFor('Standby loads inside Settings with working trusted IPC', async () => {
+          if (new URL(standbyWindow.webContents.getURL()).pathname !== '/standby.html') return false;
+          return standbyEvaluate('(async () => Boolean(document.querySelector(".slot-details:not([hidden])") && (await window.scorebugDesktop.getPreferences()).leagueId))()');
+        }, 8000);
+        assert.equal(await standbyEvaluate('document.querySelector(".slot-phase").textContent'), 'DELAYED', 'The cached native test score must be labelled delayed');
+        let standbySaved = await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")');
+        assert.deepEqual((await standbyEvaluate('window.scorebugDesktop.getState()')).preferences, compactPreferences, 'Opening Standby changed the native selection');
+        await standbyEvaluate('document.querySelector(".slot-details").click(); void 0;');
+        await waitFor('Standby stats reach the real fullscreen Game Center', async () => {
+          const next = getGameCenter();
+          return next && next !== standbyWindow && next.isFullScreen() && next.webContents.executeJavaScript('document.querySelector("#center-league-select")?.value === "nba" && document.querySelector("#center-style-select")?.value === "nfl-blades"');
+        }, 8000, 400);
+        const standbyCenter = getGameCenter();
+        const context = new URL(standbyCenter.webContents.getURL());
+        for (const [key, value] of Object.entries({ league: 'nba', game: 'nba:native-smoke', style: 'nfl-blades', date: '20261125', rows: '22' })) assert.equal(context.searchParams.get(key), value, `Standby lost ${key}`);
+        const selectedNative = await standbyCenter.webContents.executeJavaScript('window.scorebugDesktop.getPreferences()');
+        for (const [key, value] of Object.entries({ leagueId: 'nba', gameId: 'nba:native-smoke', styleId: 'nfl-blades', styleAuto: false, date: '20261125', racingRows: 22, team: null })) assert.equal(selectedNative[key], value, `Native selection did not receive ${key}`);
+        for (const key of ['anchor', 'scale', 'snapEnabled', 'locked', 'favorites', 'favoriteStyleIds']) assert.deepEqual(selectedNative[key], compactPreferences[key], `Opening game stats changed ${key}`);
+        assert.equal(new URL(standbyWindow.webContents.getURL()).pathname, '/standby.html', 'Stats replaced the saved Standby board');
+        assert.equal(await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")'), standbySaved);
+        const selectedCenterEvaluate = code => standbyCenter.webContents.executeJavaScript(code, true);
+        await selectedCenterEvaluate('document.querySelector("#center-standby").click(); void 0;');
+        await waitFor('Game Center can show its Standby board', () => selectedCenterEvaluate('Boolean(document.querySelector(".slot-details:not([hidden])"))'), 8000);
+        await selectedCenterEvaluate(`document.querySelector('.slot-configure').click();
+          document.querySelector('#slot-style').value = 'nfl-cbs-eyebar';
+          document.querySelector('#slot-style').dispatchEvent(new Event('change', { bubbles: true }));
+          document.querySelector('#slot-done').click(); void 0;`);
+        assert.equal((await selectedCenterEvaluate('window.scorebugDesktop.getPreferences()')).styleId, 'nfl-blades', 'Changing a Standby card changed the main selection before opening its stats');
+        standbySaved = await selectedCenterEvaluate('localStorage.getItem("scorebug.standby.v1")');
+        await selectedCenterEvaluate('document.querySelector(".slot-details").click(); void 0;');
+        await waitFor('Same-window Standby stats synchronize the native selection', async () => {
+          if (new URL(standbyCenter.webContents.getURL()).pathname !== '/game.html') return false;
+          return selectedCenterEvaluate('(async () => document.querySelector("#center-style-select")?.value === "nfl-cbs-eyebar" && (await window.scorebugDesktop.getPreferences()).styleId === "nfl-cbs-eyebar")()');
+        }, 8000, 400);
+        assert.equal(getGameCenter(), standbyCenter, 'Returning from Standby opened a duplicate dashboard');
+        await standbyCenter.webContents.executeJavaScript('document.querySelector("#center-close").click(); void 0;', true);
+        await waitFor('Closing Standby stats restores the floating window', () => !getGameCenter() && widget.isVisible(), 8000);
+        await standbyEvaluate('document.querySelector(".standby-brand").click(); void 0;');
+        await waitFor('Standby returns to Settings', () => standbyEvaluate('Boolean(document.querySelector("#game-select") && document.querySelector("#standby-button"))'), 8000);
+        await standbyEvaluate('document.querySelector("#standby-button").click(); void 0;');
+        await waitFor('The saved Standby board reopens', () => standbyEvaluate('Boolean(document.querySelector("#standby-grid"))'), 8000);
+        await evaluate('window.scorebugDesktop.openSettings()');
+        await waitFor('The native Settings action returns from Standby to Settings', () => standbyEvaluate('Boolean(document.querySelector("#game-select") && document.querySelector("#standby-button"))'), 8000);
+        assert.equal(getSettings(), standbyWindow, 'The Settings action should reuse its existing window');
+        assert.equal(await standbyEvaluate('localStorage.getItem("scorebug.standby.v1")'), standbySaved, 'Returning to Settings changed the saved board');
+        await evaluate(`window.scorebugDesktop.setPreferences(${JSON.stringify(compactPreferences)})`);
+        standbyWindow.close();
+        restoreStandbyNetwork();
+        check('Standby preserves its independent board, opens the selected game in the real dashboard and returns safely to Settings');
         summary.passed = true;
       })(),
       new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('Native integration checks exceeded 150 seconds')), 150000); })
@@ -685,6 +755,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
     throw error;
   } finally {
     clearTimeout(deadline);
+    restoreStandbyNetwork?.();
     fs.writeFileSync(path.join(evidenceDir, 'summary.json'), JSON.stringify(summary, null, 2));
     console.log(`[native smoke] ${summary.passed ? 'SUCCESS' : 'FAILED'}: ${summary.checks.length} integration groups checked. ESPN availability does not gate this test.`);
   }

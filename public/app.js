@@ -23,7 +23,7 @@ if (!getLeague(preferences.leagueId)) preferences = await updatePreferences({lea
 let snapshot = {data:null,error:null,loading:true}, currentSnapshot=snapshot, datedSnapshot=snapshot;
 let reference=false, demoReference=false, demoSequence=0, previewContext=null, pipWindow=null, toastTimer, renderedSvg='', lastFavorites='', galleryKey='';
 let favoriteStylesKey=null, galleryFavoritesKey='', styleFavoriteWrite=Promise.resolve();
-let directory=[], directoryLeague=null, favoriteLeague='all', favoriteAdding=false, favoriteResultsKey='';
+let directory=[], directoryLeague=null, favoriteLeague='all', favoriteAdding=false, favoriteResultsKey='', favoriteCoverageKey='', favoriteGlobalStarted=false;
 const directoryStore=createFavoriteDirectoryStore({onChange:directoryChanged});
 const directoryController={abort:()=>directoryStore.stop()};
 const animations=createScoreAnimations($('scorebug-preview'));
@@ -43,17 +43,11 @@ function defaultStyle(leagueId){const sport=getLeague(leagueId)?.sport;return de
 function changeSelection(patch){
   reference=false;demoReference=false;animations.clearDemo();
   if(patch.leagueId && patch.leagueId!==preferences.leagueId){patch={gameId:null,date:null,...(preferences.styleAuto!==false?{styleId:defaultStyle(patch.leagueId)}:{}),...patch};previewDetails.close({immediate:true});}
-  const url=new URL(location.href);
-  for(const [key,param] of [['gameId','game'],['date','date'],['leagueId','league'],['styleId','style']])if(Object.hasOwn(patch,key)){if(patch[key])url.searchParams.set(param,patch[key]);else url.searchParams.delete(param);}
-  url.searchParams.delete('team');
-  try{history.replaceState(null,'',url);}catch{}
-  return updatePreferences(patch);
+  return updatePreferences(patch,{updateURL:true});
 }
 function chooseStyle(styleId){
   previewDetails.close({immediate:true});
-  const url=new URL(location.href);url.searchParams.set('style',styleId);
-  try{history.replaceState(null,'',url);}catch{}
-  return updatePreferences({styleId,styleAuto:false});
+  return updatePreferences({styleId,styleAuto:false},{updateURL:true});
 }
 function toggleStyleFavorite(styleId, remove=false){
   // Serialize rapid clicks, and update only the saved-style list. Watching a
@@ -130,7 +124,8 @@ function favoriteMatches(){
 }
 function renderDirectory(){
   const query=$('favorite-search').value,hasQuery=Boolean(favoriteSearchKey(query)),matches=favoriteMatches();
-  const id=favoriteLeague==='all'?preferences.leagueId:favoriteLeague,state=directoryStore.get(id),name=getLeague(id)?.name||id;
+  const progress=directoryStore.progress(favoriteLeague==='all'?undefined:[favoriteLeague]),busy=progress.loading+progress.queued>0;
+  const name=favoriteLeague==='all'?'all sports':getLeague(favoriteLeague)?.name||favoriteLeague;
   const root=$('favorite-results'),saved=new Set(normalizeFavorites(preferences.favorites).map(item=>`${item.leagueId}/${item.teamId}`));
   const key=JSON.stringify([favoriteLeague,query,favoriteAdding,matches.teams.map(team=>[favoriteTeamKey(team),team.name,team.abbreviation,team.logo,saved.has(favoriteTeamKey(team))])]);
   if(root&&key!==favoriteResultsKey){
@@ -149,21 +144,40 @@ function renderDirectory(){
     }
     if(focusKey){const next=[...root.querySelectorAll('button')].find(button=>button.dataset.favoriteKey===focusKey&&!button.disabled);(next||$('favorite-search')).focus({preventScroll:true});}
   }
-  root?.setAttribute('aria-busy',String(state.loading));
+  root?.setAttribute('aria-busy',String(busy));
   const allSaved=matches.total>0&&matches.total===matches.teams.length&&matches.teams.every(team=>saved.has(favoriteTeamKey(team)));
   let status;
   if(matches.total){
     status=hasQuery?`${matches.total} ${matches.total===1?'match':'matches'}. ${matches.total>matches.teams.length?`Showing the first ${matches.teams.length}. `:''}${allSaved?'Already in your favorites.':'Choose a team to add it.'}`
       :`Showing ${matches.teams.length} of ${matches.total}${favoriteLeague==='all'?'':` ${name}`} teams or competitors. Type a name to narrow the list.`;
-  }else if(state.loading)status=`Loading ${name} teams. Keep typing—your search will update when they arrive.`;
-  else if(state.error)status=`Could not load ${name} teams. Try loading them again below.`;
-  else if(hasQuery)status=`No matches${favoriteLeague==='all'?' in the available teams':` in ${name}`}. Try a shorter name or choose another league.`;
-  else status=`The ${name} feed has not supplied a team or competitor list yet.`;
-  if(!hasQuery&&favoriteLeague==='all')status+=' NFL, NBA, WNBA, MLB and NHL are ready to search. Choose another league to include its teams.';
-  if(matches.total&&state.loading)status+=` Loading more ${name} teams…`;
-  if(matches.total&&state.error)status+=` Could not refresh ${name}; the teams shown are still available.`;
+  }else if(busy)status='No matches yet. Keep typing; results will appear as the directories load.';
+  else if(progress.failed||progress.missing||progress.retryable)status='No matches in the loaded directories. Some leagues are still unavailable; try loading them again below.';
+  else if(hasQuery)status=`No matches in the available ${favoriteLeague==='all'?'team and competitor directories':name+' directory'}. Try a shorter name or another spelling.`;
+  else status=`The ${name} feed has not supplied any teams or competitors for its current coverage.`;
+  if(busy)status+=` Loading directories: ${progress.loaded} of ${progress.total} leagues available.`;
+  else if(favoriteGlobalStarted&&favoriteLeague==='all')status+=` ${progress.loaded} of ${progress.total} league directories loaded.`;
+  if(matches.total&&progress.failed)status+=` ${progress.failed} ${progress.failed===1?'league could':'leagues could'} not refresh; any cached teams remain searchable.`;
+  if(progress.partial)status+=' Some directories have limited coverage; see search coverage below.';
+  if(!favoriteGlobalStarted&&favoriteLeague==='all')status+=' Open this section to search every supported league automatically.';
   label('favorite-directory-status',status);
-  const retry=$('favorite-retry');if(retry){retry.hidden=!state.error||state.loading;retry.textContent=`Try loading ${name} teams again`;}
+  const retry=$('favorite-retry');if(retry){retry.hidden=busy||(!progress.failed&&!progress.missing&&!progress.retryable);retry.textContent=favoriteLeague==='all'?'Retry missing league directories':`Retry ${name} directory`;}
+  renderFavoriteCoverage();
+}
+function renderFavoriteCoverage(){
+  const root=$('favorite-coverage'),summary=$('favorite-coverage-summary'),list=$('favorite-coverage-list');
+  if(!root||!summary||!list)return;
+  root.hidden=!favoriteGlobalStarted;
+  const progress=directoryStore.progress();
+  summary.textContent=`Search coverage: ${progress.loaded} of ${progress.total} leagues loaded${progress.failed?` · ${progress.failed} unavailable`:''}`;
+  const key=JSON.stringify(progress.leagues.map(state=>[state.leagueId,state.teams.length,state.loading,state.queued,Boolean(state.error),state.loadedAt,state.stale,state.fromCache,state.coverage]));
+  if(key===favoriteCoverageKey)return;favoriteCoverageKey=key;list.replaceChildren();
+  for(const state of progress.leagues){
+    const item=document.createElement('li'),name=getLeague(state.leagueId)?.name||state.leagueId;
+    let status=state.loading?'Loading…':state.queued?'Waiting to load…':state.error?state.loadedAt===null?'Unavailable; retry to check this league.':`${state.teams.length} cached entries; refresh unavailable.`
+      :state.loadedAt===null?'Not loaded yet.':`${state.teams.length} ${state.coverage?.scope==='event'?'reported event entrants':'teams or competitors'}${state.stale?' · delayed source':state.fromCache?' · saved directory':''}.`;
+    if(state.coverage?.message&&!state.loading&&!state.queued)status+=` ${state.coverage.message}`;
+    item.textContent=`${name}: ${status}`;item.dataset.leagueId=state.leagueId;list.append(item);
+  }
 }
 function directoryChanged(id){
   const current=directoryStore.get(preferences.leagueId);directory=current.teams;directoryLeague=current.loadedAt===null?null:preferences.leagueId;
@@ -171,8 +185,12 @@ function directoryChanged(id){
   if(id===preferences.leagueId){if(reference||demoReference)renderPreview();galleryKey='';renderStyleGallery();}
 }
 function loadDirectory(id=preferences.leagueId,options={}){
-  directoryStore.retain([preferences.leagueId,favoriteLeague]);
-  const pending=directoryStore.load(id,options);directoryChanged(id);return pending;
+  const pending=directoryStore.load(id,{priority:true,...options});directoryChanged(id);return pending;
+}
+function startFavoriteSearch(options={}){
+  favoriteGlobalStarted=true;
+  const pending=directoryStore.loadAll({priorityId:favoriteLeague==='all'?preferences.leagueId:favoriteLeague,...options});
+  renderDirectory();return pending;
 }
 async function addFavoriteTeam(team){
   if(favoriteAdding)return;
@@ -344,12 +362,13 @@ $('style-select').addEventListener('change',event=>chooseStyle(event.target.valu
 $('favorite-current-style').addEventListener('click',()=>toggleStyleFavorite(getScorebugStyle(preferences.styleId).id));
 $('style-browser-toggle').addEventListener('click',()=>{const open=$('style-browser').hidden;$('style-browser').hidden=!open;$('style-browser-toggle').setAttribute('aria-expanded',String(open));renderStyleGallery();});
 $('style-search').addEventListener('input',renderStyleGallery);$('all-styles').addEventListener('change',renderStyleGallery);$('favorite-styles-only').addEventListener('change',renderStyleGallery);
-$('favorite-search').addEventListener('input',renderDirectory);
-$('favorite-search').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){const team=favoriteMatches().enterTeam;if(team){event.preventDefault();addFavoriteTeam(team);}}});
+$('favorite-search').addEventListener('focus',()=>startFavoriteSearch());
+$('favorite-search').addEventListener('input',()=>{if(!favoriteGlobalStarted)startFavoriteSearch();renderDirectory();});
+$('favorite-search').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.isComposing){const team=favoriteMatches().enterTeam;if(team){event.preventDefault();if(favoriteLeague==='all'&&directoryStore.progress().missing){toast('More leagues are still missing. Use the Add button to choose the team shown.');return;}addFavoriteTeam(team);}}});
 const favoriteLeagueSelect=$('favorite-league-select');
-if(favoriteLeagueSelect){addLeagueOptions(favoriteLeagueSelect);favoriteLeagueSelect.value=favoriteLeague;favoriteLeagueSelect.addEventListener('change',()=>{favoriteLeague=getLeague(favoriteLeagueSelect.value)?favoriteLeagueSelect.value:'all';directoryStore.retain([preferences.leagueId,favoriteLeague]);renderDirectory();if(favoriteLeague!=='all')loadDirectory(favoriteLeague);});}
-$('favorite-retry')?.addEventListener('click',()=>loadDirectory(favoriteLeague==='all'?preferences.leagueId:favoriteLeague,{force:true}));
-$('favorite-editor').addEventListener('toggle',()=>{if($('favorite-editor').open){renderDirectory();loadDirectory(favoriteLeague==='all'?preferences.leagueId:favoriteLeague);}});
+if(favoriteLeagueSelect){addLeagueOptions(favoriteLeagueSelect);favoriteLeagueSelect.value=favoriteLeague;favoriteLeagueSelect.addEventListener('change',()=>{favoriteLeague=getLeague(favoriteLeagueSelect.value)?favoriteLeagueSelect.value:'all';startFavoriteSearch();});}
+$('favorite-retry')?.addEventListener('click',()=>favoriteLeague==='all'?startFavoriteSearch({retryOnly:true}):loadDirectory(favoriteLeague,{force:true}));
+$('favorite-editor').addEventListener('toggle',()=>{if($('favorite-editor').open)startFavoriteSearch();});
 $('follow-live').addEventListener('click',()=>changeSelection({gameId:null,date:null}));
 $('game-select').addEventListener('change',event=>changeSelection({gameId:event.target.value||null}));
 $('date-input').addEventListener('change',event=>changeSelection({date:event.target.value.replaceAll('-','')||null,gameId:null}));
@@ -420,4 +439,4 @@ $('other-games').open=Boolean(preferences.date);
 renderPreferences();renderLiveGames();renderDirectory();loadDirectory();activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();
 let healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);
 window.addEventListener('pagehide',()=>{poller.stop();datedPoller.stop();favoritesFeed.stop();activity.stop();directoryController?.abort();clearInterval(healthTimer);disposeUpdates();});
-window.addEventListener('pageshow',event=>{if(event.persisted){disposeUpdates=mountDesktopUpdates($('desktop-updates'));activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();clearInterval(healthTimer);healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);}});
+window.addEventListener('pageshow',event=>{if(event.persisted){disposeUpdates=mountDesktopUpdates($('desktop-updates'));activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();if(favoriteGlobalStarted||$('favorite-editor').open)startFavoriteSearch();else loadDirectory();clearInterval(healthTimer);healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);}});

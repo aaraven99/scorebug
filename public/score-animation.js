@@ -115,6 +115,32 @@ export function createScoreAnimations(host) {
     }
   }
 
+  function watchExit(record, token) {
+    if (active !== record || record.exitToken !== token || record.phase !== 'exiting') return;
+    if (!overlay.isConnected || document.hidden || reducedMotion()) { finishExit(record, token); return; }
+    let animation;
+    try { animation = overlay.getAnimations?.().find(item => item.animationName === 'score-exit'); }
+    catch { /* Detached or older hosts still use the bounded cleanup below. */ }
+    if (animation?.pending || animation?.playState === 'running') {
+      // CSS can start late when a frame is busy. A timer measured from the class
+      // change must never cut off an exit whose own timeline is still running.
+      const end = Number(animation.effect?.getComputedTiming?.().endTime);
+      const current = Number(animation.currentTime);
+      const remaining = Number.isFinite(end) && Number.isFinite(current) ? end - current : EXIT_MS;
+      record.finishedAnimation = null;
+      record.exitTimer = window.setTimeout(() => watchExit(record, token), Math.max(32, Math.min(EXIT_MS + 80, remaining + 80)));
+      return;
+    }
+    if (animation?.playState === 'finished' && record.finishedAnimation !== animation) {
+      // Give the browser's queued animationend event a turn before treating an
+      // already-finished timeline as a lost event. This is cleanup, not duration.
+      record.finishedAnimation = animation;
+      record.exitTimer = window.setTimeout(() => watchExit(record, token), 80);
+      return;
+    }
+    finishExit(record, token);
+  }
+
   function exitCurrent() {
     if (!active || active.phase === 'exiting') return;
     const record = active;
@@ -135,9 +161,9 @@ export function createScoreAnimations(host) {
       if (event.target === overlay && event.animationName === 'score-exit') finishExit(record, token);
     };
     overlay.addEventListener('animationend', record.onExit);
-    // Covers a detached host, suspended animation, or a preference change that
-    // removes the CSS animation before animationend can fire.
-    record.exitTimer = window.setTimeout(() => finishExit(record, token), EXIT_MS + 80);
+    // Missing/disabled CSS still has bounded cleanup; a real running exit is
+    // governed by its own animation timeline and native animationend event.
+    record.exitTimer = window.setTimeout(() => watchExit(record, token), EXIT_MS + 80);
   }
 
   function clear() {

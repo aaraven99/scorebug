@@ -74,7 +74,7 @@ let quitting = false;
 let quitCleanupDone = false;
 let updates = null;
 let smokeExitCode = 0;
-let scorebugDimensions, getLeague;
+let scorebugDimensions, getLeague, normalizePreferencePatch, leagueOfId, isScorebugStyle;
 
 app.setName('Scorebug');
 if (SMOKE_TEST) {
@@ -530,7 +530,7 @@ function monitorHoverDetails() {
 function isLocalPage(url) {
   try {
     const parsed = new URL(url);
-    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html', '/game.html'].includes(parsed.pathname);
+    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html', '/game.html', '/standby.html'].includes(parsed.pathname);
   } catch { return false; }
 }
 
@@ -546,6 +546,13 @@ function openAllowedExternal(url) {
 function secureWindow(win) {
   win.webContents.on('will-navigate', (event) => {
     if (!isLocalPage(event.url)) { event.preventDefault(); openAllowedExternal(event.url); }
+    else if (new URL(event.url).pathname === '/game.html' && win !== gameCenter) {
+      // Standby's per-game links must reach the real dashboard window. Loading
+      // the dashboard inside Settings would fail its restricted fullscreen IPC.
+      event.preventDefault();
+      openGameCenter(event.url);
+    }
+    else if (new URL(event.url).pathname === '/game.html') applyGameCenterContext(gameCenterURL(event.url));
   });
   win.webContents.on('will-redirect', (event) => {
     if (!isLocalPage(event.url)) event.preventDefault();
@@ -558,7 +565,8 @@ function secureWindow(win) {
         const side = new URL(url).searchParams.get('side');
         showDetails({ focus: true, side: ['home', 'away', 'comparison'].includes(side) ? side : defaultDetailsSide });
       }
-      else if (new URL(url).pathname === '/game.html') openGameCenter();
+      else if (new URL(url).pathname === '/standby.html') win.loadURL(url).catch(showStartupError);
+      else if (new URL(url).pathname === '/game.html') openGameCenter(url);
       else openSettings();
     } else openAllowedExternal(url);
     return { action: 'deny' };
@@ -695,10 +703,51 @@ function setGameCenterFullscreen(fullscreen) {
   return getGameCenterState();
 }
 
-function openGameCenter() {
+function gameCenterURL(candidate) {
+  const result = new URL('/game.html', origin);
+  if (typeof candidate === 'string' && candidate.length <= 4096) {
+    try {
+      const requested = new URL(candidate);
+      if (requested.origin === origin && requested.pathname === '/game.html' && !requested.username && !requested.password) {
+        for (const key of ['league', 'game', 'style', 'date', 'rows']) {
+          if (requested.searchParams.has(key)) result.searchParams.set(key, requested.searchParams.get(key));
+        }
+      }
+    } catch { /* Invalid destinations keep the current native selection. */ }
+  }
+  result.searchParams.set('desktop', '1');
+  return result.href;
+}
+
+function applyGameCenterContext(destination) {
+  const params = new URL(destination).searchParams, raw = {};
+  for (const [key, parameter] of [['leagueId', 'league'], ['gameId', 'game'], ['styleId', 'style'], ['date', 'date']]) {
+    if (params.has(parameter)) raw[key] = params.get(parameter);
+  }
+  if (/^\d{1,2}$/.test(params.get('rows') || '')) raw.racingRows = Number(params.get('rows'));
+  const patch = normalizePreferencePatch(raw);
+  if (patch.styleId && !isScorebugStyle(patch.styleId)) delete patch.styleId;
+  if (patch.styleId) patch.styleAuto = false;
+  if (patch.gameId) {
+    patch.leagueId ||= leagueOfId(patch.gameId);
+    if (leagueOfId(patch.gameId) !== patch.leagueId) patch.gameId = null;
+  }
+  if (patch.leagueId && patch.leagueId !== preferences.leagueId && !Object.hasOwn(patch, 'gameId')) patch.gameId = null;
+  if (['leagueId', 'gameId', 'date'].some(key => Object.hasOwn(patch, key))) patch.team = null;
+  // The renderer and native window geometry must share one selection. Applying
+  // only URL preferences in the renderer could be undone by a later native event.
+  if (Object.keys(patch).length) setPreferences(patch);
+}
+
+function openGameCenter(contextURL) {
   if (!origin || quitting) return getGameCenterState();
+  const destination = gameCenterURL(contextURL);
+  applyGameCenterContext(destination);
   closeDetails({ immediate: true });
   if (gameCenter && !gameCenter.isDestroyed()) {
+    if (contextURL || new URL(gameCenter.webContents.getURL() || origin).pathname !== '/game.html') {
+      gameCenter.loadURL(destination).catch(showStartupError);
+    }
     if (gameCenter.isMinimized()) gameCenter.restore();
     gameCenter.show();
     setGameCenterFullscreen(true);
@@ -771,7 +820,7 @@ function openGameCenter() {
       setGameCenterFullscreen(!gameCenterFullscreen.target);
     }
   });
-  win.loadURL(`${origin}/game.html?desktop=1`).catch((error) => {
+  win.loadURL(destination).catch((error) => {
     console.warn(`Scorebug Game Center could not open: ${error.message}`);
     if (!win.isDestroyed()) win.close();
   });
@@ -781,6 +830,9 @@ function openGameCenter() {
 function openSettings() {
   if (!origin) return;
   if (settings && !settings.isDestroyed()) {
+    if (!['/', '/index.html'].includes(new URL(settings.webContents.getURL() || origin).pathname)) {
+      settings.loadURL(`${origin}/?desktop=1`).catch(showStartupError);
+    }
     if (settings.isMinimized()) settings.restore();
     settings.show();
     settings.focus();
@@ -964,7 +1016,9 @@ function showStartupError(error) {
 
 async function start() {
   const appRoot = app.isPackaged ? path.join(process.resourcesPath, 'scorebug') : path.resolve(__dirname, '..');
-  const { SCOREBUG_STYLES } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-styles.js')).href);
+  const { SCOREBUG_STYLES, isScorebugStyle: knownStyle } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-styles.js')).href);
+  isScorebugStyle = knownStyle;
+  ({ normalizePreferencePatch, leagueOfId } = await import(pathToFileURL(path.join(appRoot, 'public', 'preferences-model.js')).href));
   setFavoriteStyleCatalog(SCOREBUG_STYLES);
   readPreferences();
   updates = new UpdateController({
