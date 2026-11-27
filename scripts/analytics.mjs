@@ -36,7 +36,7 @@ export async function addWebAnalytics(outputDirectory, environment = process.env
     ''
   ].join('\n'));
 
-  for (const page of ['index.html', 'widget.html']) {
+  for (const page of ['index.html', 'widget.html', 'game.html']) {
     const file = new URL(page, outputDirectory);
     const html = await readFile(file, 'utf8');
     if (!html.includes(scriptTag)) await writeFile(file, html.replace('</head>', `${scriptTag}</head>`));
