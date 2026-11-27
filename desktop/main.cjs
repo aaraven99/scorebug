@@ -530,7 +530,7 @@ function monitorHoverDetails() {
 function isLocalPage(url) {
   try {
     const parsed = new URL(url);
-    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html', '/game.html'].includes(parsed.pathname);
+    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html', '/game.html', '/standby.html'].includes(parsed.pathname);
   } catch { return false; }
 }
 
@@ -546,6 +546,12 @@ function openAllowedExternal(url) {
 function secureWindow(win) {
   win.webContents.on('will-navigate', (event) => {
     if (!isLocalPage(event.url)) { event.preventDefault(); openAllowedExternal(event.url); }
+    else if (new URL(event.url).pathname === '/game.html' && win !== gameCenter) {
+      // Standby's per-game links must reach the real dashboard window. Loading
+      // the dashboard inside Settings would fail its restricted fullscreen IPC.
+      event.preventDefault();
+      openGameCenter(event.url);
+    }
   });
   win.webContents.on('will-redirect', (event) => {
     if (!isLocalPage(event.url)) event.preventDefault();
@@ -558,7 +564,8 @@ function secureWindow(win) {
         const side = new URL(url).searchParams.get('side');
         showDetails({ focus: true, side: ['home', 'away', 'comparison'].includes(side) ? side : defaultDetailsSide });
       }
-      else if (new URL(url).pathname === '/game.html') openGameCenter();
+      else if (new URL(url).pathname === '/standby.html') win.loadURL(url).catch(showStartupError);
+      else if (new URL(url).pathname === '/game.html') openGameCenter(url);
       else openSettings();
     } else openAllowedExternal(url);
     return { action: 'deny' };
@@ -695,10 +702,30 @@ function setGameCenterFullscreen(fullscreen) {
   return getGameCenterState();
 }
 
-function openGameCenter() {
+function gameCenterURL(candidate) {
+  const result = new URL('/game.html', origin);
+  if (typeof candidate === 'string' && candidate.length <= 4096) {
+    try {
+      const requested = new URL(candidate);
+      if (requested.origin === origin && requested.pathname === '/game.html' && !requested.username && !requested.password) {
+        for (const key of ['league', 'game', 'style', 'date', 'rows']) {
+          if (requested.searchParams.has(key)) result.searchParams.set(key, requested.searchParams.get(key));
+        }
+      }
+    } catch { /* Invalid destinations keep the current native selection. */ }
+  }
+  result.searchParams.set('desktop', '1');
+  return result.href;
+}
+
+function openGameCenter(contextURL) {
   if (!origin || quitting) return getGameCenterState();
+  const destination = gameCenterURL(contextURL);
   closeDetails({ immediate: true });
   if (gameCenter && !gameCenter.isDestroyed()) {
+    if (contextURL || new URL(gameCenter.webContents.getURL() || origin).pathname !== '/game.html') {
+      gameCenter.loadURL(destination).catch(showStartupError);
+    }
     if (gameCenter.isMinimized()) gameCenter.restore();
     gameCenter.show();
     setGameCenterFullscreen(true);
@@ -771,7 +798,7 @@ function openGameCenter() {
       setGameCenterFullscreen(!gameCenterFullscreen.target);
     }
   });
-  win.loadURL(`${origin}/game.html?desktop=1`).catch((error) => {
+  win.loadURL(destination).catch((error) => {
     console.warn(`Scorebug Game Center could not open: ${error.message}`);
     if (!win.isDestroyed()) win.close();
   });
