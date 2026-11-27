@@ -5,6 +5,7 @@ import { SCOREBUG_STYLES, defaultStyleForSport } from '../../public/scorebug-sty
 import { eventsForSport } from '../../public/sport-events.js';
 import { fixtureForLeague, scoreboardForLeague, detailsForGame, fallbackDirectory } from './fixtures.mjs';
 import { runExtraFlows } from './extra-flows.mjs';
+import { observeBrowserErrors, finalizeBrowserErrors } from './browser-diagnostics.mjs';
 
 // Instrument only long-lived global targets. DOM listeners on replaced cards are
 // expected to disappear with those nodes and are not called leaks by this suite.
@@ -28,9 +29,19 @@ function installMetrics(){
 }
 
 function installScreenMocks({wakeMode='success',fullscreenMode='reject'}={}){
-  let visibility='visible',requests=0,releases=0,lastLock=null;
-  Object.defineProperty(document,'visibilityState',{configurable:true,get:()=>visibility});
-  Object.defineProperty(document,'hidden',{configurable:true,get:()=>visibility==='hidden'});
+  let originalVisibility;
+  for(let target=document;target&&!originalVisibility;target=Object.getPrototypeOf(target))originalVisibility=Object.getOwnPropertyDescriptor(target,'visibilityState')?.get;
+  const nativeVisibility=()=>originalVisibility?originalVisibility.call(document):'visible';
+  let forcedVisibility=null,pageHidden=false,requests=0,releases=0,lastLock=null;
+  const visibility=()=>pageHidden?'hidden':forcedVisibility??nativeVisibility();
+  Object.defineProperty(document,'visibilityState',{configurable:true,get:visibility});
+  Object.defineProperty(document,'hidden',{configurable:true,get:()=>visibility()==='hidden'});
+  // Synthetic visibility controls must not keep a real outgoing document alive.
+  // WebKit dispatches visibilitychange after pagehide; a permanently "visible"
+  // getter made that event restart Standby's feed pool during navigation.
+  window.addEventListener('pagehide',event=>{if(event.isTrusted){pageHidden=true;forcedVisibility=null;}},true);
+  window.addEventListener('pageshow',event=>{if(event.isTrusted){pageHidden=false;forcedVisibility=null;}},true);
+  document.addEventListener('visibilitychange',event=>{if(event.isTrusted)forcedVisibility=null;},true);
   const wake=wakeMode==='unsupported'?undefined:{request:async()=>{
     requests++;if(wakeMode==='reject')throw new DOMException('QA browser permission rejected','NotAllowedError');
     const lock=new EventTarget();lock.released=false;lock.release=async()=>{if(!lock.released){lock.released=true;releases++;lock.dispatchEvent(new Event('release'));}};lastLock=lock;return lock;
@@ -39,7 +50,7 @@ function installScreenMocks({wakeMode='success',fullscreenMode='reject'}={}){
   Object.defineProperty(document,'fullscreenEnabled',{configurable:true,get:()=>fullscreenMode!=='unsupported'});
   Element.prototype.requestFullscreen=async()=>{if(fullscreenMode!=='success')throw new DOMException('QA full screen rejected','NotAllowedError');Object.defineProperty(document,'fullscreenElement',{configurable:true,value:document.documentElement});document.dispatchEvent(new Event('fullscreenchange'));};
   document.exitFullscreen=async()=>{Object.defineProperty(document,'fullscreenElement',{configurable:true,value:null});document.dispatchEvent(new Event('fullscreenchange'));};
-  window.__qaScreen={setVisibility(value){visibility=value;document.dispatchEvent(new Event('visibilitychange'));},release:()=>lastLock?.release(),state:()=>({requests,releases,visibility,active:Boolean(lastLock&&!lastLock.released)})};
+  window.__qaScreen={setVisibility(value){forcedVisibility=value;document.dispatchEvent(new Event('visibilitychange'));},release:()=>lastLock?.release(),state:()=>({requests,releases,visibility:visibility(),active:Boolean(lastLock&&!lastLock.released)})};
 }
 
 export async function runFlows({browser,engine,baseURL,passes,outDir,directories,screenshots}){
@@ -55,9 +66,10 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
   const makeContext=async({mobile=false,wakeMode,fullscreenMode}={})=>{
     const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1366,height:900},isMobile:mobile,hasTouch:mobile,deviceScaleFactor:1,reducedMotion:'no-preference'});
     await context.addInitScript(installMetrics);if(wakeMode)await context.addInitScript(installScreenMocks,{wakeMode,fullscreenMode});
+    await observeBrowserErrors(context,{result,baseURL});
     const net={requests:[],active:0,maxActive:0,teamActive:0,teamMaxActive:0,modes:{},summaryMode:'ok',expectedFailures:new Map(),expectedImageFailures:new Map(),requestFailures:[]};
     context.on('requestfailed',request=>net.requestFailures.push({url:request.url(),errorText:request.failure()?.errorText,at:Date.now()}));
-    context.on('page',page=>{page.setDefaultTimeout(6500);page.on('pageerror',error=>{result.pageErrors.push({url:page.url(),message:error.message,name:error.name,stack:error.stack,at:Date.now(),requestFailures:net.requestFailures.slice(-12)});});page.on('console',message=>{if(message.type()==='error'){const url=message.location().url||page.url(),at=Date.now(),category=at-(net.expectedFailures.get(url)??-Infinity)<15000?'injected-feed-failure':at-(net.expectedImageFailures.get(url)??-Infinity)<2000?'injected-image-failure':/^https:\/\/(?:a\.espncdn\.com|media\.formula1\.com)/.test(url)?'external-image-failure':'unexpected';result.consoleErrors.push({url,message:message.text(),category,at});}});});
+    context.on('page',page=>{page.setDefaultTimeout(6500);page.on('console',message=>{if(message.type()==='error'){const url=message.location().url||page.url(),at=Date.now(),category=at-(net.expectedFailures.get(url)??-Infinity)<15000?'injected-feed-failure':at-(net.expectedImageFailures.get(url)??-Infinity)<2000?'injected-image-failure':/^https:\/\/(?:a\.espncdn\.com|media\.formula1\.com)/.test(url)?'external-image-failure':'unexpected';result.consoleErrors.push({url,message:message.text(),category,at});}});});
     await context.route('**/api/**',async route=>{
       const url=new URL(route.request().url()),leagueId=url.searchParams.get('league')||'nfl',kind=url.pathname.slice(5),mode=net.modes[leagueId]||'ok';
       net.requests.push({kind,leagueId,date:url.searchParams.get('date'),at:Date.now(),url:url.href});net.active++;net.maxActive=Math.max(net.maxActive,net.active);
@@ -315,7 +327,7 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
     }
     console.log(`Flows ${engine}: pass ${pass} complete; ${result.checks} checks, ${result.assertions} assertions, ${result.failures.length} failures.`);
   }
-  if(result.pageErrors.length)result.failures.push({id:'uncaught-browser-errors',message:JSON.stringify(result.pageErrors)});
+  finalizeBrowserErrors(result,{engine,baseURL});
   const unexpectedConsole=result.consoleErrors.filter(error=>error.category==='unexpected');if(unexpectedConsole.length)result.failures.push({id:'unexpected-console-errors',message:JSON.stringify(unexpectedConsole)});
   result.elapsedMs=Date.now()-started;return result;
 }
