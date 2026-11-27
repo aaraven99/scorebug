@@ -6,6 +6,16 @@ contextBridge.exposeInMainWorld('scorebugDesktop', {
   isDesktop: true,
   getPreferences: () => ipcRenderer.invoke('scorebug:preferences:get'),
   setPreferences: (patch) => ipcRenderer.invoke('scorebug:preferences:set', patch),
+  getUpdateState: () => ipcRenderer.invoke('scorebug:updates:get'),
+  checkForUpdates: () => ipcRenderer.invoke('scorebug:updates:check'),
+  restartToUpdate: () => ipcRenderer.invoke('scorebug:updates:restart'),
+  setAutomaticUpdates: (automatic) => ipcRenderer.invoke('scorebug:updates:automatic', automatic),
+  onUpdateStateChanged: (callback) => {
+    if (typeof callback !== 'function') throw new TypeError('A callback is required');
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on('scorebug:updates:changed', listener);
+    return () => ipcRenderer.removeListener('scorebug:updates:changed', listener);
+  },
   getState: () => ipcRenderer.invoke('scorebug:state'),
   openSettings: () => ipcRenderer.invoke('scorebug:settings'),
   showDetails: (side) => ipcRenderer.invoke('scorebug:details:show', side),

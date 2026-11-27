@@ -1,6 +1,6 @@
 {
   "name": "scorebug-desktop",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "A live NFL scorebug that floats above your desktop.",
   "productName": "Scorebug",
@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node --test geometry.test.cjs hover.test.cjs",
+    "test": "node --test geometry.test.cjs hover.test.cjs updates.test.cjs",
     "test:smoke": "node smoke-launcher.cjs",
     "dist:win": "electron-builder --win --x64 --publish never"
   },
@@ -29,6 +29,7 @@
       "preload.cjs",
       "geometry.cjs",
       "hover.cjs",
+      "updates.cjs",
       "assets/**/*",
       "package.json"
     ],
@@ -73,6 +74,15 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Scorebug"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "aaraven99",
+      "repo": "scorebug",
+      "releaseType": "release"
     }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.12"
   }
 }

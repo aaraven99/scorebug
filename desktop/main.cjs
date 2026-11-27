@@ -7,6 +7,7 @@ const os = require('node:os');
 const { pathToFileURL } = require('node:url');
 const { ANCHORS, ANCHOR_LABELS, anchorBounds, clampBounds, nearestAnchor, displayForBounds, widgetSize, containsPoint, detailsBounds, teamAtPoint, hoverBridge } = require('./geometry.cjs');
 const { HoverIntent } = require('./hover.cjs');
+const { UpdateController } = require('./updates.cjs');
 
 const DEFAULTS = Object.freeze({
   gameId: null,
@@ -16,6 +17,7 @@ const DEFAULTS = Object.freeze({
   anchor: 'bottom-center',
   snapEnabled: true,
   locked: false,
+  autoUpdates: true,
   orientation: 'horizontal',
   bounds: null,
   displayId: null
@@ -42,6 +44,8 @@ let moveTimer = null;
 let nativeMoveInProgress = false;
 let moveReleasePending = false;
 let quitting = false;
+let quitCleanupDone = false;
+let updates = null;
 let smokeExitCode = 0;
 
 app.setName('Scorebug');
@@ -81,7 +85,7 @@ function cleanPatch(patch) {
     if (patch.anchor !== null && !ANCHORS.includes(patch.anchor)) throw new TypeError('Invalid position');
     clean.anchor = patch.anchor;
   }
-  for (const key of ['snapEnabled', 'locked']) {
+  for (const key of ['snapEnabled', 'locked', 'autoUpdates']) {
     if (Object.hasOwn(patch, key)) {
       if (typeof patch[key] !== 'boolean') throw new TypeError(`Invalid ${key}`);
       clean[key] = patch[key];
@@ -91,8 +95,8 @@ function cleanPatch(patch) {
 }
 
 function publicPreferences() {
-  const { gameId, team, date, scale, anchor, snapEnabled, locked, orientation } = preferences;
-  return { gameId, team, date, scale, anchor, snapEnabled, locked, orientation };
+  const { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, autoUpdates } = preferences;
+  return { gameId, team, date, scale, anchor, snapEnabled, locked, orientation, autoUpdates };
 }
 
 function orientationForAnchor(anchor) {
@@ -135,6 +139,13 @@ function publishPreferences() {
   updateTray();
 }
 
+function publishUpdateState(value) {
+  for (const win of [widget, settings, details]) {
+    if (win && !win.isDestroyed()) win.webContents.send('scorebug:updates:changed', value);
+  }
+  updateTray();
+}
+
 function currentSize() {
   return widgetSize(preferences.scale, preferences.orientation);
 }
@@ -167,6 +178,7 @@ function setPreferences(patch) {
   const clean = cleanPatch(patch);
   const needsPosition = Object.hasOwn(clean, 'scale') || Object.hasOwn(clean, 'anchor');
   preferences = { ...preferences, ...clean };
+  if (Object.hasOwn(clean, 'autoUpdates')) updates?.setAutomaticUpdates(clean.autoUpdates);
   if (widget && !widget.isDestroyed()) {
     widget.setMovable(!preferences.locked);
     if (needsPosition) placeWidget();
@@ -370,6 +382,7 @@ function secureWindow(win) {
   });
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('scorebug:preferences:changed', publicPreferences());
+    if (updates) win.webContents.send('scorebug:updates:changed', updates.getState());
     if (win === details) publishDetailsSide();
   });
 }
@@ -494,8 +507,18 @@ function openSettings() {
 
 function buildMenu() {
   const displays = screen.getAllDisplays();
+  const updateState = updates?.getState();
+  let updateItem = { label: 'Updates', click: openSettings };
+  if (updateState?.mode === 'installed') {
+    if (updateState.status === 'ready') updateItem = { label: 'Restart to update', click: () => updates.restartToUpdate() };
+    else if (updateState.status === 'checking') updateItem = { label: 'Checking for updates…', enabled: false };
+    else if (updateState.status === 'downloading') updateItem = { label: `Downloading update${updateState.percent === null ? '…' : ` (${updateState.percent}%)`}`, enabled: false };
+    else updateItem = { label: 'Check for updates', click: () => { void updates.checkForUpdates(); } };
+  } else if (updateState?.mode === 'portable') {
+    updateItem = { label: 'Get automatic updates', click: openSettings };
+  }
   return Menu.buildFromTemplate([
-    { label: 'Scorebug', enabled: false },
+    { label: `Scorebug ${app.getVersion()}`, enabled: false },
     { label: 'Choose game & settings', click: openSettings, accelerator: 'CommandOrControl+Alt+Shift+S' },
     { label: 'Show scorebug', click: showWidget },
     { label: 'Current team stats', click: () => showDetails({ focus: true }) },
@@ -549,6 +572,7 @@ function buildMenu() {
         showWidget();
       }
     },
+    updateItem,
     { label: 'Quit Scorebug', click: () => app.quit(), accelerator: 'CommandOrControl+Alt+Shift+Q' }
   ]);
 }
@@ -583,6 +607,10 @@ function addHandler(channel, callback, { widgetOnly = false } = {}) {
 function installIpc() {
   addHandler('scorebug:preferences:get', publicPreferences);
   addHandler('scorebug:preferences:set', setPreferences);
+  addHandler('scorebug:updates:get', () => updates.getState());
+  addHandler('scorebug:updates:check', () => updates.checkForUpdates());
+  addHandler('scorebug:updates:restart', () => quitting ? updates.getState() : updates.restartToUpdate());
+  addHandler('scorebug:updates:automatic', (automatic) => updates.setAutomaticUpdates(automatic));
   addHandler('scorebug:state', () => ({
     preferences: publicPreferences(),
     anchor: preferences.anchor,
@@ -614,6 +642,22 @@ function showStartupError(error) {
 
 async function start() {
   readPreferences();
+  updates = new UpdateController({
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    portable: Boolean(process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR),
+    automatic: preferences.autoUpdates,
+    createUpdater: () => require('electron-updater').autoUpdater,
+    onStateChanged: publishUpdateState,
+    onAutomaticChanged: (automatic) => {
+      preferences.autoUpdates = automatic;
+      savePreferences();
+      publishPreferences();
+    },
+    onBeforeRestart: () => { quitting = true; },
+    onRestartCancelled: () => { if (!quitCleanupDone) quitting = false; }
+  });
   const appRoot = app.isPackaged ? path.join(process.resourcesPath, 'scorebug') : path.resolve(__dirname, '..');
   const { createScorebugServer } = await import(pathToFileURL(path.join(appRoot, 'server.mjs')).href);
   httpServer = createScorebugServer();
@@ -631,6 +675,7 @@ async function start() {
   installIpc();
   createWidget();
   createTray();
+  updates.start();
   detailsHoverTimer = setInterval(monitorHoverDetails, 100);
   screen.on('display-added', handleDisplayChange);
   screen.on('display-removed', handleDisplayChange);
@@ -652,6 +697,9 @@ if (!app.requestSingleInstanceLock()) {
   app.on('activate', () => { showWidget(); openSettings(); });
   app.on('before-quit', () => {
     quitting = true;
+    if (quitCleanupDone) return;
+    quitCleanupDone = true;
+    updates?.stop();
     clearTimeout(moveTimer);
     clearTimeout(boundsGuardTimer);
     clearInterval(detailsHoverTimer);
@@ -661,7 +709,7 @@ if (!app.requestSingleInstanceLock()) {
     if (httpServer) { httpServer.close(); httpServer.closeAllConnections?.(); }
     if (tray && !tray.isDestroyed()) tray.destroy();
   });
-  app.on('window-all-closed', () => app.quit());
+  app.on('window-all-closed', () => { if (!quitting) app.quit(); });
   if (SMOKE_TEST) app.on('will-quit', (event) => { event.preventDefault(); app.exit(smokeExitCode); });
   app.whenReady().then(start).catch(showStartupError);
 }

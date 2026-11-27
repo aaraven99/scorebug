@@ -115,6 +115,21 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(await evaluate('typeof window.require'), 'undefined');
         assert.equal(await evaluate('typeof window.process'), 'undefined');
         check('Real widget DOM, isolated preload and validated getState IPC');
+        const updateState = await evaluate('window.scorebugDesktop.getUpdateState()');
+        assert.equal(updateState.mode, 'development');
+        assert.equal(updateState.currentVersion, require('./package.json').version);
+        assert.equal(updateState.automatic, true);
+        assert.equal((await evaluate('window.scorebugDesktop.checkForUpdates()')).status, 'idle');
+        assert.equal((await evaluate('window.scorebugDesktop.restartToUpdate()')).status, 'idle');
+        await evaluate('window.__observedUpdateState = null; window.scorebugDesktop.onUpdateStateChanged((value) => { window.__observedUpdateState = value; }); void 0;');
+        await evaluate('window.scorebugDesktop.setAutomaticUpdates(false)');
+        await waitFor('Update preference event reaches the preload', () => evaluate('window.__observedUpdateState?.automatic === false'), 3000);
+        assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).autoUpdates, false);
+        await assert.rejects(() => evaluate('window.scorebugDesktop.setAutomaticUpdates("yes")'));
+        await evaluate('window.scorebugDesktop.setAutomaticUpdates(true)');
+        assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).autoUpdates, true);
+        assert.ok(!Object.keys(require.cache).some((entry) => /electron-updater[\\/]out[\\/]main\.js$/.test(entry)), 'A development smoke run must not load the live updater');
+        check('Updater preload actions, persistent preferences and events work without checking or installing updates during development');
         if (process.platform === 'win32') {
           // A passive startup/show move must not enter the non-Windows free-move
           // debounce and erase the anchor after the renderer has initialized.
@@ -210,8 +225,13 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         }, 8000);
         const settingsState = await getSettings().webContents.executeJavaScript('window.scorebugDesktop.getState()');
         assert.equal(settingsState.preferences.anchor, 'bottom-center');
+        await waitFor('Native update settings', () => getSettings().webContents.executeJavaScript(`Boolean(
+          !document.querySelector('#desktop-updates')?.hidden &&
+          document.querySelector('#update-status')?.textContent.includes('running from source') &&
+          document.querySelector('#update-version')?.textContent.includes('${require('./package.json').version}')
+        )`), 3000);
         getSettings().close();
-        check('Settings opens with the same native preference state');
+        check('Settings opens with the same native preference state and working update status');
 
         await evaluate('window.scorebugDesktop.setPreferences({ anchor: "middle-left" })');
         await pause(180);
