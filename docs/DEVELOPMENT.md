@@ -99,7 +99,7 @@ The client usually checks scores and selected-game details every two seconds wit
 | --- | --- |
 | Leagues and provider data | `public/sports.js`, `lib/multisport.mjs`, `lib/openf1.mjs`; existing NFL adapters remain in `lib/` |
 | Styles and scorebug drawing | `public/scorebug-styles.js`, `scorebug.js`, `scorebug-variants.js`, `scorebug.css` |
-| Preferences, favorites and polling | `public/preferences-model.js`, `favorites.js`, `score-client.js`, `game-details-client.js` |
+| Preferences, favorites and polling | `public/preferences-model.js`, `favorites.js`, `style-favorites.js`, `score-client.js`, `game-details-client.js` |
 | Sport stats and animations | `public/sport-stats.js`, `sport-events.js`, `game-activity.js`, `score-animation.js` |
 | Hover stats and full-screen view | `public/details-*`, `game-view.js`, `sport-view.js`, `game.js` |
 | Native windows and releases | `desktop/`, `scripts/package_*_release.py`, `scripts/combine_desktop_release.py`, `.github/workflows/desktop.yml` |
