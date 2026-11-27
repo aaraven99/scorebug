@@ -74,6 +74,10 @@ test-results/qa/webkit/
 
 Open `report.html` for the summary and failures. `report.json` contains the browser version, source commit/tree, whether the working tree was dirty, counts, timing, coverage and network/lifecycle results. `matrix-cases.json` contains every matrix case and width profile. Screenshots include contact sheets of all styles, league examples, phone views and failures.
 
+The report also shows a `browserDiagnostics` count. [Playwright issue #43120](https://github.com/microsoft/playwright/issues/43120) documents WebKit reporting cancelled requests from an outgoing document as access-control page errors. Our repeated browser probes reproduced this without any cross-origin request or uncaught application error. The suite separates only the exact native WebKit signature for the observed `/api/scoreboard` and `/api/game` endpoint/caller pairs, during an explicit reload between its actual main-document request and first commit. The complete errors and navigation ledger remain in the JSON. Other engines, origins, endpoints, callers, error signatures and times still fail the gate.
+
+Native `ErrorEvent` and `unhandledrejection` listeners run independently and persist their records across reloads. Every such error fails the run, including a deliberately thrown message that resembles the native diagnostic. Unavailable error telemetry also fails. The screen-permission mocks follow trusted browser visibility events, so they cannot restart polling after a real `pagehide`.
+
 Generated screenshots are not automatically marked as manually reviewed. A reviewer should open the relevant sheets, inspect the failures and representative layouts, and record which images they inspected. Do not describe 44,820 automated layouts as 44,820 manual visual reviews.
 
 The first full matrix on the development machine took about one minute. UI runs take longer because actual interactions, animation exits and polling/visibility intervals are exercised. Use each report's elapsed time for that machine rather than treating the first timing as a performance guarantee.
