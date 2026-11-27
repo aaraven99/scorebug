@@ -7,7 +7,7 @@ import gameHandler from './api/game.js';
 
 const root = fileURLToPath(new URL('./', import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json' };
-export const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://a.espncdn.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';";
+export const contentSecurityPolicy = "default-src 'self'; script-src 'self' https://cdn.vercel-insights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://a.espncdn.com; connect-src 'self' https://vercel-insights.com https://*.vercel-insights.com; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';";
 
 export function createScorebugServer({ publicDir = resolve(root, 'public') } = {}) {
   return createServer(async (req, res) => {
