@@ -1,6 +1,6 @@
 {
   "name": "scorebug",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "A classic broadcast scorebug with live NFL data and a floating desktop companion.",
   "type": "module",

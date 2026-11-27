@@ -4,15 +4,19 @@ A live NFL scorebug that floats above your other apps.
 
 ## Get the Windows app
 
-**[Download the latest Scorebug](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Portable-Windows.zip)**
+**[Download Scorebug for Windows](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe)**
 
-1. Download the ZIP and extract it into a folder.
-2. If an older Scorebug is running, right-click its tray icon and choose **Quit**.
-3. Open the **Scorebug-Portable-…-x64.exe** inside the extracted folder.
+1. If an older Scorebug is running, right-click its tray icon and choose **Quit Scorebug**.
+2. Run the downloaded **Scorebug-Setup-Windows.exe**.
+3. Open **Scorebug**. Your saved game, size, and position carry over.
 
-That’s it. No installation, PowerToys, Python, Node.js, or Vercel is needed. Your saved game, size, and position carry over when you update. The app is unsigned.
+Install it once. Future updates download in the background and install when you quit Scorebug. You can also open Settings and choose **Restart to update** when an update is ready. The app won’t restart in the middle of a game.
 
-Prefer an installer? [Download the Windows setup file](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe).
+Settings also has **Check for updates** and an **Automatically check for updates** checkbox. Turning that checkbox off stops background checks. Any update you already downloaded still installs when you quit.
+
+Prefer no installation? [Download the portable ZIP](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Portable-Windows.zip), extract it, and open **Scorebug-Portable-…-x64.exe**. Portable copies need manual updates. To switch to automatic updates, quit the portable app and run the installer above.
+
+No PowerToys, Python, Node.js, or Vercel setup is needed. The app is unsigned.
 
 ## Use it
 
