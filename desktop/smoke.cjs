@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { scorebugHitBounds, teamPanelBounds, teamAtPoint, detailsWindowShape, containsPoint } = require('./geometry.cjs');
 const execFileAsync = promisify(execFile);
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -59,6 +60,7 @@ public static class ScorebugWindowMove {
   [DllImport("user32.dll", SetLastError = true)]
   public static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
 }
+
 '@
 $hwnd = [IntPtr]::new([long]'${handle}')
 [void][ScorebugWindowMove]::SendMessage($hwnd, 0x0231, [IntPtr]::Zero, [IntPtr]::Zero)
@@ -76,6 +78,34 @@ try {
   });
 }
 
+function nativeHandle(win) {
+  const buffer = win.getNativeWindowHandle();
+  return buffer.length >= 8 ? buffer.readBigUInt64LE().toString() : String(buffer.readUInt32LE());
+}
+
+async function windowsRootAtPoint(point) {
+  const source = `
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class ScorebugWindowHit {
+  [StructLayout(LayoutKind.Sequential)] public struct Point { public int X; public int Y; }
+  [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+}
+'@
+[void][ScorebugWindowHit]::SetProcessDpiAwarenessContext([IntPtr]::new(-4))
+$point = [ScorebugWindowHit+Point]::new()
+$point.X = ${Math.round(point.x)}
+$point.Y = ${Math.round(point.y)}
+$hit = [ScorebugWindowHit]::WindowFromPoint($point)
+[ScorebugWindowHit]::GetAncestor($hit, 2).ToInt64().ToString()
+`;
+  const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', source], { windowsHide: true, timeout: 10000 });
+  return stdout.trim();
+}
+
 async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, preferencesPath }) {
   const evidenceDir = path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
@@ -83,6 +113,33 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
   let deadline;
   const check = (name) => { summary.checks.push(name); console.log(`[native smoke] PASS: ${name}`); };
   const evaluate = (code) => widget.webContents.executeJavaScript(code, true);
+  const readScorebugLayout = (options = {}) => evaluate(`(async () => {
+    const [{ renderScorebug }, { referenceGame }] = await Promise.all([import('/scorebug.js'), import('/fixtures.js')]);
+    const board = document.querySelector('.widget-board');
+    const saved = [...board.childNodes];
+    try {
+      // Measure the actual SVG/CSS without depending on a live NFL response.
+      // Keep the real runtime's alignment and orientation in this window.
+      board.innerHTML = renderScorebug(referenceGame, {
+        orientation: document.body.dataset.orientation,
+        statusPosition: document.body.dataset.contentAlignment === 'top' ? 'below' : 'above',
+        ...${JSON.stringify(options)}
+      });
+      const svg = board.querySelector('.scorebug');
+      const matrix = svg.getScreenCTM();
+      const origin = new DOMPoint(0, 0).matrixTransform(matrix);
+      const rect = (element) => element?.getBoundingClientRect().toJSON() || null;
+      return {
+        origin: { x: origin.x, y: origin.y }, factor: matrix.a,
+        alignment: document.body.dataset.contentAlignment,
+        svg: rect(svg), toolbar: rect(document.querySelector('.widget-toolbar')),
+        settings: rect(document.querySelector('.widget-toolbar [aria-label="Open scorebug settings"]')),
+        badge: rect(svg.querySelector('.bug-status-flag')),
+        away: rect(svg.querySelector('.bug-team--away .bug-team-panel')),
+        home: rect(svg.querySelector('.bug-team--home .bug-team-panel'))
+      };
+    } finally { board.replaceChildren(...saved); }
+  })()`);
   const readDragRegions = () => evaluate(`(() => {
     const existing = document.querySelector('.widget-board .bug-team');
     let probe;
@@ -183,16 +240,89 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
           const xGap = Math.min(16, (area.width - actual.width) / 2);
           const yGap = Math.min(16, (area.height - actual.height) / 2);
           const x = area.x + xGap + horizontal * (area.width - actual.width - 2 * xGap);
-          const y = area.y + yGap + vertical * (area.height - actual.height - 2 * yGap);
+          const y = vertical === 0 ? area.y : area.y + yGap + vertical * (area.height - actual.height - 2 * yGap);
           assert.ok(Math.abs(actual.x - x) <= 2, `${anchor}: incorrect native x`);
           assert.ok(Math.abs(actual.y - y) <= 2, `${anchor}: incorrect native y`);
           const positioned = await evaluate('window.scorebugDesktop.getState()');
           assert.equal(positioned.anchor, anchor);
           const expectedOrientation = anchor === 'middle-left' || anchor === 'middle-right' ? 'vertical' : 'horizontal';
           assert.equal(positioned.preferences.orientation, expectedOrientation);
+          assert.equal(positioned.preferences.contentAlignment, vertical === 0 ? 'top' : 'bottom');
           assert.equal(actual.height > actual.width, expectedOrientation === 'vertical');
         }
         check('All nine native anchors work; side anchors become vertical and other anchors stay horizontal');
+
+        for (const scale of [0.65, 1, 1.8]) {
+          await evaluate(`window.scorebugDesktop.setPreferences({ anchor: "top-center", scale: ${scale} })`);
+          const actual = widget.getBounds();
+          await waitFor('Top layout and resized viewport reach the renderer', () => evaluate(`document.body.dataset.contentAlignment === "top" && innerWidth === ${actual.width} && innerHeight === ${actual.height}`), 3000);
+          const area = screen.getDisplayMatching(actual).workArea;
+          const expected = scorebugHitBounds(actual, 'horizontal', 'top');
+          let fresh;
+          for (const options of [{}, { stale: true }, { demo: true }, {}]) {
+            const layout = await readScorebugLayout(options);
+            fresh ||= layout;
+            assert.equal(layout.alignment, 'top');
+            assert.ok(Math.abs(actual.y + layout.origin.y - expected.y) < 0.51, 'Native hits and rendered panel origin disagree');
+            assert.ok(Math.abs(layout.factor * 600 - expected.width) < 0.51);
+            assert.ok(Math.abs(layout.origin.y - fresh.origin.y) < 0.1, 'A status badge moved the panels');
+            assert.ok(actual.y + layout.away.y >= area.y + 8 && actual.y + layout.away.y <= area.y + 16, 'Visible scoreboard is too far below the top edge');
+            assert.ok(layout.toolbar.y >= layout.svg.bottom + 2, 'Below-board controls overlap the scoreboard or status badge');
+            assert.ok(layout.toolbar.x >= 0 && layout.toolbar.right <= actual.width);
+            assert.ok(actual.y + layout.toolbar.bottom <= area.y + area.height);
+            for (const side of ['home', 'away']) {
+              const panel = teamPanelBounds(actual, 'horizontal', side, 'top');
+              assert.ok(Math.abs(actual.y + layout[side].y - panel.y) < 0.51, 'Blade edge and SVG edge disagree');
+              assert.equal(teamAtPoint(actual, { x: actual.x + layout[side].x + layout[side].width / 2, y: actual.y + layout[side].y + layout[side].height / 2 }, 'horizontal', 'top'), side);
+            }
+          }
+          const beforeFree = widget.getBounds();
+          await evaluate('window.scorebugDesktop.setPreferences({ anchor: null })');
+          assert.deepEqual(widget.getBounds(), beforeFree, 'Leaving a top anchor moved the free window');
+          assert.equal((await evaluate('window.scorebugDesktop.getState()')).preferences.contentAlignment, 'top');
+          assert.equal(JSON.parse(fs.readFileSync(preferencesPath, 'utf8')).contentAlignment, 'top');
+        }
+        await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center", scale: 1 })');
+        await waitFor('Bottom content alignment is restored', () => evaluate('document.body.dataset.contentAlignment === "bottom"'), 3000);
+        const bottomBounds = widget.getBounds();
+        const bottomLayout = await readScorebugLayout();
+        assert.ok(Math.abs(bottomLayout.origin.y + bottomBounds.y - scorebugHitBounds(bottomBounds).y) < 0.51, 'Returning to bottom changed its existing artwork placement');
+        check('Top panels stay near the screen edge at every size; fresh/delayed/sample badges, reachable controls, native hit targets and free-placement alignment stay consistent');
+
+        for (const scale of [1.8, 0.65]) {
+          for (const [anchor, side] of [['top-left', 'away'], ['top-right', 'home']]) {
+            await evaluate(`window.scorebugDesktop.setPreferences({ anchor: "${anchor}", scale: ${scale} })`);
+            await pause(160); // Let the native move guard finish before opening a hover blade.
+            const actual = widget.getBounds();
+            const layout = await readScorebugLayout({ stale: true });
+            await evaluate(`window.scorebugDesktop.showDetails("${side}")`);
+            await waitFor('Top-corner blade and its native region', async () => {
+              const panel = getDetails();
+              return panel && !panel.isDestroyed() && panel.isVisible() && await panel.webContents.executeJavaScript('document.body.dataset.phase === "open"');
+            }, 4000);
+            const panel = getDetails(), panelBounds = panel.getBounds();
+            const presentation = await panel.webContents.executeJavaScript('window.scorebugDesktop.getDetailsPresentation()');
+            assert.equal(presentation.direction, 'down');
+            const regions = detailsWindowShape(presentation);
+            assert.equal(regions.length, 2);
+            assert.ok(panelBounds.y + regions[1].y > actual.y + layout.toolbar.bottom, 'Blade body covers the controls');
+            assert.ok(regions[1].height >= 192, 'Toolbar clearance reduced the stats body');
+            for (const x of [layout.toolbar.x + 1, layout.toolbar.right - 1]) {
+              for (const y of [layout.toolbar.y + 1, layout.toolbar.bottom - 1]) {
+                const point = { x: actual.x + x - panelBounds.x, y: actual.y + y - panelBounds.y };
+                assert.ok(!regions.some((region) => containsPoint(region, point)), 'Native blade region intercepts the controls');
+              }
+            }
+            if (process.platform === 'win32' && scale === 0.65 && side === 'home') {
+              const point = screen.dipToScreenPoint({ x: Math.round(actual.x + layout.settings.x + layout.settings.width / 2), y: Math.round(actual.y + layout.settings.y + layout.settings.height / 2) });
+              assert.equal(await windowsRootAtPoint(point), nativeHandle(widget), 'Windows sends the Settings button hit to the overlapping blade');
+            }
+            await evaluate('window.scorebugDesktop.hideDetails()');
+            await waitFor('Top-corner blade closes', () => !getDetails(), 3000);
+          }
+        }
+        await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center", scale: 1 })');
+        check('Top-corner blades at 65% and 180% clear the status flag and controls without shrinking stats; Windows routes the small-layout Settings hit through the native region');
 
         if (process.platform === 'win32') {
           await evaluate('window.scorebugDesktop.setPreferences({ anchor: "bottom-center", scale: 1, snapEnabled: true })');
@@ -272,6 +402,16 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         assert.equal(presentation.orientation, 'vertical');
         assert.ok(presentation.joinTop >= 0 && presentation.joinBottom > presentation.joinTop);
         assert.ok(presentation.joinBottom <= panelBounds.height);
+        assert.deepEqual(detailsWindowShape(presentation), [], 'Ordinary side blades must use their full native region');
+        if (process.platform === 'win32') {
+          const point = screen.dipToScreenPoint({ x: panelBounds.x + 3, y: panelBounds.y + 3 });
+          assert.equal(await windowsRootAtPoint(point), nativeHandle(panel), 'The full native region was not restored for a side blade');
+        }
+        const awayGradient = teamPanelBounds(beforeDetails, 'vertical', 'away');
+        assert.equal(presentation.gradientX, awayGradient.x - panelBounds.x);
+        assert.equal(presentation.gradientY, awayGradient.y - panelBounds.y);
+        assert.equal(presentation.gradientWidth, awayGradient.width);
+        assert.equal(presentation.gradientHeight, awayGradient.height);
         // executeJavaScript clones its result back to the main process; the
         // subscription returns a function, which must remain in the renderer.
         await panel.webContents.executeJavaScript('window.__observedDetailsSide = null; window.scorebugDesktop.onDetailsSideChanged((side) => { window.__observedDetailsSide = side; }); void 0;');
