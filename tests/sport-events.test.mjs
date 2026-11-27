@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMultiSportEventTracker,eventsForSport} from '../public/sport-events.js';
+import {createMultiSportEventTracker,eventsForSport,isSessionEvent,selectSportDemoPlayer} from '../public/sport-events.js';
 import {referenceForLeague} from '../public/sport-fixtures.js';
 const at=Date.parse('2026-11-27T02:00:00Z');
 function game(league='nba',away=10,home=12){const base=referenceForLeague(league);return {...base,id:`${league}:4011`,...(base.away?{away:{...base.away,score:away},home:{...base.home,score:home}}:{})};}
@@ -50,4 +50,47 @@ test('new soccer goal with timestamp can be confirmed even when earlier play his
 });
 test('every sport demo list is separate, and racing includes practice/qualifying timing and flags',()=>{
   assert.ok(eventsForSport('racing').some(e=>e.kind==='session-best'));assert.ok(eventsForSport('racing').some(e=>e.kind==='red-flag'));assert.equal(eventsForSport('basketball').some(e=>e.kind==='field-goal'),false);assert.ok(eventsForSport('baseball').some(e=>e.kind==='home-run'));
+});
+test('race-control demos are session-wide and never choose a driver from available player data',()=>{
+  const globalKinds=['safety-car','virtual-safety-car','yellow-flag','red-flag','green-flag','checkered-flag'];
+  const driver={id:'f1:5829',teamId:'f1:mercedes',name:'Kimi Antonelli',headshot:'https://media.formula1.com/antonelli.png'};
+  for(const kind of globalKinds){
+    const spec=eventsForSport('racing').find(item=>item.kind===kind);
+    assert.equal(spec.scope,'session',kind);
+    assert.equal(isSessionEvent(spec,'racing'),true,kind);
+    assert.equal(isSessionEvent({kind},'racing'),true,`unscoped ${kind}`);
+    assert.equal(isSessionEvent(kind,'racing'),true,`string ${kind}`);
+    assert.equal(selectSportDemoPlayer({players:[driver]},driver.teamId,kind,'racing'),null,kind);
+  }
+  for(const kind of ['lead-change','fastest-lap','session-best']){
+    assert.equal(isSessionEvent(eventsForSport('racing').find(item=>item.kind===kind),'racing'),false,kind);
+    assert.equal(selectSportDemoPlayer({players:[driver]},driver.teamId,kind,'racing').name,'Kimi Antonelli',kind);
+  }
+  assert.equal(isSessionEvent({kind:'lead-change'},'basketball'),false);
+});
+test('new race-control evidence retains no driver attribution and still emits only once',()=>{
+  const tracker=createMultiSportEventTracker(),g={...game('f1'),flag:'green'};
+  tracker.update({game:g,now:at});
+  const kinds=['safety-car','virtual-safety-car','yellow-flag','red-flag','green-flag','checkered-flag'];
+  for(const [index,kind] of kinds.entries()){
+    const current={...g,flag:kind},now=at+(index+1)*2000;
+    const notices=tracker.update({game:current,now});
+    assert.equal(notices.length,1,kind);
+    assert.equal(notices[0].kind,kind);assert.equal(notices[0].scope,'session');
+    assert.equal(notices[0].player,null);assert.equal(notices[0].teamId,null);
+    assert.deepEqual(tracker.update({game:current,now:now+500}),[],`duplicate ${kind}`);
+  }
+});
+test('a simultaneous race lead change keeps its driver while a safety-car notice remains session-wide',()=>{
+  const tracker=createMultiSportEventTracker(),g={...game('f1'),flag:'green'};
+  const challenger={...g.entries[1],athlete:{...g.entries[1].athlete,name:'Kimi Antonelli',headshot:'https://media.formula1.com/antonelli.png'}};
+  g.entries=[g.entries[0],challenger,...g.entries.slice(2)];
+  tracker.update({game:g,now:at});
+  const changed={...g,flag:'safety-car',entries:[{...challenger,position:1},{...g.entries[0],position:2},...g.entries.slice(2)]};
+  const notices=tracker.update({game:changed,now:at+1000});
+  assert.deepEqual(notices.map(item=>item.kind),['lead-change','safety-car']);
+  assert.equal(notices[0].scope,'competitor');assert.equal(notices[0].player.name,'Kimi Antonelli');
+  assert.equal(notices[0].player.headshot,'https://media.formula1.com/antonelli.png');
+  assert.equal(notices[1].scope,'session');assert.equal(notices[1].player,null);assert.equal(notices[1].teamId,null);
+  assert.deepEqual(tracker.update({game:changed,now:at+2000}),[]);
 });
