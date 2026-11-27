@@ -1,64 +1,79 @@
 # GitHub updates and releases
 
-The project is [aaraven99/scorebug](https://github.com/aaraven99/scorebug).
+The project is [aaraven99/scorebug](https://github.com/aaraven99/scorebug). For local commands, see [Development](DEVELOPMENT.md).
 
 ## Update the code
 
-Use your existing clone in **GitHub Desktop**, or edit files through the signed-in GitHub website. Pull the latest changes, make your edits, review them, then commit and push. Follow any branch rules shown by GitHub.
+Pull the latest changes, make and review your edits, then commit and push using GitHub Desktop, an authenticated terminal, or the GitHub website. Follow the repository's branch rules. A pull request lets you review a change and its checks before merging it into `main`.
 
-The Windows workflow runs for pull requests and relevant updates to `main`. It checks the data code, web build, geometry, and actual Windows widget before it creates the downloads. The connected Vercel project can deploy `main` separately.
+The workflow is **Actions → Build Windows and Mac desktop apps**. Pull requests build and test without publishing. Relevant changes to `main` run the checks and can publish a new version. Vercel deploys the website separately; a successful website deployment does not mean desktop downloads are ready.
 
-A GitHub website login and a connected app have separate permissions. If a connected app returns `403 Resource not accessible by integration`, using the signed-in website or GitHub Desktop is an available way to update this repository. You do not need the connected app to download or run Scorebug.
+A GitHub website login and a connected app have separate permissions. If an integration reports `403 Resource not accessible by integration`, use a connection with repository write access, GitHub Desktop, or the signed-in website. Users do not need GitHub access to download Scorebug.
 
 ## Publish a new download
 
-New versions publish automatically after the Windows checks pass:
+1. Set a new matching version in both `package.json` files and both lockfiles.
+2. Merge the reviewed change into `main`.
+3. Open **Actions → Build Windows and Mac desktop apps** and wait for Windows, both Mac builds, and the release job to finish.
 
-1. Set a new, matching version in the root and desktop `package.json` and lockfiles, then merge those changes into `main`.
-2. The `main` workflow tests and builds that exact commit, uploads the verified files to a draft, and publishes it as the latest release. Installed apps can then download it automatically.
+The workflow publishes one release containing all three platforms. It does not publish a Windows-only update while a Mac build is failing. Each release needs a new version; published downloads are never replaced with different files.
 
-You can follow the progress under **Actions → Build Windows desktop app**. Every new release needs a new version; the workflow never replaces an already-published version with different files.
+For a manual run, choose **Run workflow**. The publish checkbox defaults to off. Enable it only to publish an unpublished version from `main`. You do not need to create an empty release first.
 
-For a manual build, choose **Run workflow**. Its publish checkbox defaults to off. Enable it only when you need to publish an unpublished version from `main`. No separate tag or empty release needs to be created in the browser. To recover a failed upload, use **Re-run failed jobs** so it reuses the tested files.
-
-### Publish with a tag instead
-
-Pushing a matching version tag also runs the full Windows checks and release process. From an authenticated clone:
-
+A matching tag can also start the full process. For example, from an authenticated clone:
 
 ```sh
-git tag v1.2.0 VERIFIED_COMMIT_SHA
-git push origin v1.2.0
+git tag v2.0.0 VERIFIED_COMMIT_SHA
+git push origin v2.0.0
 ```
 
-Use the version and commit you intend to publish. The workflow rejects a tag that does not match the package versions or points to a different commit from the tested artifact.
+Replace the version and commit with the ones you intend to publish. Never move an existing release tag.
 
-Each successful Windows run uploads **Scorebug-Windows-x64** with:
+## What must pass
 
-- **Scorebug-Portable-Windows.zip** — the EXE, a short start guide, and checksums.
-- **Scorebug-Setup-Windows.exe** — the recommended installer, with automatic updates.
-- **Scorebug-Setup-VERSION-x64.exe**, its **.blockmap**, and **latest.yml** — the files used by installed apps to update themselves.
-- **SHA256SUMS.txt** — checksums for the downloads and update files.
-- **release-info.json** — the build’s version, source commit, and asset hashes.
+| Build | Required checks |
+| --- | --- |
+| Windows x64 | Matching versions, release-script tests, web/data tests, static web build, desktop tests, native window smoke test, installer and portable packaging, update-manifest verification |
+| Apple Silicon Mac | Native arm64 runner, matching versions, desktop tests, compiled drag helper, source and packaged-app smoke tests, DMG/ZIP verification |
+| Intel Mac | The same Mac checks on a native x64 runner |
+| Publication | All builds passed; versions and source commits match; expected files, sizes and hashes match before and after upload |
 
-The packager keeps the update manifest exactly as electron-builder generated it. It verifies the version, installer filename, size, SHA-512 hash, and blockmap against the tested build. The versioned installer must stay in the release alongside the convenient `Scorebug-Setup-Windows.exe` alias.
+Mac checks currently use macOS 15 runners. They verify actual native executables, rather than running an Intel app through translation. Mac downloads require macOS 13 or newer.
 
-Only the release job receives repository write permission, after all Windows checks, the native smoke test, and packaging succeed. It uses this same run's artifact, verifies its source commit, checks every file's size and SHA-256 hash, and publishes only after the uploaded files match. Drafts are located by authenticated release listing and retained numeric IDs, so an unfinished draft can be resumed.
+Only the final publication job gets repository write permission. It uploads into a draft, checks every uploaded file, then makes the release public. If an upload fails, choose **Re-run failed jobs** on that same run. This reuses the tested files and can resume an unfinished draft. If a published version has different files, bump the version instead of rebuilding over it.
 
-If an upload or publication request fails, use **Re-run failed jobs** on that workflow run. The release job reuses the same verified build and replaces incomplete or mismatched uploads only while the release remains a draft. A published release with matching files is left unchanged. Different files in an already-published release, including an immutable release, cause a clear failure: bump the version for a new release. Do not move an existing version tag or expect a fresh rebuild to have identical ZIP hashes.
+## Downloads and build evidence
 
-## Permanent download links
+Successful runs save three download artifacts for 30 days: `Scorebug-Windows-x64`, `Scorebug-Mac-arm64`, and `Scorebug-Mac-x64`.
 
-The README and website use these links, so users do not need to search Actions or sign in:
+The evidence artifacts are `Scorebug-Windows-smoke`, `Scorebug-Mac-arm64-smoke`, and `Scorebug-Mac-x64-smoke`. They contain test results and screenshots and last 14 days. Mac evidence includes both source and packaged-app runs.
 
-- [Latest portable app](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Portable-Windows.zip)
-- [Latest installer](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe)
-- [Release notes and older versions](https://github.com/aaraven99/scorebug/releases)
+The public release uploads **13 files**:
 
-Installed copies from version 1.2.2 onward check for new releases and download them automatically. They apply a ready update when the app quits, or when the user chooses **Restart to update**. Closing the settings window keeps the scorebug running. Portable copies need a new download for feature updates; users can switch to the installer without losing their game or position.
+- Windows portable ZIP and the stable Windows installer.
+- The versioned Windows installer, its `.blockmap`, and `latest.yml` for automatic updates.
+- Apple Silicon and Intel Mac DMGs and ZIPs.
+- Two Mac checksum files, one combined `SHA256SUMS.txt`, and `START-HERE-MAC.txt`.
 
-The app is unsigned. Update downloads use this GitHub repository over HTTPS and are checked against the release manifest’s hash; they do not have a verified publisher certificate.
+Each build also carries `release-info.json` with its source commit and file hashes. That is internal verification metadata, not an extra public download. Keep the versioned Windows installer alongside the stable alias: `latest.yml` refers to the versioned filename.
 
-## References
+### Permanent links
 
-[GitHub Desktop: commit and push](https://docs.github.com/en/desktop/making-changes-in-a-branch/committing-and-reviewing-changes-to-your-project-in-github-desktop) · [Manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow) · [GitHub release API](https://docs.github.com/en/rest/releases/releases) · [Release asset API](https://docs.github.com/en/rest/releases/assets)
+| Download | Link |
+| --- | --- |
+| Windows installer | [Scorebug-Setup-Windows.exe](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Setup-Windows.exe) |
+| Windows portable | [Scorebug-Portable-Windows.zip](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Portable-Windows.zip) |
+| Mac with an Apple chip | [DMG](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Mac-Apple-Silicon.dmg) · [ZIP](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Mac-Apple-Silicon.zip) |
+| Intel Mac | [DMG](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Mac-Intel.dmg) · [ZIP](https://github.com/aaraven99/scorebug/releases/latest/download/Scorebug-Mac-Intel.zip) |
+
+These links use the latest published release. A platform's link becomes available when a release containing that file is published. [Release notes and older downloads](https://github.com/aaraven99/scorebug/releases) remain available.
+
+## Updates and signing
+
+The installed Windows app checks for stable releases and downloads updates in the background. A ready update installs when the app quits, or when the user chooses **Restart to update**. Closing Settings does not quit the app. Portable copies need a fresh download.
+
+Windows builds are unsigned. Update downloads use GitHub HTTPS and verified manifest hashes; there is no Authenticode publisher certificate.
+
+Mac builds are ad-hoc signed, without Apple Developer ID signing or notarization. If macOS blocks the app and the user trusts the download, they can try opening it, then choose **System Settings → Privacy & Security → Open Anyway**. [Apple's instructions](https://support.apple.com/en-us/102445) explain this without disabling Gatekeeper.
+
+Mac feature updates are manual for now: quit Scorebug, download the latest Mac version, and replace the app in Applications. Favorites, style and position stay saved. Scores continue to refresh automatically while the app is running and the computer is awake and online.
