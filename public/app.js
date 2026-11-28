@@ -422,7 +422,6 @@ async function floatWidget() {
 $('float-button').addEventListener('click', floatWidget);
 if (desktop) {
   document.body.dataset.mode = 'desktop';
-  $('phone-standby-launch').hidden = true;
   if ($('page-title')) $('page-title').textContent = 'Scorebug settings';
   $('desktop-controls').hidden = false; $('desktop-banner').hidden = true;
   $('browser-layout-controls').hidden = true;

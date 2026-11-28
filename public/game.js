@@ -13,7 +13,6 @@ import { latestPlayText, comparisonMarkup, insightsMarkup, quarterMarkup, playsM
 
 const $ = (id) => document.getElementById(id);
 const bridge = window.scorebugDesktop;
-$('center-standby').hidden = Boolean(bridge);
 let preferences = await initializePreferences();
 let snapshot = { data: null, error: null, loading: true };
 let summaryState = { data: null, error: null, loading: false };
@@ -155,7 +154,7 @@ $('center-fullscreen').addEventListener('click', async () => {
     else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
     else notice('Full screen is unavailable in this browser. Try Standby for a view that fits your screen.');
     renderFullscreen();
-  } catch { notice(bridge ? 'Full screen is unavailable here.' : 'Full screen is unavailable here. Try Standby for a view that fits your screen.'); }
+  } catch { notice('Full screen is unavailable here. Try Standby for a view that fits your screen.'); }
 });
 document.addEventListener('fullscreenchange', renderFullscreen);
 if (bridge?.getGameCenterState) {
