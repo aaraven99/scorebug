@@ -98,4 +98,12 @@ npm --prefix desktop test
 
 Windows and both Mac architectures still run the source and packaged-app checks in the desktop release workflow. Browser checks cannot prove native transparency, window snapping, macOS Spaces behavior, signing, installer behavior, or Windows automatic updates.
 
+## Desktop connection failures
+
+Native smoke also exercises the same Chromium session fetch used by the desktop server. It starts a real loopback server and repeats its network cases three times on Windows and both Mac architectures, including the packaged Mac apps. These cases cover connections closing before headers or partway through a body, stalled responses, cancellation, redirects, compressed JSON, the decoded 4 MiB limit, unavailable feeds, stale cached values, and successful recovery. Each case is followed by a healthy request.
+
+The original `Parser.finish` crash has a dedicated case: a 64 KiB response remains unread until the peer has actually finished and closed the connection, then its complete body is checked. [Undici issue 5360](https://github.com/nodejs/undici/issues/5360) documents this socket-end failure. The desktop sends feed requests through Electron's Chromium networking session, including OpenF1 authentication and timing; changing a global fetch after a service has already captured it is not sufficient.
+
+The native report records the Electron, Chromium, Node and Undici versions, per-case results, the observed connection-close order, and cleanup. In smoke mode only, an uncaught main-process error or unhandled rejection exits with failure immediately and is logged. Production does not suppress these errors. The regular unit tests separately verify per-server transport injection, API contracts, cancellation and shutdown. Mocked promise rejections alone do not replace the real connection tests.
+
 The deterministic suite also cannot prove that a public feed is currently live, complete or fast. Read `docs/DATA.md` for actual provider coverage and limits. Unexpected API failures in production need a separate live investigation; a deliberately injected 503 in the QA report is expected only in its failure/recovery scenario.

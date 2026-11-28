@@ -12,6 +12,7 @@ const { UpdateController } = require('./updates.cjs');
 const { DetailsLifecycle } = require('./details-lifecycle.cjs');
 const { FullscreenTransitions } = require('./fullscreen.cjs');
 const { cleanPatch, cleanSavedPreferences, cleanDetailsContext, cleanDetailsRegions, setFavoriteStyleCatalog } = require('./preferences.cjs');
+const { createDesktopFeedTransport } = require('./network-transport.cjs');
 
 const DEFAULTS = Object.freeze({
   gameId: null,
@@ -61,6 +62,7 @@ const detailsLifecycle = new DetailsLifecycle({
 });
 let tray = null;
 let httpServer = null;
+let feedTransport = null;
 let origin = null;
 let preferences = { ...DEFAULTS };
 let preferencesPath = '';
@@ -78,6 +80,14 @@ let scorebugDimensions, getLeague, normalizePreferencePatch, leagueOfId, isScore
 
 app.setName('Scorebug');
 if (SMOKE_TEST) {
+  // Main-process socket errors must fail CI, not leave an unseen error dialog.
+  // Production keeps Electron's normal fatal-error behavior.
+  const failSmoke = (error) => {
+    console.error(`[native smoke] FATAL main-process error: ${error?.stack || error}`);
+    app.exit(1);
+  };
+  process.on('uncaughtExceptionMonitor', failSmoke);
+  process.on('unhandledRejection', failSmoke);
   // Hosted Intel Mac runners have no usable GPU. Keep real native windows and
   // sandboxing, but use CPU compositing for their screenshot-based smoke run.
   if (process.env.SCOREBUG_SMOKE_SOFTWARE_RENDERING === '1') app.disableHardwareAcceleration();
@@ -1041,7 +1051,11 @@ async function start() {
   ({ scorebugDimensions } = await import(pathToFileURL(path.join(appRoot, 'public', 'scorebug-layout.js')).href));
   ({ getLeague } = await import(pathToFileURL(path.join(appRoot, 'public', 'sports.js')).href));
   const { createScorebugServer } = await import(pathToFileURL(path.join(appRoot, 'server.mjs')).href);
-  httpServer = createScorebugServer();
+  const feedSession = session.fromPartition('scorebug-feeds', { cache: false });
+  feedSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  feedSession.setPermissionCheckHandler(() => false);
+  feedTransport = createDesktopFeedTransport({ session: feedSession });
+  httpServer = createScorebugServer({ fetchImpl: feedTransport.fetch });
   await new Promise((resolve, reject) => {
     httpServer.once('error', reject);
     httpServer.listen(0, '127.0.0.1', () => {
@@ -1072,7 +1086,7 @@ async function start() {
   savePreferences();
   if (SMOKE_TEST) {
     const { runNativeSmoke } = require('./smoke.cjs');
-    await runNativeSmoke({ widget, screen, origin, getSettings: () => settings, getDetails: () => details, getGameCenter: () => gameCenter, preferencesPath, packaged: app.isPackaged });
+    await runNativeSmoke({ widget, screen, origin, getSettings: () => settings, getDetails: () => details, getGameCenter: () => gameCenter, preferencesPath, packaged: app.isPackaged, feedFetch: feedTransport.fetch, appRoot });
     app.quit();
   }
 }
@@ -1087,6 +1101,7 @@ if (!app.requestSingleInstanceLock()) {
     if (quitCleanupDone) return;
     quitCleanupDone = true;
     updates?.stop();
+    void feedTransport?.stop().catch(error => console.error(`Scorebug network shutdown: ${error?.message || error}`));
     macMoveWatcher?.kill();
     macMoveWatcher = null;
     clearTimeout(moveTimer);

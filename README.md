@@ -20,6 +20,8 @@ Prefer a Windows app without an installer? [Download the portable ZIP](https://g
 
 If a download does not start, [open the latest release](https://github.com/aaraven99/scorebug/releases/latest) and expand **Assets**. Choose the file for your computer. No PowerToys, Python, Node.js, or Vercel setup is needed to use the app.
 
+**Saw an error containing `assert(!this.paused)`?** Version 2.1.1 fixes that desktop connection crash. Close the error, quit Scorebug from its tray icon, then run the latest Windows installer above. Your saved choices carry over. You can also use **Settings → Updates → Check for updates** if the app is still running normally.
+
 ## Start watching
 
 1. **Choose a sport or league.** Leave **Automatic** selected to follow a live game, or click a game to keep watching that one. The **College sports** group includes college football and men's and women's college basketball.
