@@ -346,6 +346,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
             const actual = widget.getBounds();
             await waitFor('Top-corner layout and resized viewport are ready', () => evaluate(`document.body.dataset.contentAlignment === "top" && innerWidth === ${actual.width} && innerHeight === ${actual.height}`), 3000);
             const layout = await readScorebugLayout({ stale: true });
+            assert.ok(layout.settings.width <= 22.5, `Native Settings target expanded to ${layout.settings.width}px`);
             await evaluate(`window.scorebugDesktop.showDetails("${side}")`);
             await waitFor('Top-corner blade and its native region', async () => {
               const panel = getDetails();

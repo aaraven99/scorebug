@@ -71,5 +71,5 @@
    starts at the team panels and leaves the down/clock strip exposed. */
 .score-animation-host[data-animation-orientation=horizontal]:has(.scorebug[data-status-position=below] .bug-status-flag) .score-animation{top:2.47%;height:51.9%}
 .score-animation-host[data-animation-orientation=vertical]:has(.scorebug[data-status-position=below] .bug-status-flag) .score-animation{top:.65%;height:64.4%}
-.widget-toolbar .widget-settings-button{min-width:52px;padding:0 9px;color:#e2e8db;font-weight:500;border-left:1px solid #465047;border-radius:0 3px 3px 0}.widget-toolbar .widget-settings-button:hover{background:#384238}
-@media(max-width:180px){.widget-toolbar .widget-settings-button{font-size:0!important;min-width:22px;padding:0 3px}.widget-toolbar .widget-settings-button::before{content:"⚙";font-size:11px}}
+.widget-settings-icon{display:none!important}.widget-toolbar .widget-settings-button{color:#aebba8}.widget-toolbar .widget-settings-button:hover{color:#e2e8db}
+.widget-page[data-desktop] .widget-settings-label{display:none}.widget-page[data-desktop] .widget-settings-icon{display:block!important}
