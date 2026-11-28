@@ -61,7 +61,7 @@ test('favorite styles validate against the shared catalog and survive native sav
     assert.deepEqual(cleanFavoriteStyleIds(input),normalizeFavoriteStyleIds(input));
     assert.ok(cleanFavoriteStyleIds(input).length<=all.length);
   }
-  const patch={leagueId:'f1',gameId:'f1:123',styleId:'nfl-cbs-eyebar',styleAuto:false,racingRows:22,
+  const patch={leagueId:'f1',gameId:'f1:123',styleId:'nfl-cbs-eyebar',styleAuto:false,darkMode:true,racingRows:22,
     favorites:[{leagueId:'nfl',teamId:'3',name:'Chicago Bears',abbreviation:'CHI'}],favoriteStyleIds:all};
   const saved=JSON.parse(JSON.stringify(cleanPatch(patch)));
   assert.deepEqual(cleanSavedPreferences(saved),patch);
@@ -69,6 +69,7 @@ test('favorite styles validate against the shared catalog and survive native sav
   assert.equal(patch.favoriteStyleIds.length,all.length);
   assert.deepEqual(cleanPatch({favoriteStyleIds:['unknown','../../private']}),{favoriteStyleIds:[]});
   for (const invalid of [null,undefined,{},'nfl-blades',42]) assert.throws(()=>cleanPatch({favoriteStyleIds:invalid}),/must be a list/);
+  assert.throws(()=>cleanPatch({darkMode:'true'}),/Invalid darkMode/);
   assert.deepEqual(cleanSavedPreferences({styleId:'nfl-blades',racingRows:22}),{styleId:'nfl-blades',racingRows:22,styleAuto:false},'old settings remain valid without style favorites');
 });
 

@@ -16,7 +16,7 @@ let rendered = '';
 const root = document.getElementById('widget-root');
 const toolbar = document.createElement('nav'); toolbar.className = 'widget-toolbar'; toolbar.setAttribute('aria-label', 'Scorebug controls');
 const refresh = document.createElement('button'); refresh.type = 'button'; refresh.title = 'Refresh now'; refresh.setAttribute('aria-label', 'Refresh now'); refresh.textContent = '↻'; refresh.className = 'widget-refresh-button';
-const settings = document.createElement('button'); settings.type = 'button'; settings.title = 'Settings'; settings.setAttribute('aria-label', 'Open scorebug settings'); settings.textContent = '⚙';
+const settings = document.createElement('button'); settings.type = 'button'; settings.title = 'Settings'; settings.setAttribute('aria-label', 'Open scorebug settings'); settings.className = 'widget-settings-button'; settings.textContent = 'Settings';
 const close = document.createElement('button'); close.type = 'button'; close.title = desktop ? 'Quit Scorebug' : 'Close window'; close.setAttribute('aria-label', close.title); close.textContent = '×';
 const detailsButton = document.createElement('button'); detailsButton.type = 'button'; detailsButton.title = 'Stats for the team with the ball'; detailsButton.setAttribute('aria-label', 'Show team stats'); detailsButton.className = 'widget-stats-button';
 detailsButton.innerHTML = '<span class="widget-stats-label">Stats</span><svg class="widget-stats-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 12V8m5 4V3m5 9V6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';

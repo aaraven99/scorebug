@@ -1,4 +1,5 @@
 import { SCOREBUG_STYLES } from './scorebug-styles.js';
+import { LEAGUES, getLeague } from './sports.js';
 
 const ID = /^(?:\d{1,15}|(?:thescore|fox)-\d{1,15}|[a-z][a-z0-9.-]{0,39}:[a-zA-Z0-9_-]{1,48})$/;
 const LEAGUE = /^[a-z][a-z0-9.-]{0,39}$/;
@@ -51,6 +52,15 @@ export function normalizeFavoriteStyleIds(value) {
   }
   return result;
 }
+export function normalizeFavoriteLeagueIds(value) {
+  const result = [], seen = new Set();
+  for (const id of Array.isArray(value) ? value : []) {
+    if (typeof id !== 'string' || !getLeague(id) || seen.has(id)) continue;
+    seen.add(id); result.push(id);
+    if (result.length === LEAGUES.length) break;
+  }
+  return result;
+}
 export function normalizePreferencePatch(patch = {}) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return {};
   const result = {};
@@ -58,6 +68,7 @@ export function normalizePreferencePatch(patch = {}) {
   if (Object.hasOwn(patch, 'styleId') && typeof patch.styleId === 'string' && STYLE.test(patch.styleId)) result.styleId = patch.styleId;
   if (Object.hasOwn(patch, 'favorites')) result.favorites = normalizeFavorites(patch.favorites);
   if (Object.hasOwn(patch, 'favoriteStyleIds')) result.favoriteStyleIds = normalizeFavoriteStyleIds(patch.favoriteStyleIds);
+  if (Object.hasOwn(patch, 'favoriteLeagueIds')) result.favoriteLeagueIds = normalizeFavoriteLeagueIds(patch.favoriteLeagueIds);
   if (Object.hasOwn(patch, 'gameId')) result.gameId = supportedGameId(patch.gameId) ? patch.gameId : null;
   if (Object.hasOwn(patch, 'date')) result.date = validDate(patch.date) ? patch.date : null;
   if (Object.hasOwn(patch, 'team')) result.team = typeof patch.team === 'string' && /^[A-Z]{2,4}$/.test(patch.team) ? patch.team : null;
@@ -66,7 +77,7 @@ export function normalizePreferencePatch(patch = {}) {
   if (['horizontal', 'vertical'].includes(patch.orientation)) result.orientation = patch.orientation;
   if (Object.hasOwn(patch,'anchor') && patch.anchor === null) result.anchor = null;
   if (/^(?:top|bottom)-(?:left|center|right)$|^middle-(?:left|right)$|^center$/.test(patch.anchor || '')) result.anchor = patch.anchor;
-  for (const key of ['snapEnabled', 'locked', 'styleAuto']) if (typeof patch[key] === 'boolean') result[key] = patch[key];
+  for (const key of ['snapEnabled', 'locked', 'styleAuto', 'darkMode']) if (typeof patch[key] === 'boolean') result[key] = patch[key];
   if (['top', 'bottom'].includes(patch.contentAlignment)) result.contentAlignment = patch.contentAlignment;
   return result;
 }

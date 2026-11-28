@@ -21,6 +21,7 @@ const DEFAULTS = Object.freeze({
   racingRows: 6,
   favorites: [],
   favoriteStyleIds: [],
+  darkMode: false,
   team: null,
   date: null,
   scale: 1,
@@ -87,8 +88,8 @@ if (SMOKE_TEST) {
 if (process.platform === 'win32') app.setAppUserModelId('dev.aarav.scorebug');
 
 function publicPreferences() {
-  const { gameId, leagueId, styleId, styleAuto, racingRows, favorites, favoriteStyleIds, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
-  return { gameId, leagueId, styleId, styleAuto, racingRows, favorites: favorites.map((item) => ({ ...item })), favoriteStyleIds: [...favoriteStyleIds], team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
+  const { gameId, leagueId, styleId, styleAuto, racingRows, favorites, favoriteStyleIds, darkMode, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates } = preferences;
+  return { gameId, leagueId, styleId, styleAuto, racingRows, favorites: favorites.map((item) => ({ ...item })), favoriteStyleIds: [...favoriteStyleIds], darkMode, team, date, scale, anchor, snapEnabled, locked, orientation, contentAlignment, autoUpdates };
 }
 
 function orientationForAnchor(anchor) {

@@ -98,7 +98,7 @@ function cleanPatch(patch) {
     if (patch.anchor !== null && !ANCHORS.includes(patch.anchor)) throw new TypeError('Invalid position');
     clean.anchor = patch.anchor;
   }
-  for (const key of ['snapEnabled', 'locked', 'autoUpdates', 'styleAuto']) {
+  for (const key of ['snapEnabled', 'locked', 'autoUpdates', 'styleAuto', 'darkMode']) {
     if (Object.hasOwn(patch, key)) {
       if (typeof patch[key] !== 'boolean') throw new TypeError(`Invalid ${key}`);
       clean[key] = patch[key];

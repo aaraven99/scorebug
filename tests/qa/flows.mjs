@@ -95,6 +95,7 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
         if(mode==='timeout'){net.expectedFailures.set(url.href,Date.now());await new Promise(resolve=>setTimeout(resolve,10500));return await settleRoute(route,'fulfill',{status:503,json:{error:'QA response arrived after client timeout'}});}
         if(kind==='scoreboard'){
           const body=scoreboardForLeague(leagueId,{directories});
+          if(mode==='no-live')body.games=body.games.filter(game=>!game.isLive);
           if(mode==='empty')body.games=[];if(mode==='stale'){body.stale=true;body.feedStatus='cached';body.fetchedAt=new Date(Date.now()-90000).toISOString();}
           return await settleRoute(route,'fulfill',{json:body});
         }
@@ -164,9 +165,35 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
       await page.reload();await waitBoard(page,'#scorebug-preview svg.scorebug','nba');equal((await prefs(page)).favorites.length,saved);
       await page.evaluate(async()=>{await(await import('/score-client.js')).updatePreferences({favorites:[]});});
     });
+    await check(`p${pass}:favorite-leagues-dark-mode-and-other-live-leagues`,async()=>{
+      const discovery=await makeContext(),browse=await discovery.context.newPage();activePage=browse;
+      discovery.net.modes.nba='no-live';await browse.goto(`${baseURL}?league=nba`);await waitBoard(browse,'#scorebug-preview svg.scorebug','nba');
+      await browse.waitForFunction(()=>!document.querySelector('#other-live-toggle').hidden);
+      await browse.locator('#favorite-current-league').click();
+      await browse.waitForFunction(()=>document.querySelector('#favorite-current-league').getAttribute('aria-pressed')==='true');
+      equal(JSON.parse(await browse.evaluate(()=>localStorage.getItem('scorebug.favorite-leagues.v1'))),['nba']);
+      truth(await browse.locator('[data-favorite-league-id="nba"]').isVisible(),'Saved leagues remain available as quick picks');
+      await browse.locator('#other-live-toggle').click();
+      await browse.waitForFunction(()=>document.querySelectorAll('#other-live-games .live-game').length>0);
+      await browse.waitForFunction(()=>document.querySelector('#other-live-message').textContent.includes('across other leagues'));
+      const feeds=discovery.net.requests.filter(request=>request.kind==='scoreboard'&&request.leagueId!=='nba');
+      equal(new Set(feeds.map(request=>request.leagueId)).size,LEAGUES.length-1,'Expansion checks every other supported league');
+      truth(feeds.every(request=>request.leagueId!=='nba'),'Expansion leaves the empty selected league out of the secondary feed');
+      const liveRow=browse.locator('#other-live-games .live-game').first();await liveRow.click();
+      await browse.waitForFunction(()=>{const p=JSON.parse(localStorage.getItem('scorebug.preferences.v2')||'{}');return p.leagueId!=='nba'&&p.gameId;});
+      const picked=await prefs(browse);equal(picked.leagueId,picked.gameId.includes(':')?picked.gameId.split(':')[0]:'nfl','Choosing a cross-league game updates its league and pinned game together');
+      await browse.locator('[data-favorite-league-id="nba"]').click();await waitBoard(browse,'#scorebug-preview svg.scorebug','nba');
+      await browse.locator('#dark-mode-toggle').check();await browse.waitForFunction(()=>document.body.dataset.theme==='dark');
+      equal((await prefs(browse)).darkMode,true);await browse.reload();await waitBoard(browse,'#scorebug-preview svg.scorebug','nba');
+      await browse.waitForFunction(()=>document.body.dataset.theme==='dark'&&document.querySelector('#dark-mode-toggle').checked);
+      if(pass===1)await screenshot(browse,'settings-dark-mode');
+      await browse.locator('#dark-mode-toggle').uncheck();await browse.waitForFunction(()=>document.body.dataset.theme==='light');
+      await discovery.context.close();activePage=page;
+    });
     await check(`p${pass}:popout-shared-style-side-rows-and-game-center`,async()=>{
       await page.selectOption('#league-select','nba');await page.selectOption('#style-select','nfl-blades');await page.locator('button[data-orientation="vertical"]').click();
       const popupPromise=context.waitForEvent('page');await page.locator('#clean-button').click();const popup=await popupPromise;await popup.waitForLoadState('domcontentloaded');await waitBoard(popup,'svg.scorebug','nba','nfl-blades');equal(await popup.locator('svg.scorebug').getAttribute('data-orientation'),'vertical');
+      equal((await popup.locator('.widget-settings-button').textContent()).trim(),'Settings','The floating widget uses a quiet text Settings control');truth(await popup.locator('.widget-settings-button').isVisible());
       await page.selectOption('#style-select','nfl-cbs-deconstructed');await waitBoard(popup,'svg.scorebug','nba','nfl-cbs-deconstructed');
       await page.selectOption('#league-select','f1');await waitBoard(popup,'svg.scorebug','f1');await page.locator('#racing-rows').fill('22');await page.locator('#racing-rows').dispatchEvent('input');
       await popup.waitForFunction(()=>document.querySelectorAll('.variant-classification-row').length===22);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const KEY='scorebug.preferences.v2',LEGACY_KEY='scorebug.preferences.v1',STYLES_KEY='scorebug.favorite-styles.v1';
+const KEY='scorebug.preferences.v2',LEGACY_KEY='scorebug.preferences.v1',STYLES_KEY='scorebug.favorite-styles.v1',LEAGUES_KEY='scorebug.favorite-leagues.v1';
 let sequence=0;
 function environment(seed=[]) {
   const names=['localStorage','window','BroadcastChannel','addEventListener','location','history'];
@@ -157,6 +157,37 @@ test('favorite-style channel works with blocked storage and base-channel records
     env.channel(KEY).onmessage({data:{leagueId:'nba',favoriteStyleIds:[]}});
     assert.equal(client.getPreferences().leagueId,'nba');assert.deepEqual(client.getPreferences().favoriteStyleIds,['nfl-blades']);
     assert.equal(env.channel(KEY).sent.length,0);assert.equal(env.channel(STYLES_KEY).sent.length,0);
+  }finally{env.restore();}
+});
+
+test('favorite leagues persist and synchronize separately from legacy shared preferences',async()=>{
+  const env=environment();
+  try{
+    const first=await env.client(),second=await env.client();let changes=0;
+    second.onPreferences(()=>changes++);
+    const base=env.memory.get(KEY),writes=env.writes.length;
+    await first.updatePreferences({favoriteLeagueIds:['nba','nhl','nba','invalid']});
+    const initial=env.memory.get(LEAGUES_KEY),message=env.channel(LEAGUES_KEY,0).sent.at(-1);
+    assert.deepEqual(JSON.parse(initial),['nba','nhl']);
+    assert.equal(env.memory.get(KEY),base,'league favorites do not expand the shared legacy preference record');
+    await first.updatePreferences({leagueId:'nba'});
+    assert.equal(Object.hasOwn(JSON.parse(env.memory.get(KEY)),'favoriteLeagueIds'),false,'later ordinary saves still keep the separate favorite list out of the legacy record');
+    assert.equal(Object.hasOwn(env.channel(KEY,0).sent.at(-1),'favoriteLeagueIds'),false);
+    env.storage(LEAGUES_KEY,initial);env.channel(LEAGUES_KEY,1).onmessage({data:message});
+    assert.deepEqual(second.getPreferences().favoriteLeagueIds,['nba','nhl']);assert.equal(changes,1);
+    assert.equal(env.channel(LEAGUES_KEY,1).sent.length,0);
+    await second.updatePreferences({favoriteLeagueIds:['nhl']});
+    const latest=env.memory.get(LEAGUES_KEY),latestMessage=env.channel(LEAGUES_KEY,1).sent.at(-1);
+    env.storage(LEAGUES_KEY,latest);env.channel(LEAGUES_KEY,0).onmessage({data:latestMessage});
+    env.storage(LEAGUES_KEY,initial);env.channel(LEAGUES_KEY,0).onmessage({data:message});
+    assert.deepEqual(first.getPreferences().favoriteLeagueIds,['nhl']);
+    assert.deepEqual(second.getPreferences().favoriteLeagueIds,['nhl']);assert.equal(changes,2);
+    assert.equal(env.writes.length,writes+3);assert.equal(env.memory.get(LEAGUES_KEY),latest);
+    assert.deepEqual((await env.client()).getPreferences().favoriteLeagueIds,['nhl']);
+    await first.updatePreferences({favoriteLeagueIds:[]});
+    assert.deepEqual((await env.client()).getPreferences().favoriteLeagueIds,[]);
+    assert.equal(Object.hasOwn(JSON.parse(env.memory.get(KEY)),'favoriteLeagueIds'),false);
+    assert.equal(JSON.parse(env.memory.get(KEY)).leagueId,'nba');
   }finally{env.restore();}
 });
 

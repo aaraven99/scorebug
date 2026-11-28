@@ -2,7 +2,7 @@ import { renderScorebug } from './scorebug.js';
 import { getScorebugStyle, defaultStyleForSport, styleDescription } from './scorebug-styles.js';
 import { referenceForLeague } from './sport-fixtures.js';
 import { leagueGroups, getLeague, normalizeLeague, sportFor } from './sports.js';
-import { normalizeFavorites, normalizeFavoriteStyleIds, gameLeague, normalizeRacingRows, MIN_RACING_ROWS, MAX_RACING_ROWS } from './preferences-model.js';
+import { normalizeFavorites, normalizeFavoriteStyleIds, normalizeFavoriteLeagueIds, gameLeague, normalizeRacingRows, MIN_RACING_ROWS, MAX_RACING_ROWS } from './preferences-model.js';
 import { toggleFavoriteStyleIds, styleOptionGroups, styleOptionLabel, filterScorebugStyles } from './style-favorites.js';
 import { localTeamLogo } from './team-assets.js';
 import { attachDetailsHover } from './details-hover.js';
@@ -12,6 +12,7 @@ import { eventsForSport, selectSportDemoPlayer, isSessionEvent } from './sport-e
 import { mountDesktopUpdates } from './desktop-updates.js';
 import { createLiveGameList } from './live-games.js';
 import { createFavoritesFeed } from './favorites.js';
+import { createAllLeagueLiveFeed } from './live-leagues.js';
 import { createFavoriteDirectoryStore, favoriteFromTeam, favoriteSearchKey, favoriteTeamKey, searchFavoriteTeams } from './favorite-search.js';
 import { widgetPopupSize } from './widget-layout.js';
 import { initializePreferences, getPreferences, updatePreferences, onPreferences, selectGame, activeGames, ScoreboardPoller, feedIsStale, checkedAgo, gameLabel } from './score-client.js';
@@ -22,7 +23,7 @@ let preferences = await initializePreferences();
 if (!getLeague(preferences.leagueId)) preferences = await updatePreferences({leagueId:'nfl',gameId:null});
 let snapshot = {data:null,error:null,loading:true}, currentSnapshot=snapshot, datedSnapshot=snapshot;
 let reference=false, demoReference=false, demoSequence=0, previewContext=null, pipWindow=null, toastTimer, renderedSvg='', lastFavorites='', galleryKey='';
-let favoriteStylesKey=null, galleryFavoritesKey='', styleFavoriteWrite=Promise.resolve();
+let favoriteStylesKey=null, favoriteLeaguesKey=null, galleryFavoritesKey='', styleFavoriteWrite=Promise.resolve(), leagueFavoriteWrite=Promise.resolve();
 let directory=[], directoryLeague=null, favoriteLeague='all', favoriteAdding=false, favoriteResultsKey='', favoriteCoverageKey='', favoriteGlobalStarted=false;
 const directoryStore=createFavoriteDirectoryStore({onChange:directoryChanged});
 const directoryController={abort:()=>directoryStore.stop()};
@@ -68,6 +69,37 @@ function setFavoriteStyleButton(button,style,saved){
   button.setAttribute('aria-pressed',String(saved));button.setAttribute('aria-label',`Favorite ${style.name} style`);
   button.title=`${saved?'Remove':'Add'} ${style.name} ${saved?'from':'to'} favorite styles`;
 }
+function setFavoriteLeagueButton(button, item, saved){
+  button.setAttribute('aria-pressed',String(saved));
+  button.setAttribute('aria-label',`${saved?'Remove':'Add'} ${item.name} ${saved?'from':'to'} favorite leagues`);
+  button.title=`${saved?'Remove':'Add'} ${item.name} ${saved?'from':'to'} favorite leagues`;
+}
+function toggleFavoriteLeague(){
+  leagueFavoriteWrite=leagueFavoriteWrite.then(async()=>{
+    const item=league(),ids=normalizeFavoriteLeagueIds(getPreferences().favoriteLeagueIds),saved=ids.includes(item.id);
+    const favoriteLeagueIds=saved?ids.filter(id=>id!==item.id):[...ids,item.id];
+    await updatePreferences({favoriteLeagueIds});
+    label('league-favorites-status',`${item.name} ${saved?'removed from':'added to'} favorite leagues.`);
+  }).catch(()=>toast('Could not save this favorite league. Please try again.'));
+}
+function renderFavoriteLeagues(){
+  const ids=normalizeFavoriteLeagueIds(preferences.favoriteLeagueIds),key=JSON.stringify(ids),selected=league();
+  const current=$('favorite-current-league');if(!current.firstChild)current.innerHTML=starIcon;setFavoriteLeagueButton(current,selected,ids.includes(selected.id));
+  const root=$('favorite-league-picks');
+  if(key!==favoriteLeaguesKey){
+    favoriteLeaguesKey=key;
+    const focusedId=document.activeElement?.dataset.favoriteLeagueId;
+    root.replaceChildren();
+    for(const id of ids){
+      const item=getLeague(id);if(!item)continue;
+      const button=document.createElement('button');button.type='button';button.className='favorite-league-pick';button.dataset.favoriteLeagueId=id;button.textContent=item.name;
+      button.addEventListener('click',()=>changeSelection({leagueId:id,gameId:null,date:null}));root.append(button);
+    }
+    $('favorite-leagues-empty').hidden=ids.length>0;
+    if(focusedId)root.querySelector(`[data-favorite-league-id="${CSS.escape(focusedId)}"]`)?.focus({preventScroll:true});
+  }
+  for(const button of root.querySelectorAll('[data-favorite-league-id]'))button.setAttribute('aria-pressed',String(button.dataset.favoriteLeagueId===selected.id));
+}
 function renderStyleFavorites(){
   const ids=normalizeFavoriteStyleIds(preferences.favoriteStyleIds),key=JSON.stringify(ids),selected=getScorebugStyle(preferences.styleId);
   const current=$('favorite-current-style');if(!current.firstChild)current.innerHTML=starIcon;setFavoriteStyleButton(current,selected,ids.includes(selected.id));
@@ -98,8 +130,26 @@ function renderStyleFavorites(){
 }
 const chooseGame=game=>changeSelection({leagueId:gameLeague(game),gameId:game.id,date:null});
 const liveList=createLiveGameList($('live-games'),{onChoose:chooseGame,onFocusedGameRemoved:()=>$('other-games').querySelector('summary').focus({preventScroll:true})});
+const otherLiveList=createLiveGameList($('other-live-games'),{onChoose:chooseGame,onFocusedGameRemoved:()=>$('other-live-toggle').focus({preventScroll:true})});
 const favoriteList=createLiveGameList($('favorite-games'),{onChoose:chooseGame,onFocusedGameRemoved:()=>$('favorite-editor').querySelector('summary').focus({preventScroll:true})});
 const favoritesFeed=createFavoritesFeed({onUpdate:()=>renderFavorites()});
+let otherLiveExpanded=false;
+const allLeagueLiveFeed=createAllLeagueLiveFeed({onUpdate:()=>renderOtherLiveGames()});
+function renderOtherLiveGames(){
+  if(!otherLiveExpanded)return;
+  const value=allLeagueLiveFeed.result(preferences.favoriteLeagueIds);
+  otherLiveList.render(value.games,{selectedId:preferences.gameId,showLeague:true});
+  label('other-live-message',value.loading?`Checking ${value.checked} of ${value.total} other leagues…${value.games.length?` Found ${value.games.length} live so far.`:''}`:
+    value.games.length?`${value.games.length} live ${value.games.length===1?'game or event':'games and events'} across other leagues.${value.unavailable?` ${value.unavailable} feeds could not be checked.`:''}`:
+    `No live games found in the other ${value.checked} leagues.${value.unavailable?` ${value.unavailable} feeds could not be checked.`:''}`);
+}
+function setOtherLiveExpanded(expanded){
+  otherLiveExpanded=expanded;
+  const button=$('other-live-toggle');button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'Hide games in other leagues':'Show live games in other leagues';
+  $('other-live-panel').hidden=!expanded;
+  if(expanded)allLeagueLiveFeed.start(preferences.leagueId);else allLeagueLiveFeed.stop();
+  renderOtherLiveGames();
+}
 function renderFavorites(){
   const favorites=normalizeFavorites(preferences.favorites), encoded=JSON.stringify(favorites);
   if(encoded!==lastFavorites){
@@ -211,6 +261,9 @@ function renderLiveGames(){
   label('live-games-count',currentSnapshot.data?`${games.length} ${league().kind==='match'?(games.length===1?'game':'games'):(games.length===1?'session':'sessions')}`:'');
   label('live-games-message',!currentSnapshot.data?currentSnapshot.error?'Unable to check live events. Reconnecting…':'Looking for live events…':delayed?'Feed delayed. Showing the last received events while we reconnect.':games.length?`Live in ${league().name}. Choose an event to keep watching it.`:`No ${league().name} events are live right now. Open Other games for the schedule and results.`);
   $('live-games-message').className=`live-games-message${delayed?' delayed':''}`;
+  const canSearchOther=Boolean(currentSnapshot.data&&!currentSnapshot.error&&!feedIsStale(currentSnapshot.data)&&games.length===0);
+  $('other-live-toggle').hidden=!canSearchOther;
+  if(!canSearchOther&&otherLiveExpanded)setOtherLiveExpanded(false);
   const automatic=!preferences.gameId&&!preferences.date,pinned=preferences.gameId?selectGame(snapshot.data?.games,preferences):null;
   $('follow-live').setAttribute('aria-pressed',String(automatic));
   label('selection-mode',automatic?'Automatic follows a live favorite in this league first, then another active game.':pinned?`Pinned to ${shortTitle(pinned)}. Choose Automatic to follow live games again.`:preferences.gameId?'Your selected event stays pinned. Choose Automatic to follow live games again.':'Browsing a date. Live now still shows the current events.');
@@ -334,8 +387,9 @@ function renderPreferences(){
   $('scorebug-preview').style.width=`${(vertical?144:520)*scale}px`;$('preview-stage').dataset.orientation=vertical?'vertical':'horizontal';
   $('date-input').value=preferences.date?`${preferences.date.slice(0,4)}-${preferences.date.slice(4,6)}-${preferences.date.slice(6,8)}`:'';$('snap-checkbox').checked=preferences.snapEnabled!==false;$('lock-checkbox').checked=Boolean(preferences.locked);
   for(const button of $('anchor-grid').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.anchor===preferences.anchor));
-  renderStyleFavorites();$('league-select').value=preferences.leagueId;$('style-select').value=getScorebugStyle(preferences.styleId)?.id||'nfl-blades';
-  label('style-note',styleDescription(preferences.styleId,sampleGame())||'The selected look uses the current sport’s scores and information.');renderStyleGallery();
+  renderStyleFavorites();renderFavoriteLeagues();$('league-select').value=preferences.leagueId;$('style-select').value=getScorebugStyle(preferences.styleId)?.id||'nfl-blades';
+  $('dark-mode-toggle').checked=Boolean(preferences.darkMode);document.body.dataset.theme=preferences.darkMode?'dark':'light';
+  label('style-note',styleDescription(preferences.styleId,sampleGame())||'The selected look uses the current sport’s scores and information.');renderStyleGallery();renderOtherLiveGames();
 }
 function renderSelectedFeed(state){snapshot=state;renderPreview();renderGames();renderLiveGames();renderHealth();updateActivity();}
 const poller=new ScoreboardPoller({leagueId:preferences.leagueId,date:null,onUpdate:state=>{currentSnapshot=state;if(!preferences.date)renderSelectedFeed(state);else renderLiveGames();}});
@@ -359,6 +413,8 @@ function addLeagueOptions(select){
 }
 addLeagueOptions($('league-select'));
 $('league-select').addEventListener('change',event=>changeSelection({leagueId:normalizeLeague(event.target.value),gameId:null,date:null}));
+$('favorite-current-league').addEventListener('click',toggleFavoriteLeague);
+$('dark-mode-toggle').addEventListener('change',event=>updatePreferences({darkMode:event.target.checked}));
 $('style-select').addEventListener('change',event=>chooseStyle(event.target.value));
 $('favorite-current-style').addEventListener('click',()=>toggleStyleFavorite(getScorebugStyle(preferences.styleId).id));
 $('style-browser-toggle').addEventListener('click',()=>{const open=$('style-browser').hidden;$('style-browser').hidden=!open;$('style-browser-toggle').setAttribute('aria-expanded',String(open));renderStyleGallery();});
@@ -371,6 +427,7 @@ if(favoriteLeagueSelect){addLeagueOptions(favoriteLeagueSelect);favoriteLeagueSe
 $('favorite-retry')?.addEventListener('click',()=>favoriteLeague==='all'?startFavoriteSearch({retryOnly:true}):loadDirectory(favoriteLeague,{force:true}));
 $('favorite-editor').addEventListener('toggle',()=>{if($('favorite-editor').open)startFavoriteSearch();});
 $('follow-live').addEventListener('click',()=>changeSelection({gameId:null,date:null}));
+$('other-live-toggle').addEventListener('click',()=>setOtherLiveExpanded(!otherLiveExpanded));
 $('game-select').addEventListener('change',event=>changeSelection({gameId:event.target.value||null}));
 $('date-input').addEventListener('change',event=>changeSelection({date:event.target.value.replaceAll('-','')||null,gameId:null}));
 $('week-button').addEventListener('click',()=>changeSelection({date:null,gameId:null}));
@@ -388,7 +445,7 @@ $('demo-play').addEventListener('click',()=>{
   const player=sessionEvent?null:race(game)?entry?.athlete||(entry?.name?{id:entry.id,name:entry.name,headshot:entry.headshot}:null):details?.gameId===(game.detailsGameId||game.id)?selectSportDemoPlayer(details,teamId,spec.kind,sport):null;
   animations.demo({id:`demo:${++demoSequence}`,gameId:game.id,teamId,detail:'Animation preview only.',playId:null,period:null,clock:null,yardsGained:spec.kind==='big-play'?25:null,player,...spec,statDetail:spec.kind==='three-pointer'?'3PT 42.9% · sample':''},game);
 });
-$('refresh-button').addEventListener('click',()=>{poller.refresh();if(preferences.date)datedPoller.refresh();favoritesFeed.refresh();activity.refresh();});
+$('refresh-button').addEventListener('click',()=>{poller.refresh();if(preferences.date)datedPoller.refresh();favoritesFeed.refresh();if(otherLiveExpanded)allLeagueLiveFeed.refresh();activity.refresh();});
 $('snap-checkbox').addEventListener('change',event=>updatePreferences({snapEnabled:event.target.checked}));$('lock-checkbox').addEventListener('change',event=>updatePreferences({locked:event.target.checked}));
 $('anchor-grid').addEventListener('click',event=>{const button=event.target.closest('button[data-anchor]');if(button)updatePreferences({anchor:button.dataset.anchor});});
 function viewURL(path){const url=new URL(path,location.href);url.searchParams.set('league',preferences.leagueId);url.searchParams.set('style',preferences.styleId);url.searchParams.set('rows',String(normalizeRacingRows(preferences.racingRows)));if(preferences.gameId)url.searchParams.set('game',preferences.gameId);if(preferences.date)url.searchParams.set('date',preferences.date);return url;}
@@ -439,5 +496,5 @@ let disposeUpdates=mountDesktopUpdates($('desktop-updates'));
 $('other-games').open=Boolean(preferences.date);
 renderPreferences();renderLiveGames();renderDirectory();loadDirectory();activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();
 let healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);
-window.addEventListener('pagehide',()=>{poller.stop();datedPoller.stop();favoritesFeed.stop();activity.stop();directoryController?.abort();clearInterval(healthTimer);disposeUpdates();});
-window.addEventListener('pageshow',event=>{if(event.persisted){disposeUpdates=mountDesktopUpdates($('desktop-updates'));activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();if(favoriteGlobalStarted||$('favorite-editor').open)startFavoriteSearch();else loadDirectory();clearInterval(healthTimer);healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);}});
+window.addEventListener('pagehide',()=>{poller.stop();datedPoller.stop();favoritesFeed.stop();allLeagueLiveFeed.stop();activity.stop();directoryController?.abort();clearInterval(healthTimer);disposeUpdates();});
+window.addEventListener('pageshow',event=>{if(event.persisted){disposeUpdates=mountDesktopUpdates($('desktop-updates'));activity.start();favoritesFeed.start();poller.start();if(preferences.date)datedPoller.start();if(otherLiveExpanded)allLeagueLiveFeed.start(preferences.leagueId);if(favoriteGlobalStarted||$('favorite-editor').open)startFavoriteSearch();else loadDirectory();clearInterval(healthTimer);healthTimer=setInterval(()=>{renderHealth();renderFavorites();},1000);}});

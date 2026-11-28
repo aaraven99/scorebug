@@ -9,6 +9,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/app-icon.png">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/dark-mode.css">
   <link rel="stylesheet" href="/scorebug.css">
   <script type="module" src="/app.js"></script>
 </head>
@@ -22,7 +23,7 @@
       <div class="intro"><h1 id="page-title">Keep your game close.</h1><p>Pick your sport, choose a look, and keep the score above your other windows.</p></div>
       <section class="standby-launch" aria-label="Watch on your phone"><div><h2>Phone Standby</h2><p>Put your phone sideways and follow up to four games at once.</p></div><a id="standby-button" class="secondary-button" href="/standby.html">Open Standby</a></section>
       <section class="sport-controls" aria-label="Sport and scorebug style">
-        <div><label for="league-select">Sport / league</label><select id="league-select" aria-describedby="coverage-note"></select></div>
+        <div><label for="league-select">Sport / league</label><div class="league-select-row"><select id="league-select" aria-describedby="coverage-note"></select><button type="button" id="favorite-current-league" class="style-favorite-button" aria-pressed="false" aria-label="Favorite this league" title="Add to favorite leagues"></button></div></div>
         <div class="style-choice"><label for="style-select">Scorebug style</label><div class="style-select-row"><select id="style-select" aria-describedby="style-note"></select><button type="button" id="favorite-current-style" class="style-favorite-button" aria-pressed="false" aria-label="Favorite this scorebug style" title="Add to favorite styles"></button></div></div>
         <button type="button" class="text-button" id="style-browser-toggle" aria-expanded="false" aria-controls="style-browser">Browse styles</button>
       </section>
@@ -32,6 +33,12 @@
         <div id="favorite-style-picks" class="favorite-style-picks" aria-label="Favorite scorebug styles"></div>
         <p id="favorite-styles-empty">Star a look to keep it here.</p>
         <p id="style-favorites-status" class="sr-only" role="status" aria-live="polite"></p>
+      </section>
+      <section class="favorite-leagues" aria-labelledby="favorite-leagues-title">
+        <h2 id="favorite-leagues-title">Favorite leagues</h2>
+        <div id="favorite-league-picks" class="favorite-league-picks" aria-label="Favorite leagues"></div>
+        <p id="favorite-leagues-empty">Star a league to keep a quick shortcut here.</p>
+        <p id="league-favorites-status" class="sr-only" role="status" aria-live="polite"></p>
       </section>
       <div id="racing-row-controls" class="racing-row-controls" hidden>
         <div class="size-row"><label for="racing-rows">Drivers shown</label><output id="racing-rows-value" for="racing-rows">6</output></div>
@@ -63,6 +70,11 @@
         <div class="live-games-heading"><h2 id="live-games-title">Live now <span id="live-games-count"></span></h2><button id="follow-live" class="secondary-button" type="button" aria-pressed="true" aria-describedby="selection-mode">Automatic</button></div>
         <p id="live-games-message" class="live-games-message" role="status">Looking for live games…</p>
         <div id="live-games" class="live-games" aria-label="Live games in the selected league"></div>
+        <button id="other-live-toggle" class="secondary-button other-live-toggle" type="button" aria-expanded="false" aria-controls="other-live-panel" hidden>Show live games in other leagues</button>
+        <div id="other-live-panel" class="other-live-panel" hidden>
+          <p id="other-live-message" class="live-games-message" role="status" aria-live="polite">Checking other leagues for live games…</p>
+          <div id="other-live-games" class="live-games" aria-label="Live games in other leagues"></div>
+        </div>
         <p id="selection-mode" class="selection-mode">Automatic follows an active game. Choose a matchup to pin it.</p>
       </section>
       <details id="other-games" class="other-games"><summary>Other games <span>Schedule and dates</span></summary><section class="game-picker" aria-labelledby="game-panel-title">
@@ -93,6 +105,10 @@
         </section>
         <section class="latest-section" aria-labelledby="latest-title"><h2 id="latest-title">Latest play</h2><div class="match-teams" id="match-teams"><span>Choose a game or use Automatic.</span></div><div id="match-meta" class="small-note">Scores update automatically.</div><p id="last-play">Waiting for the feed…</p></section>
       </div>
+      <section class="appearance-section" aria-labelledby="appearance-title">
+        <div><h2 id="appearance-title">Appearance</h2><p>Choose a comfortable look for this settings page.</p></div>
+        <label class="appearance-toggle"><input id="dark-mode-toggle" type="checkbox"> Dark mode</label>
+      </section>
       <section class="game-center-section" aria-labelledby="game-center-title"><div><h2 id="game-center-title">Full-screen game center</h2><p>The score, comparisons or standings, player details, and available play history in one view.</p></div><button id="game-center-button" type="button" class="secondary-button">Open game center</button></section>
       <section class="updates-section" id="desktop-updates" aria-labelledby="updates-title" hidden>
         <div class="section-heading"><h2 id="updates-title">Updates</h2><span id="update-version">Version unavailable</span></div>

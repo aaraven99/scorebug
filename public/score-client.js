@@ -1,9 +1,9 @@
-import { normalizePreferencePatch, normalizeFavorites, normalizeFavoriteStyleIds, supportedGameId, gameLeague, matchesFavorite, validLeagueId, leagueOfId, validDate } from './preferences-model.js';
+import { normalizePreferencePatch, normalizeFavorites, normalizeFavoriteStyleIds, normalizeFavoriteLeagueIds, supportedGameId, gameLeague, matchesFavorite, validLeagueId, leagueOfId, validDate } from './preferences-model.js';
 import { LIVE_POLL_INTERVAL_MS, FEED_REQUEST_TIMEOUT_MS, nextPollDelay, responseRetryMs, snapshotIsOlder } from './feed-state.js';
 import { createPreferenceURLSync, URL_PREFERENCE_FIELDS } from './preference-url.js';
 import { saveUserState } from './user-state-storage.js';
 
-export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], favoriteStyleIds: Object.freeze([]), scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
+export const DEFAULT_PREFERENCES = Object.freeze({ gameId: null, team: null, date: null, leagueId: 'nfl', styleId: 'nfl-blades', styleAuto: true, racingRows: 6, favorites: [], favoriteStyleIds: Object.freeze([]), favoriteLeagueIds: Object.freeze([]), darkMode: false, scale: 1, anchor: 'bottom-center', orientation: 'horizontal', snapEnabled: true, locked: false });
 // Older open tabs rewrite records using their older schema. Migrate their last
 // saved choice once, then keep the current schema out of that write-back loop.
 const KEY = 'scorebug.preferences.v2';
@@ -11,6 +11,7 @@ const LEGACY_KEY = 'scorebug.preferences.v1';
 // v2.0.1 tabs still share the base record. Keep new style favorites separate so
 // their schema cannot discard it, while ordinary settings keep syncing normally.
 export const FAVORITE_STYLES_KEY = 'scorebug.favorite-styles.v1';
+export const FAVORITE_LEAGUES_KEY = 'scorebug.favorite-leagues.v1';
 export const SCOREBOARD_CACHE_KEY = 'scorebug.scoreboards.v1';
 export const SCOREBOARD_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 24, MAX_CACHE_CHARS = 2000000, MAX_GAMES = 256;
@@ -19,6 +20,7 @@ const preferencesEvents = new EventTarget();
 let preferences = { ...DEFAULT_PREFERENCES };
 let channel;
 let favoriteStylesChannel;
+let favoriteLeaguesChannel;
 let preferencesInitialized = false;
 let migratePreferences = false;
 const preferenceURL = createPreferenceURLSync({readPreferences:()=>preferences,readSavedPreferences:confirmedSavedPreferences});
@@ -137,12 +139,18 @@ try {
   if (saved !== null) preferences.favoriteStyleIds = normalizeFavoriteStyleIds(JSON.parse(saved));
   else if (preferences.favoriteStyleIds.length) persistFavoriteStyles();
 } catch { /* Favorite styles remain available in memory. */ }
+try {
+  const saved = localStorage.getItem(FAVORITE_LEAGUES_KEY);
+  if (saved !== null) preferences.favoriteLeagueIds = normalizeFavoriteLeagueIds(JSON.parse(saved));
+  else if (preferences.favoriteLeagueIds.length) persistFavoriteLeagues();
+} catch { /* Favorite leagues remain available in memory. */ }
 try { if (typeof window !== 'undefined') channel = new BroadcastChannel(KEY); } catch { /* optional */ }
 try { if (typeof window !== 'undefined') favoriteStylesChannel = new BroadcastChannel(FAVORITE_STYLES_KEY); } catch { /* optional */ }
+try { if (typeof window !== 'undefined') favoriteLeaguesChannel = new BroadcastChannel(FAVORITE_LEAGUES_KEY); } catch { /* optional */ }
 
-export function getPreferences() { return { ...preferences, favorites: normalizeFavorites(preferences.favorites), favoriteStyleIds: normalizeFavoriteStyleIds(preferences.favoriteStyleIds) }; }
+export function getPreferences() { return { ...preferences, favorites: normalizeFavorites(preferences.favorites), favoriteStyleIds: normalizeFavoriteStyleIds(preferences.favoriteStyleIds), favoriteLeagueIds: normalizeFavoriteLeagueIds(preferences.favoriteLeagueIds) }; }
 function sharedPreferencePatch(value) {
-  const { favoriteStyleIds, ...shared } = normalizePreferencePatch(value);
+  const { favoriteStyleIds, favoriteLeagueIds, ...shared } = normalizePreferencePatch(value);
   return shared;
 }
 function confirmedSavedPreferences() {
@@ -164,7 +172,7 @@ function savePreferenceRecord(key,value){
 function persistPreferences() {
   let saved=false;
   try {
-    const { favoriteStyleIds, ...shared } = preferences;
+    const { favoriteStyleIds, favoriteLeagueIds, ...shared } = preferences;
     const value = JSON.stringify(shared);
     saved=savePreferenceRecord(KEY,value);
   } catch { /* storage is optional */ }
@@ -177,6 +185,9 @@ function persistFavoriteStyles() {
     savePreferenceRecord(FAVORITE_STYLES_KEY,value);
   } catch { /* storage is optional */ }
 }
+function persistFavoriteLeagues() {
+  try { savePreferenceRecord(FAVORITE_LEAGUES_KEY, JSON.stringify(preferences.favoriteLeagueIds)); } catch { /* storage is optional */ }
+}
 function acceptPreferences(next, { persist = true } = {}) {
   const patch = normalizePreferencePatch(next);
   const updated = { ...preferences, ...patch };
@@ -185,6 +196,7 @@ function acceptPreferences(next, { persist = true } = {}) {
   if (persist) {
     if (Object.keys(sharedPreferencePatch(patch)).length) persistPreferences();
     if (Object.hasOwn(patch, 'favoriteStyleIds')) persistFavoriteStyles();
+    if (Object.hasOwn(patch, 'favoriteLeagueIds')) persistFavoriteLeagues();
   }
   syncPreferenceURL();
   if (changed) preferencesEvents.dispatchEvent(new CustomEvent('change', { detail: getPreferences() }));
@@ -208,13 +220,24 @@ if (favoriteStylesChannel) favoriteStylesChannel.onmessage = (event) => {
   } catch { /* Channel sync also works without local storage. */ }
   acceptPreferences({ favoriteStyleIds: ids }, { persist: false });
 };
+if (favoriteLeaguesChannel) favoriteLeaguesChannel.onmessage = (event) => {
+  if (!Array.isArray(event.data)) return;
+  const ids = normalizeFavoriteLeagueIds(event.data);
+  try {
+    const current = localStorage.getItem(FAVORITE_LEAGUES_KEY);
+    if (current !== null && JSON.stringify(normalizeFavoriteLeagueIds(JSON.parse(current))) !== JSON.stringify(ids)) return;
+  } catch { /* Channel sync also works without storage. */ }
+  acceptPreferences({ favoriteLeagueIds: ids }, { persist: false });
+};
 globalThis.addEventListener?.('storage', (event) => {
-  if (![KEY, FAVORITE_STYLES_KEY].includes(event.key) || !event.newValue) return;
+  if (![KEY, FAVORITE_STYLES_KEY, FAVORITE_LEAGUES_KEY].includes(event.key) || !event.newValue) return;
   try {
     if (localStorage.getItem(event.key) !== event.newValue) return;
     const parsed = JSON.parse(event.newValue);
     if (event.key === FAVORITE_STYLES_KEY) {
       if (Array.isArray(parsed)) acceptPreferences({ favoriteStyleIds: normalizeFavoriteStyleIds(parsed) }, { persist: false });
+    } else if(event.key === FAVORITE_LEAGUES_KEY) {
+      if(Array.isArray(parsed))acceptPreferences({favoriteLeagueIds:normalizeFavoriteLeagueIds(parsed)},{persist:false});
     } else acceptPreferences(sharedPreferencePatch(parsed), { persist: false });
   } catch { /* Ignore invalid or superseded records. */ }
 });
@@ -251,6 +274,7 @@ export async function updatePreferences(patch,{updateURL=false}={}) {
   acceptPreferences(patch);
   if (Object.keys(sharedPreferencePatch(patch)).length) channel?.postMessage(sharedPreferencePatch(getPreferences()));
   if (Object.hasOwn(normalizePreferencePatch(patch), 'favoriteStyleIds')) favoriteStylesChannel?.postMessage([...preferences.favoriteStyleIds]);
+  if (Object.hasOwn(normalizePreferencePatch(patch), 'favoriteLeagueIds')) favoriteLeaguesChannel?.postMessage([...preferences.favoriteLeagueIds]);
   if (globalThis.scorebugDesktop) {
     try { acceptPreferences(await globalThis.scorebugDesktop.setPreferences(patch)); }
     catch (error) { console.warn('Could not save desktop preference:', error.message); }

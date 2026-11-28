@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SCOREBUG_STYLES } from '../public/scorebug-styles.js';
-import { normalizeFavoriteStyleIds, normalizePreferencePatch } from '../public/preferences-model.js';
+import { LEAGUES } from '../public/sports.js';
+import { normalizeFavoriteLeagueIds, normalizeFavoriteStyleIds, normalizePreferencePatch } from '../public/preferences-model.js';
 
 test('favorite styles normalize known catalog IDs in saved order without changing the input',()=>{
   const input=Object.freeze(['f1-rounded-tower','nfl-blades','f1-rounded-tower','unknown','NFL-BLADES','nfl-blades ',null,{},42]);
@@ -17,4 +18,13 @@ test('starring scorebug styles is an independent preference patch',()=>{
   assert.deepEqual(normalizePreferencePatch({favoriteStyleIds:[]}),{favoriteStyleIds:[]});
   assert.deepEqual(normalizePreferencePatch({leagueId:'nba',styleId:'nfl-cbs-eyebar',styleAuto:false,racingRows:22}),
     {leagueId:'nba',styleId:'nfl-cbs-eyebar',styleAuto:false,racingRows:22});
+});
+
+test('favorite leagues normalize supported league IDs, deduplicate, and preserve their order',()=>{
+  const input=['nba','nfl','nba','unknown','NBA',null,{},42];
+  assert.deepEqual(normalizeFavoriteLeagueIds(input),['nba','nfl']);
+  assert.deepEqual(normalizeFavoriteLeagueIds(LEAGUES.map(league=>league.id)),LEAGUES.map(league=>league.id));
+  for(const value of [undefined,null,{},'nba',42])assert.deepEqual(normalizeFavoriteLeagueIds(value),[]);
+  assert.deepEqual(normalizePreferencePatch({favoriteLeagueIds:['nhl','mlb','nhl','invalid']}),{favoriteLeagueIds:['nhl','mlb']});
+  assert.deepEqual(normalizePreferencePatch({darkMode:true}),{darkMode:true});
 });
