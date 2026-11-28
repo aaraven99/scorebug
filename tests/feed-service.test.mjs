@@ -18,6 +18,17 @@ function service(options = {}) {
   });
 }
 
+function pendingJSON(signal, failure) {
+  return new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"games":'));
+      const abort = () => controller.error(failure);
+      if (signal.aborted) abort();
+      else signal.addEventListener('abort', abort, { once: true });
+    },
+  }), { headers: { 'Content-Type': 'application/json' } });
+}
+
 test('a fast healthy primary never calls backups, and simultaneous readers share the one-second cache', async () => {
   let now = NOW;
   const calls = [];
@@ -56,6 +67,143 @@ test('a slow primary is hedged at 1.5 seconds, losers are aborted, and the worki
   assert.deepEqual(calls.slice(afterRace), ['https://backup.example/current']);
   now += 10000; mode = 'healthy';
   assert.equal((await read('current')).sourceId, 'primary');
+});
+
+for (const name of ['Error', 'AbortError']) {
+  test(`a pending body deadline remains a timeout when the transport throws ${name}, with the original failure retained`, async (t) => {
+    const deadlines = [];
+    t.mock.method(AbortSignal, 'timeout', () => {
+      const controller = new AbortController(); deadlines.push(controller); return controller.signal;
+    });
+    let now = NOW, healthy = false, calls = 0, response;
+    const transportError = name === 'Error' ? new Error('net::ERR_ABORTED') : new DOMException('Body stream aborted', name);
+    const read = service({ now: () => now,
+      sources: [{ id: 'primary', url: () => 'https://primary.example/current' }],
+      fetchImpl: async (_url, { signal }) => {
+        calls += 1;
+        if (healthy) return json(payload());
+        response = pendingJSON(signal, transportError); return response;
+      },
+    });
+    const request = read('current');
+    const checked = assert.rejects(request, (error) => {
+      assert.equal(error.code, 'TIMEOUT');
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.cause, transportError);
+      assert.equal(error.retryAfterMs, 4000);
+      return true;
+    });
+    await turn();
+    assert.equal(response.body.locked, true, 'Headers resolved and the body read is pending before the deadline');
+    deadlines[0].abort(new DOMException('The attempt deadline elapsed.', 'TimeoutError'));
+    await checked;
+    assert.equal(response.body.locked, false, 'The failed reader releases its lock');
+    healthy = true;
+    now += 1000;
+    await assert.rejects(read('different-date'), { statusCode: 503, retryAfterMs: 3000 });
+    assert.equal(calls, 1, 'A timed-out source honors its cooldown');
+    now += 3000;
+    const recovered = await read('current');
+    assert.equal(recovered.sourceId, 'primary');
+    assert.equal(recovered.stale, false);
+    assert.equal(calls, 2);
+  });
+}
+
+test('a generic body failure without an aborted deadline keeps its unavailable classification and cause', async () => {
+  const transportError = new Error('The response connection was reset.');
+  let attemptSignal;
+  const read = service({ sources: [{ id: 'primary', url: () => 'https://primary.example/current' }],
+    fetchImpl: async (_url, { signal }) => {
+      attemptSignal = signal;
+      return new Response(new ReadableStream({ start(controller) { controller.error(transportError); } }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+  await assert.rejects(read('current'), (error) => {
+    assert.equal(error.code, 'UNAVAILABLE');
+    assert.equal(error.statusCode, 502);
+    assert.equal(error.cause, transportError);
+    return true;
+  });
+  assert.equal(attemptSignal.reason.name, 'AbortError', 'Cleanup cancels the attempt only after the original error is classified');
+});
+
+test('a primary body deadline starts a healthy fallback, retains its cache, and later recovers the primary', async (t) => {
+  const deadlines = [];
+  t.mock.method(AbortSignal, 'timeout', () => {
+    const controller = new AbortController(); deadlines.push(controller); return controller.signal;
+  });
+  let now = NOW, healthy = false, response;
+  const calls = [];
+  const read = service({ now: () => now,
+    sources: ['primary', 'backup'].map((id) => ({ id, url: () => `https://${id}.example/current` })),
+    fetchImpl: async (url, { signal }) => {
+      calls.push(url);
+      if (url.includes('primary') && !healthy) {
+        response = pendingJSON(signal, new Error('net::ERR_ABORTED')); return response;
+      }
+      return json(payload());
+    },
+  });
+  const request = read('current');
+  await turn();
+  assert.equal(response.body.locked, true);
+  deadlines[0].abort(new DOMException('The attempt deadline elapsed.', 'TimeoutError'));
+  const fallback = await request;
+  assert.equal(fallback.sourceId, 'backup');
+  assert.equal(fallback.feedStatus, 'backup');
+  assert.equal(fallback.stale, false);
+  assert.equal(fallback.games[0].away.score, 14);
+  assert.equal(await read('current'), fallback);
+  assert.deepEqual(calls, ['https://primary.example/current', 'https://backup.example/current']);
+  now += 1001; healthy = true;
+  assert.equal((await read('current')).sourceId, 'backup');
+  now += 3000;
+  assert.equal((await read('current')).sourceId, 'primary');
+  assert.deepEqual(calls, [
+    'https://primary.example/current', 'https://backup.example/current',
+    'https://backup.example/current', 'https://primary.example/current',
+  ]);
+});
+
+test('canceling a hedged backup body with a generic error does not give that source an outage cooldown', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let now = NOW, phase = 'race', resolvePrimary, backupResponse, backupSignal;
+  const calls = [];
+  const read = service({ now: () => now,
+    sources: ['primary', 'backup'].map((id) => ({ id, url: () => `https://${id}.example/current` })),
+    fetchImpl: async (url, { signal }) => {
+      calls.push(url);
+      if (url.includes('primary')) {
+        if (phase === 'race') return new Promise((resolve) => { resolvePrimary = () => resolve(json(payload())); });
+        throw new TypeError('The primary is now offline.');
+      }
+      if (phase === 'race') {
+        backupSignal = signal;
+        backupResponse = pendingJSON(signal, new Error('net::ERR_ABORTED')); return backupResponse;
+      }
+      return json(payload());
+    },
+  });
+  const request = read('current');
+  await turn();
+  t.mock.timers.tick(1500); await turn();
+  assert.equal(backupResponse.body.locked, true);
+  resolvePrimary();
+  assert.equal((await request).sourceId, 'primary');
+  await turn();
+  assert.equal(backupSignal.aborted, true);
+  assert.equal(backupResponse.body.locked, false);
+  phase = 'fallback'; now += 1001;
+  const fallback = await read('current');
+  assert.equal(fallback.sourceId, 'backup');
+  assert.equal(fallback.stale, false, 'A canceled loser is immediately eligible when the winner fails');
+  assert.deepEqual(calls, [
+    'https://primary.example/current', 'https://backup.example/current',
+    'https://primary.example/current', 'https://backup.example/current',
+  ]);
 });
 
 test('Retry-After is honored on cold requests and never delays a usable backup until the primary recovers', async () => {
