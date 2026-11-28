@@ -3,7 +3,7 @@ import { getScorebugStyle, defaultStyleForSport, styleDescription } from './scor
 import { referenceForLeague } from './sport-fixtures.js';
 import { leagueGroups, getLeague, normalizeLeague, sportFor } from './sports.js';
 import { normalizeFavorites, normalizeFavoriteStyleIds, gameLeague, normalizeRacingRows, MIN_RACING_ROWS, MAX_RACING_ROWS } from './preferences-model.js';
-import { toggleFavoriteStyleIds, styleOptionGroups, filterScorebugStyles } from './style-favorites.js';
+import { toggleFavoriteStyleIds, styleOptionGroups, styleOptionLabel, filterScorebugStyles } from './style-favorites.js';
 import { localTeamLogo } from './team-assets.js';
 import { attachDetailsHover } from './details-hover.js';
 import { createGameActivity } from './game-activity.js';
@@ -76,7 +76,7 @@ function renderStyleFavorites(){
     const select=$('style-select');select.replaceChildren();
     for(const group of styleOptionGroups(ids)){
       const optgroup=document.createElement('optgroup');optgroup.label=group.label;optgroup.dataset.styleGroup=group.id;
-      for(const style of group.styles)optgroup.append(new Option(style.name,style.id));select.append(optgroup);
+      for(const style of group.styles)optgroup.append(new Option(styleOptionLabel(style,group.id==='favorites'),style.id));select.append(optgroup);
     }
     const root=$('favorite-style-picks'),active=document.activeElement,wasFocused=root.contains(active),focusedStyle=active?.closest('[data-style-id]')?.dataset.styleId;
     const oldIndex=[...root.children].findIndex(chip=>chip.dataset.styleId===focusedStyle),removing=active?.hasAttribute('data-remove-style');root.replaceChildren();
@@ -311,7 +311,7 @@ function renderStyleGallery(){
     const card=document.createElement('div');card.className='style-card';card.dataset.styleId=style.id;card.dataset.selected=String(style.id===preferences.styleId);
     const button=document.createElement('button');button.type='button';button.className='style-card-select';button.dataset.styleAction='choose';button.setAttribute('aria-pressed',String(style.id===preferences.styleId));button.setAttribute('aria-label',`Use ${style.name} style`);
     const preview=document.createElement('div');preview.className='style-card-preview';preview.setAttribute('aria-hidden','true');preview.innerHTML=renderScorebug(game,{idPrefix:`card-${style.id}`,styleId:style.id,orientation:'horizontal',interactive:false});
-    const title=document.createElement('strong');title.textContent=style.name;const subtitle=document.createElement('small');subtitle.textContent=[style.network,style.era].filter(Boolean).join(' · ');
+    const title=document.createElement('strong');title.textContent=style.name;const subtitle=document.createElement('small');subtitle.textContent=style.era;subtitle.hidden=favoritesOnly;
     button.append(preview,title);button.addEventListener('click',()=>chooseStyle(style.id));
     const footer=document.createElement('div');footer.className='style-card-footer';const star=favoriteStyleButton(style,ids.includes(style.id));star.dataset.styleAction='favorite';footer.append(subtitle,star);card.append(button,footer);root.append(card);
   }
@@ -422,6 +422,7 @@ async function floatWidget() {
 $('float-button').addEventListener('click', floatWidget);
 if (desktop) {
   document.body.dataset.mode = 'desktop';
+  $('phone-standby-launch').hidden = true;
   if ($('page-title')) $('page-title').textContent = 'Scorebug settings';
   $('desktop-controls').hidden = false; $('desktop-banner').hidden = true;
   $('browser-layout-controls').hidden = true;

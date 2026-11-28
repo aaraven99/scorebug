@@ -1,7 +1,7 @@
 import { renderScorebug } from './scorebug.js';
 import { getLeague, leagueGroups, sportFor } from './sports.js';
 import { styleDescription } from './scorebug-styles.js';
-import { styleOptionGroups } from './style-favorites.js';
+import { styleOptionGroups, styleOptionLabel } from './style-favorites.js';
 import { selectGame, activeGames, feedIsStale, checkedAgo, gameLabel } from './score-client.js';
 import { normalizeStandbyState, normalizeStandbySlot, readStandbyState, saveStandbyState, seedStandbyFromURL, standbySelectionKey, standbyFeedKey, standbyGameURL, MAX_STANDBY_SLOTS } from './standby-model.js';
 import { createStandbyFeedPool } from './standby-feeds.js';
@@ -206,7 +206,7 @@ for (const group of leagueGroups()) {
 }
 for (const group of styleOptionGroups([])) {
   const optgroup = document.createElement('optgroup'); optgroup.label = group.label;
-  for (const style of group.styles) optgroup.append(new Option(style.name, style.id)); $('slot-style').append(optgroup);
+  for (const style of group.styles) optgroup.append(new Option(styleOptionLabel(style, group.id === 'favorites'), style.id)); $('slot-style').append(optgroup);
 }
 $('standby-add').addEventListener('click', () => {
   if (state.slots.length >= MAX_STANDBY_SLOTS) return;

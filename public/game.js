@@ -1,5 +1,5 @@
 import { LEAGUES, getLeague, sportFor, mergeSportDetails, formatSituation, formatPeriod } from './sports.js';
-import { SCOREBUG_STYLES } from './scorebug-styles.js';
+import { styleOptionGroups, styleOptionLabel } from './style-favorites.js';
 import { renderSportSurface, periodHeading, classificationMarkup, raceControlMarkup, competitorStatsMarkup } from './sport-view.js';
 import { matchesFavorite } from './preferences-model.js';
 import { initializePreferences, updatePreferences, onPreferences, selectGame, ScoreboardPoller, feedIsStale, checkedAgo, gameLabel } from './score-client.js';
@@ -13,11 +13,27 @@ import { latestPlayText, comparisonMarkup, insightsMarkup, quarterMarkup, playsM
 
 const $ = (id) => document.getElementById(id);
 const bridge = window.scorebugDesktop;
+$('center-standby').hidden = Boolean(bridge);
 let preferences = await initializePreferences();
 let snapshot = { data: null, error: null, loading: true };
 let summaryState = { data: null, error: null, loading: false };
 let currentGame = null, currentContext = null, noticeTimer, healthTimer;
 let nativeFullscreen = false;
+let centerStyleFavoritesKey;
+
+function renderStyleOptions() {
+  const key = JSON.stringify(preferences.favoriteStyleIds);
+  if (key === centerStyleFavoritesKey) return;
+  centerStyleFavoritesKey = key;
+  const select = $('center-style-select');
+  select.replaceChildren();
+  for (const group of styleOptionGroups(preferences.favoriteStyleIds)) {
+    const options = document.createElement('optgroup');
+    options.label = group.label;
+    for (const style of group.styles) options.append(new Option(styleOptionLabel(style, group.id === 'favorites'), style.id));
+    select.append(options);
+  }
+}
 const animations = createScoreAnimations($('center-scorebug'));
 const tracker = createGameEventTracker();
 const text = (id, value) => { const node = $(id); if (node.textContent !== value) node.textContent = value; };
@@ -73,6 +89,7 @@ function render() {
   updateMarkup($('center-scorebug'), board); animations.attach('horizontal');
   text('center-status', game ? [game.status, game.broadcast, game.venue].filter(Boolean).join(' · ') : 'The last received score stays visible if a feed is interrupted.');
   $('center-league-select').value = preferences.leagueId;
+  renderStyleOptions();
   $('center-style-select').value = preferences.styleId;
   const standbyURL = new URL('/standby.html', location.origin);
   standbyURL.searchParams.set('league', preferences.leagueId);
@@ -125,7 +142,6 @@ function choose(patch) {
   return updatePreferences(patch,{updateURL:true});
 }
 for(const league of LEAGUES)$('center-league-select').add(new Option(league.name,league.id));
-for(const style of SCOREBUG_STYLES)$('center-style-select').add(new Option(style.name,style.id));
 $('center-league-select').addEventListener('change',event=>choose({leagueId:event.target.value,gameId:null,date:null}));
 $('center-style-select').addEventListener('change',event=>choose({styleId:event.target.value,styleAuto:false}));
 $('center-game-select').addEventListener('change', (event) => choose({ gameId: event.target.value || null }));
@@ -139,7 +155,7 @@ $('center-fullscreen').addEventListener('click', async () => {
     else if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
     else notice('Full screen is unavailable in this browser. Try Standby for a view that fits your screen.');
     renderFullscreen();
-  } catch { notice('Full screen is unavailable here. Try Standby for a view that fits your screen.'); }
+  } catch { notice(bridge ? 'Full screen is unavailable here.' : 'Full screen is unavailable here. Try Standby for a view that fits your screen.'); }
 });
 document.addEventListener('fullscreenchange', renderFullscreen);
 if (bridge?.getGameCenterState) {

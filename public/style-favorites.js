@@ -9,6 +9,10 @@ export function toggleFavoriteStyleIds(value, styleId) {
   return ids.includes(styleId) ? ids.filter(id => id !== styleId) : [...ids, styleId];
 }
 
+export function styleOptionLabel(style, isFavorite = false) {
+  return isFavorite ? style.name : `${style.name} (${style.era})`;
+}
+
 // Each style appears once in the select. Saved styles move to its first group.
 export function styleOptionGroups(value) {
   const ids = normalizeFavoriteStyleIds(value), saved = new Set(ids), groups = new Map();

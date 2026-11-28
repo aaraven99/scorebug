@@ -20,7 +20,7 @@
     </header>
     <main>
       <div class="intro"><h1 id="page-title">Keep your game close.</h1><p>Pick your sport, choose a look, and keep the score above your other windows.</p></div>
-      <section class="standby-launch" aria-label="Watch on your phone"><div><h2>Phone Standby</h2><p>Put your phone sideways and follow up to four games at once.</p></div><a id="standby-button" class="secondary-button" href="/standby.html">Open Standby</a></section>
+      <section id="phone-standby-launch" class="standby-launch" aria-label="Watch on your phone"><div><h2>Phone Standby</h2><p>Put your phone sideways and follow up to four games at once.</p></div><a id="standby-button" class="secondary-button" href="/standby.html">Open Standby</a></section>
       <section class="sport-controls" aria-label="Sport and scorebug style">
         <div><label for="league-select">Sport / league</label><select id="league-select" aria-describedby="coverage-note"></select></div>
         <div class="style-choice"><label for="style-select">Scorebug style</label><div class="style-select-row"><select id="style-select" aria-describedby="style-note"></select><button type="button" id="favorite-current-style" class="style-favorite-button" aria-pressed="false" aria-label="Favorite this scorebug style" title="Add to favorite styles"></button></div></div>
@@ -39,9 +39,9 @@
         <p id="racing-rows-note" class="small-note">Show the front runners or expand to the full field.</p>
       </div>
       <div id="style-browser" class="style-browser" hidden>
-        <div class="style-browser-tools"><label for="style-search">Find a style</label><input id="style-search" type="search" placeholder="Blades, CBS, NBA, timing tower…"><div class="style-browser-filters"><label class="style-filter-label"><input type="checkbox" id="all-styles" checked> All sports</label><label class="style-filter-label"><input type="checkbox" id="favorite-styles-only"> Favorites only</label></div></div>
+        <div class="style-browser-tools"><label for="style-search">Find a style</label><input id="style-search" type="search" placeholder="Blades, NBA, timing tower…"><div class="style-browser-filters"><label class="style-filter-label"><input type="checkbox" id="all-styles" checked> All sports</label><label class="style-filter-label"><input type="checkbox" id="favorite-styles-only"> Favorites only</label></div></div>
         <div id="style-gallery" class="style-gallery" aria-label="Scorebug styles"></div>
-        <p class="small-note">Broadcast-inspired recreations adapted to this app. Network names identify the references; Scorebug is not affiliated with those broadcasters.</p>
+        <p class="small-note">Original Scorebug layouts inspired by broadcast score and timing graphics.</p>
       </div>
       <section class="favorites-section" aria-labelledby="favorites-title">
         <div class="live-games-heading"><h2 id="favorites-title">Favorite teams <span id="favorites-count"></span></h2></div>

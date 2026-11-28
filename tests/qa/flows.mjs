@@ -119,11 +119,17 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
     });
     await check(`p${pass}:favorite-style-keyboard-and-persistence`,async()=>{
       await page.selectOption('#league-select','nba');await page.selectOption('#style-select','nfl-blades');await waitBoard(page,'#scorebug-preview svg.scorebug','nba','nfl-blades');
+      equal((await page.locator('#style-select option:checked').textContent()).trim(), 'Blades (2020–2022)');
       const before=await prefs(page);await page.locator('#favorite-current-style').focus();await page.keyboard.press('Space');
       await page.waitForFunction(()=>document.querySelector('#favorite-current-style').getAttribute('aria-pressed')==='true');
       const next=await prefs(page);equal(next.favoriteStyleIds,['nfl-blades']);equal([next.leagueId,next.gameId,next.styleId,next.styleAuto],[before.leagueId,before.gameId,before.styleId,before.styleAuto]);
+      equal((await page.locator('#style-select option:checked').textContent()).trim(), 'Blades');
+      equal((await page.locator('[data-pick-style="nfl-blades"]').textContent()).trim(), 'Blades');
       await page.reload();await waitBoard(page,'#scorebug-preview svg.scorebug','nba','nfl-blades');equal((await prefs(page)).favoriteStyleIds,['nfl-blades']);
-      await page.locator('#style-browser-toggle').click();await page.locator('#favorite-styles-only').check();equal(await page.locator('.style-card').count(),1);
+      await page.locator('#style-browser-toggle').click();
+      equal((await page.locator('.style-card[data-style-id="nfl-blades"] small').textContent()).trim(), '2020–2022');
+      await page.locator('#favorite-styles-only').check();equal(await page.locator('.style-card').count(),1);
+      truth(await page.locator('.style-card small').isHidden(),'Favorites-only cards show the name without the era');
       await page.locator('.style-card [data-style-action="favorite"]').click();await page.waitForFunction(()=>document.querySelectorAll('.style-card').length===0);
       equal((await prefs(page)).favoriteStyleIds,[]);truth(await page.evaluate(()=>document.activeElement?.id==='favorite-styles-only'),'Focus returns to a stable control after removing the only filtered card');
       await page.locator('#favorite-styles-only').uncheck();await page.locator('#style-browser-toggle').click();

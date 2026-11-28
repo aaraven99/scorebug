@@ -12,7 +12,13 @@ test('the catalogue covers every score/timing reference and excludes the TV mult
  assert.equal(new Set(SCOREBUG_STYLES.map(s=>s.id)).size,83);
  assert.deepEqual(SCOREBUG_STYLES.map(s=>s.referenceNumber),Array.from({length:84},(_,i)=>i+1).filter(n=>n!==67));
  assert.equal(getScorebugStyle('nonexistent').id,DEFAULT_STYLE);
- for(const style of SCOREBUG_STYLES){assert.ok(style.name.includes('-'));assert.ok(style.network&&style.era&&style.referencePage);}
+ assert.equal(new Set(SCOREBUG_STYLES.map(style=>style.name)).size,83);
+ for(const style of SCOREBUG_STYLES){
+  assert.ok(style.name&&style.network&&style.era&&style.referencePage);
+  assert.doesNotMatch(style.name,/\b(?:FOX|CBS|NBC|ESPN|TNT|Netflix|YouTube)\b/i);
+ }
+ assert.equal(getScorebugStyle('nfl-blades').name,'Blades');
+ assert.equal(getScorebugStyle('nfl-cbs-eyebar').name,'Deconstructed Pod');
  assert.equal(defaultStyleForSport('basketball'),'nba-nbc-pods');
 });
 

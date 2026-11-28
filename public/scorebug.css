@@ -1,5 +1,5 @@
 /* Tomorrow by the Tomorrow Project Authors, SIL OFL: fonts/Tomorrow-OFL.txt.
-   Genuine italic outlines; an approximation, not a verified FOX typeface. */
+   A licensed italic face for slanted display lettering. */
 @font-face{font-family:"Scorebug Tomorrow";src:url('/fonts/Tomorrow-BoldItalic.ttf') format('truetype');font-style:italic;font-weight:700;font-display:swap}
 @font-face{font-family:"Scorebug Tomorrow";src:url('/fonts/Tomorrow-ExtraBoldItalic.ttf') format('truetype');font-style:italic;font-weight:800;font-display:swap}
 .scorebug{display:block;width:100%;height:auto;overflow:visible;user-select:none;-webkit-user-select:none;isolation:isolate;shape-rendering:geometricPrecision}
@@ -69,3 +69,13 @@
 @font-face{font-family:"Scorebug Condensed";src:url('/fonts/BarlowCondensed-Bold.ttf') format('truetype');font-style:normal;font-weight:700;font-display:swap}
 @font-face{font-family:"Scorebug Condensed";src:url('/fonts/BarlowCondensed-ExtraBold.ttf') format('truetype');font-style:normal;font-weight:800 900;font-display:swap}
 .scorebug--variant[data-style-variant="nba-pods"] .variant-score,.scorebug--variant[data-style-variant="large"] .variant-score,.scorebug--variant[data-style-variant="school"] .variant-score,.scorebug--variant[data-style-variant="college-dark"] .variant-score,.scorebug--variant[data-style-variant="cbb-center"] .variant-score,.scorebug--variant[data-style-variant="gridiron"] .variant-score,.scorebug--variant[data-style-variant="compact-pill"] .variant-score{font-family:"Scorebug Condensed",Arial,sans-serif;letter-spacing:0}
+
+/* Use condensed display lettering where the score or timing column is narrow. */
+.scorebug--family-columns text.variant-score,
+.scorebug--variant[data-style-variant="baseball-slim"] text.variant-score,
+.scorebug--variant[data-style-variant="hockey-diamond"] text.variant-clock,
+.scorebug--variant[data-style-variant="slim"] .variant-classification-row text.variant-text,
+.scorebug--variant[data-style-variant="stage"] .variant-classification-row text.variant-text {
+  font-family: "Scorebug Condensed", Arial, sans-serif;
+  letter-spacing: .15px;
+}
