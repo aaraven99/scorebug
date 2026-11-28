@@ -46,7 +46,7 @@ body[data-mode=desktop] .header-links a[href="#help"]{display:none}
 .style-card-select:hover strong{text-decoration:underline;text-underline-offset:3px}
 .style-card-footer{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:0 8px 7px;min-width:0}
 .style-card-footer small{min-width:0;overflow-wrap:anywhere;margin:0}
-.style-card-footer .style-favorite-button{width:32px;height:32px;padding:6px}
+.style-card-footer .style-favorite-button{width:32px;height:32px;padding:6px;margin-inline-start:auto}
 .style-card-footer .style-favorite-button svg{width:18px;height:18px}
 .style-gallery-empty{grid-column:1/-1;padding:20px 8px 24px;color:var(--muted);font-size:12px}
 .style-gallery-empty strong{display:block;font-size:13px;color:var(--ink);font-weight:600}

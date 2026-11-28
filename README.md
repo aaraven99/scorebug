@@ -29,7 +29,7 @@ If a download does not start, [open the latest release](https://github.com/aarav
 
 Teams, saved styles, and layout are remembered on this device. To remove a saved style, click its star again or the × beside its name.
 
-Starring a look keeps your current game and style. Your selected style also stays selected when you change sports—for example, NBA in NFL-Blades still shows basketball scores and stats.
+Starring a look keeps your current game and style. Your selected style also stays selected when you change sports—for example, NBA in Blades still shows basketball scores and stats.
 
 Hover a team logo or its timeout marks for that team’s stats. Hover the middle clock area to compare the teams and see the reported field position. The field stays in the middle panel. Racing layouts use the session header for the classification and timing details.
 
@@ -54,7 +54,7 @@ Games from the same league and date share one update stream. A failed connection
 
 There are **30 league and competition choices**: NFL and college football; NBA, WNBA, and college basketball; MLB; NHL; ten soccer competitions; Formula 1, NASCAR, and IndyCar; ATP and WTA tennis; PGA and LPGA golf; three rugby competitions; and college volleyball.
 
-The **83 selectable styles** follow the score and timing layouts in the supplied reference atlas. Each has Normal and Side views. They are responsive interpretations, with adjustments for readable stats and hover panels. [See all styles](docs/STYLES.md).
+The **83 selectable styles** are inspired by the score and timing graphics in the supplied reference atlas. Each has Normal and Side views with readable stats and hover panels. [See all styles](docs/STYLES.md).
 
 Animations use the selected sport’s events: touchdowns and turnovers, three-pointers and lead changes, home runs, goals, set wins, and reported race flags. Names and photos appear when the source provides them. Opening an event does not replay its old highlights.
 

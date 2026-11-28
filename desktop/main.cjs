@@ -530,7 +530,7 @@ function monitorHoverDetails() {
 function isLocalPage(url) {
   try {
     const parsed = new URL(url);
-    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html', '/game.html', '/standby.html'].includes(parsed.pathname);
+    return parsed.origin === origin && ['/', '/index.html', '/widget.html', '/details.html', '/game.html'].includes(parsed.pathname);
   } catch { return false; }
 }
 
@@ -547,8 +547,7 @@ function secureWindow(win) {
   win.webContents.on('will-navigate', (event) => {
     if (!isLocalPage(event.url)) { event.preventDefault(); openAllowedExternal(event.url); }
     else if (new URL(event.url).pathname === '/game.html' && win !== gameCenter) {
-      // Standby's per-game links must reach the real dashboard window. Loading
-      // the dashboard inside Settings would fail its restricted fullscreen IPC.
+      // Fullscreen controls are available only in the Game Center window.
       event.preventDefault();
       openGameCenter(event.url);
     }
@@ -565,7 +564,6 @@ function secureWindow(win) {
         const side = new URL(url).searchParams.get('side');
         showDetails({ focus: true, side: ['home', 'away', 'comparison'].includes(side) ? side : defaultDetailsSide });
       }
-      else if (new URL(url).pathname === '/standby.html') win.loadURL(url).catch(showStartupError);
       else if (new URL(url).pathname === '/game.html') openGameCenter(url);
       else openSettings();
     } else openAllowedExternal(url);
