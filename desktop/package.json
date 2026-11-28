@@ -1,6 +1,6 @@
 {
   "name": "scorebug-desktop",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "Live sports scores, favorite teams and broadcast styles in a floating desktop companion.",
   "productName": "Scorebug",
@@ -9,7 +9,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "test": "node --test geometry.test.cjs hover.test.cjs details-lifecycle.test.cjs fullscreen.test.cjs updates.test.cjs preferences.test.cjs",
+    "test": "node --test geometry.test.cjs hover.test.cjs details-lifecycle.test.cjs fullscreen.test.cjs updates.test.cjs preferences.test.cjs network-transport.test.cjs",
     "test:smoke": "node smoke-launcher.cjs",
     "dist:win": "electron-builder --win --x64 --publish never",
     "build:mac-helper": "node build-macos.cjs",
@@ -37,7 +37,9 @@
       "assets/**/*",
       "package.json",
       "preferences.cjs",
-      "smoke.cjs"
+      "smoke.cjs",
+      "network-transport.cjs",
+      "network-smoke.cjs"
     ],
     "extraResources": [
       {

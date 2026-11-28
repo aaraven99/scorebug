@@ -114,7 +114,7 @@ $hit = [ScorebugWindowHit]::WindowFromPoint($point)
   return stdout.trim();
 }
 
-async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, getGameCenter, preferencesPath, packaged = false }) {
+async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails, getGameCenter, preferencesPath, packaged = false, feedFetch, appRoot }) {
   const evidenceDir = process.env.SCOREBUG_SMOKE_EVIDENCE || path.join(__dirname, 'release', 'smoke');
   fs.mkdirSync(evidenceDir, { recursive: true });
   const summary = { passed: false, platform: process.platform, arch: process.arch, packaged, softwareRendering: process.env.SCOREBUG_SMOKE_SOFTWARE_RENDERING === '1', version: require('./package.json').version, electron: process.versions.electron, feedRequired: false, checks: [] };
@@ -195,6 +195,9 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
   try {
     await Promise.race([
       (async () => {
+        summary.network = { passed: false };
+        await require('./network-smoke.cjs').runNetworkSmoke({ fetchImpl: feedFetch, appRoot, report: summary.network });
+        check('Production desktop transport survives real socket failures, held response EOF, aborts, body limits and recovery in three repetitions');
         await waitFor('Widget renderer and preload', () => evaluate(`Boolean(
           document.querySelector('#widget-root .widget-toolbar') &&
           document.querySelector('#widget-root .widget-board') &&
