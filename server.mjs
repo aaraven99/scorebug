@@ -2,15 +2,21 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import scoreboardHandler from './api/scoreboard.js';
-import gameHandler from './api/game.js';
-import teamsHandler from './api/teams.js';
+import { createScoreboardHandler } from './api/scoreboard.js';
+import { createGameHandler } from './api/game.js';
+import { createTeamsHandler } from './api/teams.js';
+import { createMultisportService } from './lib/multisport.mjs';
 
 const root = fileURLToPath(new URL('./', import.meta.url));
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 export const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://a.espncdn.com https://media.formula1.com; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self';";
 
-export function createScorebugServer({ publicDir = resolve(root, 'public') } = {}) {
+export function createScorebugServer({ publicDir = resolve(root, 'public'), fetchImpl = globalThis.fetch } = {}) {
+  // Desktop supplies its Chromium transport here; each server owns its feed caches.
+  const service = createMultisportService({ fetchImpl });
+  const scoreboardHandler = createScoreboardHandler({ getScoreboard: service.scoreboard });
+  const gameHandler = createGameHandler({ getGameDetails: service.details });
+  const teamsHandler = createTeamsHandler({ getTeams: service.teams });
   return createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
