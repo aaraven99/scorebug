@@ -635,6 +635,7 @@ function createWidget() {
   widget.on('minimize', () => closeDetails({ immediate: true }));
   widget.on('will-move', (event) => {
     if (preferences.locked) event.preventDefault();
+    else if (applyingBounds) return;
     else {
       if (process.platform === 'win32') nativeMoveInProgress = true;
       if (process.platform === 'darwin') {

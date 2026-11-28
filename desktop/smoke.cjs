@@ -342,7 +342,7 @@ async function runNativeSmoke({ widget, screen, origin, getSettings, getDetails,
         for (const scale of [1.8, 0.65]) {
           for (const [anchor, side] of [['top-left', 'away'], ['top-right', 'home']]) {
             await evaluate(`window.scorebugDesktop.setPreferences({ anchor: "${anchor}", scale: ${scale} })`);
-            await pause(160); // Let the native move guard finish before opening a hover blade.
+            await pause(400); // Let programmatic bounds changes and the native move guard settle before opening a hover blade.
             const actual = widget.getBounds();
             await waitFor('Top-corner layout and resized viewport are ready', () => evaluate(`document.body.dataset.contentAlignment === "top" && innerWidth === ${actual.width} && innerHeight === ${actual.height}`), 3000);
             const layout = await readScorebugLayout({ stale: true });

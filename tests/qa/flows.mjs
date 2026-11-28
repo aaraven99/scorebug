@@ -69,6 +69,15 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
     await context.addInitScript(installMetrics);if(wakeMode)await context.addInitScript(installScreenMocks,{wakeMode,fullscreenMode});
     await observeBrowserErrors(context,{result,baseURL});
     const net={requests:[],active:0,maxActive:0,teamActive:0,teamMaxActive:0,modes:{},summaryMode:'ok',expectedFailures:new Map(),expectedImageFailures:new Map(),requestFailures:[]};
+    const settleRoute=async(route,action,options)=>{
+      try{return await route[action](options);}
+      catch(error){
+        // A poll canceled by a game/league switch may reach this handler after
+        // Playwright has already completed its route. That abort is expected.
+        if(error.message.includes('Route is already handled'))return;
+        throw error;
+      }
+    };
     context.on('requestfailed',request=>net.requestFailures.push({url:request.url(),errorText:request.failure()?.errorText,at:Date.now()}));
     context.on('page',page=>{page.setDefaultTimeout(6500);page.on('console',message=>{if(message.type()==='error'){const url=message.location().url||page.url(),at=Date.now(),category=at-(net.expectedFailures.get(url)??-Infinity)<15000?'injected-feed-failure':at-(net.expectedImageFailures.get(url)??-Infinity)<2000?'injected-image-failure':/^https:\/\/(?:a\.espncdn\.com|media\.formula1\.com)/.test(url)?'external-image-failure':'unexpected';result.consoleErrors.push({url,message:message.text(),category,at});}});});
     await context.route('**/api/**',async route=>{
@@ -78,24 +87,24 @@ export async function runFlows({browser,engine,baseURL,passes,outDir,directories
       try{
         if(kind==='teams'){
           await new Promise(resolve=>setTimeout(resolve,10));
-          if(mode==='directory-error'){net.expectedFailures.set(url.href,Date.now());return await route.fulfill({status:503,json:{error:'QA directory unavailable'}});}
-          const body=directories[leagueId]||fallbackDirectory(leagueId);return await route.fulfill({json:{...body,fetchedAt:new Date().toISOString()}});
+          if(mode==='directory-error'){net.expectedFailures.set(url.href,Date.now());return await settleRoute(route,'fulfill',{status:503,json:{error:'QA directory unavailable'}});}
+          const body=directories[leagueId]||fallbackDirectory(leagueId);return await settleRoute(route,'fulfill',{json:{...body,fetchedAt:new Date().toISOString()}});
         }
-        if(mode==='network-error'){net.expectedFailures.set(url.href,Date.now());return await route.abort('internetdisconnected');}
-        if(mode==='error'){net.expectedFailures.set(url.href,Date.now());return await route.fulfill({status:503,json:{error:'QA forced feed failure'}});}
-        if(mode==='timeout'){net.expectedFailures.set(url.href,Date.now());await new Promise(resolve=>setTimeout(resolve,10500));try{return await route.fulfill({status:503,json:{error:'QA response arrived after client timeout'}});}catch{return;}}
+        if(mode==='network-error'){net.expectedFailures.set(url.href,Date.now());return await settleRoute(route,'abort','internetdisconnected');}
+        if(mode==='error'){net.expectedFailures.set(url.href,Date.now());return await settleRoute(route,'fulfill',{status:503,json:{error:'QA forced feed failure'}});}
+        if(mode==='timeout'){net.expectedFailures.set(url.href,Date.now());await new Promise(resolve=>setTimeout(resolve,10500));return await settleRoute(route,'fulfill',{status:503,json:{error:'QA response arrived after client timeout'}});}
         if(kind==='scoreboard'){
           const body=scoreboardForLeague(leagueId,{directories});
           if(mode==='empty')body.games=[];if(mode==='stale'){body.stale=true;body.feedStatus='cached';body.fetchedAt=new Date(Date.now()-90000).toISOString();}
-          return await route.fulfill({json:body});
+          return await settleRoute(route,'fulfill',{json:body});
         }
         if(kind==='game'){
-          if(net.summaryMode==='error'){net.expectedFailures.set(url.href,Date.now());return await route.fulfill({status:503,json:{error:'QA details unavailable'}});}
+          if(net.summaryMode==='error'){net.expectedFailures.set(url.href,Date.now());return await settleRoute(route,'fulfill',{status:503,json:{error:'QA details unavailable'}});}
           const game=fixtureForLeague(leagueId,{directories});game.id=url.searchParams.get('id')||game.id;
           const body=detailsForGame(game);if(net.summaryMode==='empty'){body.teamStats=[];body.allTeamStats=[];body.playByPlay=[];}
-          return await route.fulfill({json:body});
+          return await settleRoute(route,'fulfill',{json:body});
         }
-        return await route.fulfill({status:404,json:{error:'Unexpected QA API route'}});
+        return await settleRoute(route,'fulfill',{status:404,json:{error:'Unexpected QA API route'}});
       }finally{net.active--;if(kind==='teams')net.teamActive--;}
     });
     return {context,net};
